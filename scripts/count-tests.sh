@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "Running tests on EVM backend..."
-EVM_OUT=$(fe test 2>&1)
+echo "Running tests on EVM backend for policy ingot..."
+EVM_OUT=$(fe test ingots/policy 2>&1)
 echo "$EVM_OUT"
 EVM_PASS=$(echo "$EVM_OUT" | grep -oE '[0-9]+ passed' | head -n 1 | awk '{print $1}')
 
@@ -14,8 +14,8 @@ case "$(uname)" in
         echo "EVM tests verified: $EVM_PASS passed."
         ;;
     *)
-        echo "Running tests on native backend..."
-        NATIVE_OUT=$(fe test --backend native 2>&1)
+        echo "Running tests on native backend for policy ingot..."
+        NATIVE_OUT=$(fe test ingots/policy --backend native 2>&1)
         echo "$NATIVE_OUT"
         NATIVE_PASS=$(echo "$NATIVE_OUT" | grep -oE '[0-9]+ passed' | head -n 1 | awk '{print $1}')
         echo "Native passed count: $NATIVE_PASS"

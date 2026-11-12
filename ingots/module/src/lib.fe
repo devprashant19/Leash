@@ -99,8 +99,8 @@ fn evaluate_tx(
     let op = resolve_op(operation)
     let cd = calldata_from_bytes(data)
     let tx = Tx { to, value: wei(value), data: cd, op, now }
-    let verdict = policy::rules::decide(tx, pol, st)
-    let spent_win = policy::ledger::spent_in_window(st.eth_window, now)
+    let verdict = policy::decide(tx, pol, st)
+    let spent_win = policy::spent_in_window(st.eth_window, now)
     let max_win = pol.max_per_window.as_wei()
     let rem_win = if max_win > spent_win {
         max_win - spent_win
@@ -141,9 +141,9 @@ uses (call: mut Call, log: mut Log)
         Verdict::Deny(r) => ExecOutcome::Denied(r),
         Verdict::Allow => {
             if value > 0 {
-                policy::ledger::record_spend(mut ledger.eth_window, now, value)
+                policy::record_spend(mut ledger.eth_window, now, value)
             }
-            let sel = match policy::decode::selector_of(cd) {
+            let sel = match policy::selector_of(cd) {
                 Option::Some(s) => s,
                 Option::None => 0,
             }
