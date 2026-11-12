@@ -1,0 +1,289 @@
+use ingot::config::{ADDR_TOKEN, ADDR_TREASURY, default_policy}
+use ingot::ledger::record_spend
+use ingot::rules::decide
+use ingot::types::{
+    Address,
+    AgentState,
+    Calldata,
+    DenyReason,
+    MAX_CALLDATA,
+    MAX_TARGETS,
+    MAX_TOKENS,
+    Operation,
+    Policy,
+    Timestamp,
+    Tx,
+    Verdict,
+}
+use std::evm::units::{ether, seconds, wei}
+
+#[test]
+fn test_allow_valid_eth_transfer() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    let tx = Tx {
+        to: ADDR_TREASURY,
+        value: ether(1) / 20,
+        // 0.05 ETH <= 0.1 ETH cap
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_deny_paused() {
+    let policy = default_policy()
+    var state = AgentState::empty()
+    state.paused = true
+
+    let tx = Tx {
+        to: ADDR_TREASURY,
+        value: wei(1),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::Paused => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_deny_session_expired() {
+    let policy = default_policy()
+    var state = AgentState::empty()
+    state.expiry = Timestamp::from_seconds(500)
+
+    let tx = Tx {
+        to: ADDR_TREASURY,
+        value: wei(1),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(501),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::SessionExpired => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_deny_delegatecall() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+
+    let tx = Tx {
+        to: ADDR_TREASURY,
+        value: wei(0),
+        data: Calldata::empty(),
+        op: Operation::DelegateCall,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::DelegateCallBlocked => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_deny_unlisted_target() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+
+    let unlisted = Address::new(0x8888888888888888888888888888888888888888)
+    let tx = Tx {
+        to: unlisted,
+        value: wei(1),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::TargetNotAllowed => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_deny_zero_address_target() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+
+    let tx = Tx {
+        to: Address::zero(),
+        value: wei(1),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::TargetNotAllowed => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_deny_empty_policy_denies_all() {
+    var policy = default_policy()
+    policy.n_targets = 0
+    let state = AgentState::empty()
+
+    let tx = Tx {
+        to: ADDR_TREASURY,
+        value: wei(1),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::TargetNotAllowed => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_deny_calldata_shape_and_selector() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+
+    // Plain ETH transfer to token contract (allow_eth_transfer = false) -> SelectorNotAllowed
+    let tx_eth_to_token = Tx {
+        to: ADDR_TOKEN,
+        value: wei(1),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+    match decide(tx_eth_to_token, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::SelectorNotAllowed => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+
+    // 1-3 bytes calldata -> MalformedCalldata
+    var short_buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    short_buf[0] = 0xaa
+    short_buf[1] = 0xbb
+    let tx_short = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data: Calldata { len: 2, bytes: short_buf },
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+    match decide(tx_short, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::MalformedCalldata => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+
+    // Unknown 4-byte selector -> SelectorNotAllowed
+    var unk_buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    unk_buf[0] = 0xde
+    unk_buf[1] = 0xad
+    unk_buf[2] = 0xbe
+    unk_buf[3] = 0xef
+    let tx_unk = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data: Calldata { len: 4, bytes: unk_buf },
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+    match decide(tx_unk, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::SelectorNotAllowed => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_per_tx_and_window_eth_caps() {
+    let policy = default_policy()
+    var state = AgentState::empty()
+    let now = Timestamp::from_seconds(100)
+
+    // Value = cap (0.1 ETH) -> Allowed
+    let tx_at_cap = Tx {
+        to: ADDR_TREASURY,
+        value: policy.max_per_tx,
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx_at_cap, policy, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+
+    // Value = cap + 1 wei -> PerTxCapExceeded
+    let tx_over_cap = Tx {
+        to: ADDR_TREASURY,
+        value: policy.max_per_tx + wei(1),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx_over_cap, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::PerTxCapExceeded => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+
+    // Window cap: already spent 0.45 ETH out of 0.5 ETH window cap
+    state.eth_window = record_spend(state.eth_window, now, (ether(1) * 45 / 100).as_wei())
+    // Spending 0.06 ETH -> total 0.51 ETH > 0.5 ETH cap -> WindowCapExceeded
+    let tx_window_over = Tx {
+        to: ADDR_TREASURY,
+        value: ether(1) * 6 / 100,
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx_window_over, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::WindowCapExceeded => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}

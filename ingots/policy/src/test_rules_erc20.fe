@@ -1,0 +1,143 @@
+use ingot::config::{ADDR_TOKEN, ADDR_TREASURY, default_policy}
+use ingot::ledger::U256_MAX
+use ingot::rules::decide
+use ingot::test_decode::{make_approve_calldata, make_transfer_calldata, make_transfer_from_calldata}
+use ingot::types::{AgentState, DenyReason, Operation, Timestamp, TokenAmount, Tx, Verdict}
+use std::evm::units::wei
+
+#[test]
+fn test_allow_erc20_transfer() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    let tx = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        // 50 tokens <= 100 token cap
+        data: make_transfer_calldata(to: ADDR_TREASURY, amt: 50_000_000_000_000_000_000),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_deny_erc20_transfer_over_cap() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    let tx = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        // 101 tokens > 100 token cap
+        data: make_transfer_calldata(to: ADDR_TREASURY, amt: 101_000_000_000_000_000_000),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::TokenCapExceeded => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_erc20_approval_hygiene() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(100)
+
+    // 1. approve(spender, 0) is ALWAYS allowed (revocation)
+    let tx_revoke = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data: make_approve_calldata(spender: ADDR_TREASURY, amt: 0),
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx_revoke, policy, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+
+    // 2. approve within cap (50 tokens <= 100 token cap)
+    let tx_valid = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data: make_approve_calldata(spender: ADDR_TREASURY, amt: 50_000_000_000_000_000_000),
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx_valid, policy, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+
+    // 3. approve(spender, type(uint256).max) -> UnlimitedApproval
+    let tx_unlimited = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data: make_approve_calldata(spender: ADDR_TREASURY, amt: U256_MAX),
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx_unlimited, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::UnlimitedApproval => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+
+    // 4. approve > max_approve (101 tokens > 100 token cap) -> UnlimitedApproval
+    let tx_over_approve = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data: make_approve_calldata(spender: ADDR_TREASURY, amt: 101_000_000_000_000_000_000),
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx_over_approve, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::UnlimitedApproval => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_erc20_malformed_calldata_denied() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(100)
+
+    // Truncated length (67 bytes)
+    var data_short = make_transfer_calldata(to: ADDR_TREASURY, amt: 1000)
+    data_short.len = 67
+    let tx_short = Tx { to: ADDR_TOKEN, value: wei(0), data: data_short, op: Operation::Call, now }
+    match decide(tx_short, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::MalformedCalldata => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+
+    // Extra bytes (69 bytes)
+    var data_long = make_transfer_calldata(to: ADDR_TREASURY, amt: 1000)
+    data_long.len = 69
+    let tx_long = Tx { to: ADDR_TOKEN, value: wei(0), data: data_long, op: Operation::Call, now }
+    match decide(tx_long, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::MalformedCalldata => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}

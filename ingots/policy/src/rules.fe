@@ -1,0 +1,285 @@
+use ingot::decode::{Erc20Call, decode_erc20, selector_of}
+use ingot::ledger::{U256_MAX, checked_add_saturate, spent_in_window}
+use ingot::types::{
+    Address,
+    AgentState,
+    DenyReason,
+    Operation,
+    Policy,
+    TargetKind,
+    TargetRule,
+    TokenRule,
+    Tx,
+    Verdict,
+}
+
+fn check_paused(state: AgentState) -> Option<DenyReason> {
+    if state.paused {
+        Option::Some(DenyReason::Paused)
+    } else {
+        Option::None
+    }
+}
+
+fn check_circuit_tripped(state: AgentState) -> Option<DenyReason> {
+    if state.tripped {
+        Option::Some(DenyReason::CircuitTripped)
+    } else {
+        Option::None
+    }
+}
+
+fn check_session_expired(tx: Tx, state: AgentState) -> Option<DenyReason> {
+    if state.expiry.as_seconds() > 0 {
+        if tx.now >= state.expiry {
+            return Option::Some(DenyReason::SessionExpired)
+        }
+    }
+    Option::None
+}
+
+fn check_cooldown(tx: Tx, policy: Policy, state: AgentState) -> Option<DenyReason> {
+    if policy.cooldown.as_seconds() > 0 {
+        if state.last_action.as_seconds() > 0 {
+            if tx.now < state.last_action + policy.cooldown {
+                return Option::Some(DenyReason::CooldownActive)
+            }
+        }
+    }
+    Option::None
+}
+
+fn find_target(to: Address, policy: Policy) -> Option<TargetRule> {
+    if to == Address::zero() {
+        return Option::None
+    }
+    var i: usize = 0
+    while i < (policy.n_targets as usize) {
+        if policy.targets[i].target == to {
+            return Option::Some(policy.targets[i])
+        }
+        i += 1
+    }
+    Option::None
+}
+
+fn check_selector_and_calldata(tx: Tx, target: TargetRule) -> Option<DenyReason> {
+    if tx.data.len == 0 {
+        if target.allow_eth_transfer {
+            Option::None
+        } else {
+            Option::Some(DenyReason::SelectorNotAllowed)
+        }
+    } else if tx.data.len < 4 {
+        Option::Some(DenyReason::MalformedCalldata)
+    } else {
+        let sel = match selector_of(tx.data) {
+            Option::Some(s) => s,
+            Option::None => {
+                return Option::Some(DenyReason::MalformedCalldata)
+            },
+        }
+        var found = false
+        var i: usize = 0
+        while i < (target.n_selectors as usize) {
+            if target.selectors[i] == sel {
+                found = true
+                break
+            }
+            i += 1
+        }
+        if found {
+            Option::None
+        } else {
+            Option::Some(DenyReason::SelectorNotAllowed)
+        }
+    }
+}
+
+fn check_rate_limit(tx: Tx, policy: Policy, state: AgentState) -> Option<DenyReason> {
+    if policy.max_actions_per_window > 0 {
+        let spent = spent_in_window(state.action_window, tx.now)
+        if spent >= (policy.max_actions_per_window as u256) {
+            return Option::Some(DenyReason::RateLimited)
+        }
+    }
+    Option::None
+}
+
+fn check_per_tx_cap(tx: Tx, policy: Policy) -> Option<DenyReason> {
+    if tx.value > policy.max_per_tx {
+        Option::Some(DenyReason::PerTxCapExceeded)
+    } else {
+        Option::None
+    }
+}
+
+fn check_window_cap(tx: Tx, policy: Policy, state: AgentState) -> Option<DenyReason> {
+    let spent = spent_in_window(state.eth_window, tx.now)
+    let total = checked_add_saturate(spent, tx.value.as_wei())
+    if total > policy.max_per_window.as_wei() {
+        Option::Some(DenyReason::WindowCapExceeded)
+    } else {
+        Option::None
+    }
+}
+
+fn find_token_rule(token: Address, policy: Policy) -> Option<TokenRule> {
+    var i: usize = 0
+    while i < (policy.n_tokens as usize) {
+        if policy.tokens[i].token == token {
+            return Option::Some(policy.tokens[i])
+        }
+        i += 1
+    }
+    Option::None
+}
+
+fn check_erc20_guard(tx: Tx, policy: Policy, state: AgentState) -> Option<DenyReason> {
+    let token_rule = match find_token_rule(token: tx.to, policy) {
+        Option::Some(tr) => tr,
+        Option::None => {
+            return Option::Some(DenyReason::TokenCapExceeded)
+        },
+    }
+
+    match decode_erc20(tx.data) {
+        Erc20Call::Malformed => Option::Some(DenyReason::MalformedCalldata),
+        Erc20Call::Unknown => Option::Some(DenyReason::SelectorNotAllowed),
+        Erc20Call::Transfer(to, amt) => {
+            if policy.n_recipients > 0 {
+                var recipient_ok = false
+                var r: usize = 0
+                while r < (policy.n_recipients as usize) {
+                    if policy.recipients[r] == to {
+                        recipient_ok = true
+                        break
+                    }
+                    r += 1
+                }
+                if !recipient_ok {
+                    return Option::Some(DenyReason::RecipientNotAllowed)
+                }
+            }
+            if amt > token_rule.max_per_tx.as_u256() {
+                Option::Some(DenyReason::TokenCapExceeded)
+            } else {
+                Option::None
+            }
+        },
+        Erc20Call::TransferFrom(_from, to, amt) => {
+            if policy.n_recipients > 0 {
+                var recipient_ok = false
+                var r: usize = 0
+                while r < (policy.n_recipients as usize) {
+                    if policy.recipients[r] == to {
+                        recipient_ok = true
+                        break
+                    }
+                    r += 1
+                }
+                if !recipient_ok {
+                    return Option::Some(DenyReason::RecipientNotAllowed)
+                }
+            }
+            if amt > token_rule.max_per_tx.as_u256() {
+                Option::Some(DenyReason::TokenCapExceeded)
+            } else {
+                Option::None
+            }
+        },
+        Erc20Call::Approve(_spender, amt) => {
+            if amt == 0 {
+                Option::None
+            } else if amt == U256_MAX {
+                Option::Some(DenyReason::UnlimitedApproval)
+            } else if amt > token_rule.max_approve.as_u256() {
+                Option::Some(DenyReason::UnlimitedApproval)
+            } else {
+                Option::None
+            }
+        },
+    }
+}
+
+pub fn decide(_ tx: Tx, _ policy: Policy, _ state: AgentState) -> Verdict {
+    // 1. Paused
+    if let Option::Some(reason) = check_paused(state) {
+        return Verdict::Deny(reason)
+    }
+
+    // 2. CircuitTripped
+    if let Option::Some(reason) = check_circuit_tripped(state) {
+        return Verdict::Deny(reason)
+    }
+
+    // 3. SessionExpired
+    if let Option::Some(reason) = check_session_expired(tx, state) {
+        return Verdict::Deny(reason)
+    }
+
+    // 4. CooldownActive
+    if let Option::Some(reason) = check_cooldown(tx, policy, state) {
+        return Verdict::Deny(reason)
+    }
+
+    // Target lookup
+    let target_opt = find_target(to: tx.to, policy)
+
+    // 5. DelegateCallBlocked (Rule 6 in A12)
+    match tx.op {
+        Operation::DelegateCall => {
+            match target_opt {
+                Option::Some(target) => {
+                    if !target.delegate_ok {
+                        return Verdict::Deny(DenyReason::DelegateCallBlocked)
+                    }
+                },
+                Option::None => {
+                    return Verdict::Deny(DenyReason::DelegateCallBlocked)
+                },
+            }
+        },
+        Operation::Call => {},
+    }
+
+    // 6. TargetNotAllowed (Rule 7 in A12)
+    let target = match target_opt {
+        Option::Some(t) => t,
+        Option::None => {
+            return Verdict::Deny(DenyReason::TargetNotAllowed)
+        },
+    }
+
+    // 7. Selector and Calldata Shape (Rule 8 in A12)
+    if let Option::Some(reason) = check_selector_and_calldata(tx, target) {
+        return Verdict::Deny(reason)
+    }
+
+    // 8. RateLimited (Rule 9 in A12)
+    if let Option::Some(reason) = check_rate_limit(tx, policy, state) {
+        return Verdict::Deny(reason)
+    }
+
+    // 9. PerTxCapExceeded (Rule 10 in A12)
+    if let Option::Some(reason) = check_per_tx_cap(tx, policy) {
+        return Verdict::Deny(reason)
+    }
+
+    // 10. WindowCapExceeded (Rule 11 in A12)
+    if let Option::Some(reason) = check_window_cap(tx, policy, state) {
+        return Verdict::Deny(reason)
+    }
+
+    // 11. Target protocol guard (Rule 12 in A12)
+    match target.kind {
+        TargetKind::Erc20 => {
+            if let Option::Some(reason) = check_erc20_guard(tx, policy, state) {
+                return Verdict::Deny(reason)
+            }
+        },
+        _ => {},
+    }
+
+    Verdict::Allow
+}

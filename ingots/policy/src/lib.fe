@@ -5,10 +5,14 @@ pub use types::*
 pub use config::*
 pub use decode::*
 pub use ledger::*
+pub use rules::decide
 
 use test_types::*
 use test_decode::*
 use test_ledger::*
+use test_rules_basic::*
+use test_rules_erc20::*
+use test_rule_order::*
 
 pub fn version() -> u32 {
     1

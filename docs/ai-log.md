@@ -83,5 +83,12 @@ Wrote out/cli.native.sona
 - **What**: Implemented Window24 hourly bucket calculations (bucket_index_of, spent_in_window with saturation on overflow, record_spend with slot rollover and stale bucket overwrite, pure record updating ETH/token/action windows, and record_denial). Verified exact 24h rollover boundary, 25h full reset, and spend recording.
 - **Reviewed by human**: pending confirmation.
 
+## 2026-11-13 — Phase 1 — Rules Engine and Pure Decide (T2-T9)
+- **AI-assisted**: yes (Antigravity).
+- **Files**: `ingots/policy/src/rules.fe`, `ingots/policy/src/test_rules_basic.fe`, `ingots/policy/src/test_rules_erc20.fe`, `ingots/policy/src/test_rule_order.fe`, `ingots/policy/src/lib.fe`.
+- **What**: Implemented pure `decide` with strict A12 rule precedence (Paused -> CircuitTripped -> SessionExpired -> CooldownActive -> DelegateCallBlocked -> TargetNotAllowed -> Calldata/Selector -> RateLimited -> PerTxCap -> WindowCap -> ERC-20 Guard). Added comprehensive unit tests for basic rules, ERC-20 approval/transfer limits, and multi-violation rule order precedence tests.
+- **Reviewed by human**: pending confirmation.
+
+
 
 

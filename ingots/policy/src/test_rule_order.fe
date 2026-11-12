@@ -1,0 +1,79 @@
+use ingot::config::{ADDR_TREASURY, default_policy}
+use ingot::rules::decide
+use ingot::types::{Address, AgentState, Calldata, DenyReason, Operation, Timestamp, Tx, Verdict}
+use std::evm::units::{ether, wei}
+
+#[test]
+fn test_order_delegatecall_beats_unlisted_target_and_cap() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    let unlisted = Address::new(0x9999999999999999999999999999999999999999)
+
+    // Violates: 1) DelegateCallBlocked, 2) TargetNotAllowed, 3) PerTxCapExceeded
+    let tx = Tx {
+        to: unlisted,
+        value: ether(100),
+        // > 0.1 ETH cap
+        data: Calldata::empty(),
+        op: Operation::DelegateCall,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::DelegateCallBlocked => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_order_paused_beats_delegatecall_and_unlisted() {
+    let policy = default_policy()
+    var state = AgentState::empty()
+    state.paused = true
+    let unlisted = Address::new(0x9999999999999999999999999999999999999999)
+
+    // Violates: 1) Paused, 2) DelegateCallBlocked, 3) TargetNotAllowed
+    let tx = Tx {
+        to: unlisted,
+        value: wei(0),
+        data: Calldata::empty(),
+        op: Operation::DelegateCall,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::Paused => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_order_unlisted_target_beats_per_tx_cap() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    let unlisted = Address::new(0x8888888888888888888888888888888888888888)
+
+    // Violates: 1) TargetNotAllowed, 2) PerTxCapExceeded
+    let tx = Tx {
+        to: unlisted,
+        value: ether(10),
+        // > 0.1 ETH cap
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::TargetNotAllowed => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
