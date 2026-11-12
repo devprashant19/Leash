@@ -1,0 +1,176 @@
+use policy::{
+    AgentState,
+    Bucket,
+    Policy,
+    Timestamp,
+    Tx,
+    Verdict,
+    Window24,
+    decide,
+    decode_state,
+    default_policy,
+    encode_state,
+    record,
+    record_denial,
+    seconds,
+    spent_in_window,
+    verdict_code,
+}
+use testkit::{
+    SplitMix64,
+    gen_tx,
+    parity_policy,
+    rng_next_pct,
+    rng_next_range,
+    rng_next_u64,
+}
+
+#[test]
+pub fn test_property_window_safety() {
+    var rng = SplitMix64::new(seed: 0x50524F5001)
+    let pol = parity_policy()
+    var state = AgentState::empty()
+    state.expiry = Timestamp::from_seconds(2_000_000_000)
+
+    var prev_now: u256 = 1_763_000_000
+    var consecutive_denials: u32 = 0
+
+    var i: u32 = 1
+    while i <= 500 {
+        if state.tripped {
+            if i % 5 == 0 {
+                state.tripped = false
+                consecutive_denials = 0
+            }
+        }
+
+        let tx = gen_tx(rng: mut rng, pol, prev_now)
+        prev_now = tx.now.as_seconds()
+
+        let verdict = decide(tx, pol, state)
+        let code = verdict_code(verdict)
+
+        if code == 0 {
+            record(tx, pol, state: mut state)
+            consecutive_denials = 0
+
+            // Invariant: ETH spent in window never exceeds max_per_window
+            let eth_spent = spent_in_window(state.eth_window, tx.now)
+            assert(eth_spent <= pol.max_per_window.as_wei())
+
+            // Invariant: Action count in window never exceeds max_actions_per_window
+            if pol.max_actions_per_window > 0 {
+                let act_count = spent_in_window(state.action_window, tx.now)
+                assert(act_count <= (pol.max_actions_per_window as u256))
+            }
+        } else {
+            record_denial(tx.now, state: mut state)
+            consecutive_denials += 1
+            if pol.breaker_threshold > 0 {
+                if consecutive_denials >= pol.breaker_threshold {
+                    state.tripped = true
+                }
+            }
+        }
+        i += 1
+    }
+}
+
+#[test]
+pub fn test_property_denied_no_spending_change() {
+    var rng = SplitMix64::new(seed: 0x50524F5002)
+    let pol = parity_policy()
+    var state = AgentState::empty()
+    state.expiry = Timestamp::from_seconds(2_000_000_000)
+
+    var prev_now: u256 = 1_763_000_000
+    var denials_tested: u32 = 0
+
+    var i: u32 = 1
+    while i <= 500 {
+        let tx = gen_tx(rng: mut rng, pol, prev_now)
+        prev_now = tx.now.as_seconds()
+
+        let verdict = decide(tx, pol, state)
+        let code = verdict_code(verdict)
+
+        if code != 0 {
+            // Snapshot spending values before denial
+            let eth_before = spent_in_window(state.eth_window, tx.now)
+            let act_before = spent_in_window(state.action_window, tx.now)
+
+            // Calling record_denial should NOT change any spending window
+            record_denial(tx.now, state: mut state)
+
+            let eth_after = spent_in_window(state.eth_window, tx.now)
+            let act_after = spent_in_window(state.action_window, tx.now)
+
+            assert(eth_before == eth_after)
+            assert(act_before == act_after)
+
+            denials_tested += 1
+        } else {
+            record(tx, pol, state: mut state)
+        }
+        i += 1
+    }
+    assert(denials_tested > 100)
+}
+
+#[test]
+pub fn test_property_determinism() {
+    var rng = SplitMix64::new(seed: 0x50524F5003)
+    let pol = parity_policy()
+    var state = AgentState::empty()
+    state.expiry = Timestamp::from_seconds(2_000_000_000)
+
+    var prev_now: u256 = 1_763_000_000
+
+    var i: u32 = 1
+    while i <= 500 {
+        let tx = gen_tx(rng: mut rng, pol, prev_now)
+        prev_now = tx.now.as_seconds()
+
+        let v1 = decide(tx, pol, state)
+        let v2 = decide(tx, pol, state)
+
+        assert(verdict_code(v1) == verdict_code(v2))
+
+        if verdict_code(v1) == 0 {
+            record(tx, pol, state: mut state)
+        }
+        i += 1
+    }
+}
+
+#[test]
+pub fn test_property_encoding_roundtrip() {
+    var rng = SplitMix64::new(seed: 0x50524F5004)
+
+    var i: u32 = 1
+    while i <= 500 {
+        var s = AgentState::empty()
+        let roll_paused = rng_next_pct(rng: mut rng)
+        s.paused = roll_paused < 50
+        let roll_tripped = rng_next_pct(rng: mut rng)
+        s.tripped = roll_tripped < 50
+        s.expiry = Timestamp::from_seconds(rng_next_range(rng: mut rng, min: 1_000_000, max: 2_000_000_000))
+        s.last_action = Timestamp::from_seconds(rng_next_range(rng: mut rng, min: 1_000_000, max: 2_000_000_000))
+
+        let b_idx: u64 = rng_next_u64(rng: mut rng)
+        let b_amt: u256 = rng_next_range(rng: mut rng, min: 0, max: 1000000000)
+        s.eth_window.buckets[0] = Bucket { index: b_idx, amount: b_amt }
+
+        let encoded = encode_state(s)
+        let decoded = decode_state(encoded)
+
+        assert(decoded.paused == s.paused)
+        assert(decoded.tripped == s.tripped)
+        assert(decoded.expiry == s.expiry)
+        assert(decoded.last_action == s.last_action)
+        assert(decoded.eth_window.buckets[0].index == s.eth_window.buckets[0].index)
+        assert(decoded.eth_window.buckets[0].amount == s.eth_window.buckets[0].amount)
+
+        i += 1
+    }
+}

@@ -7,4 +7,5 @@ members = [
   "ingots/cli",
   "ingots/testkit",
   "test/parity",
+  "test/policy",
 ]
