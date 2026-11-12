@@ -15,6 +15,8 @@ pub struct AgentConfig {
     pub max_per_tx: Wei,
     pub max_per_window: Wei,
     pub custom_fingerprint: u256,
+    pub tripped: bool,
+    pub denials: u32,
 }
 impl Copy for AgentConfig {}
 impl Snapshot for AgentConfig {}
@@ -64,6 +66,8 @@ pub msg LeashMsg {
     Fingerprint -> u256,
     #[selector = sol("fingerprintOf(address)")]
     FingerprintOf { agent: Address } -> u256,
+    #[selector = sol("resetBreaker(address)")]
+    ResetBreaker { agent: Address },
 }
 
 pub enum ExecOutcome {
@@ -97,7 +101,7 @@ fn evaluate_tx(
     let pol = policy::config::policy_for_agent(cfg.max_per_tx, cfg.max_per_window)
     let st = AgentState {
         paused,
-        tripped: false,
+        tripped: cfg.tripped,
         expiry: cfg.expiry,
         eth_window: ledger.eth_window,
         last_action: Timestamp::from_seconds(0),
@@ -208,6 +212,8 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
                         max_per_tx: Wei::zero(),
                         max_per_window: Wei::zero(),
                         custom_fingerprint: 0,
+                        tripped: false,
+                        denials: 0,
                     },
                 )
             log.emit(AgentSet { agent, expiry })
@@ -261,6 +267,17 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             } else {
                 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee
             }
+        }
+
+        ResetBreaker { agent } uses (ctx, safe, mut agents, mut log) {
+            if ctx.caller() != safe {
+                revert_error(NotSafe {})
+            }
+            var cfg = agents.get(key: agent)
+            cfg.tripped = false
+            cfg.denials = 0
+            agents.set(key: agent, value: cfg)
+            log.emit(CircuitResetEvent { agent })
         }
 
         State { agent } -> [u256; 52] uses (agents, ledgers, paused) {
@@ -318,6 +335,10 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
                 locked = false
                 revert_error(NotAgent {})
             }
+            if cfg.tripped {
+                locked = false
+                revert_error(CircuitTripped {})
+            }
 
             let now = ctx.timestamp()
             var ledger = ledgers.get(key: agent)
@@ -347,7 +368,7 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
         }
 
         TryExecute { to, value, data, operation } -> (bool, u8)
-        uses (ctx, safe, mut call, mut log, paused, mut locked, agents, mut ledgers)
+        uses (ctx, safe, mut call, mut log, paused, mut locked, mut agents, mut ledgers)
         {
             if locked {
                 revert_error(Reentrant {})
@@ -355,10 +376,14 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             locked = true
 
             let agent = ctx.caller()
-            let cfg = agents.get(key: agent)
+            var cfg = agents.get(key: agent)
             if !cfg.active {
                 locked = false
                 revert_error(NotAgent {})
+            }
+            if cfg.tripped {
+                locked = false
+                return (false, 15)
             }
 
             let now = ctx.timestamp()
@@ -380,6 +405,12 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             match outcome {
                 ExecOutcome::Denied(r) => {
                     let code = policy::reason_code(r)
+                    cfg.denials += 1
+                    if cfg.denials >= 3 {
+                        cfg.tripped = true
+                        log.emit(CircuitTrippedEvent { agent })
+                    }
+                    agents.set(key: agent, value: cfg)
                     log.emit(Denied { agent, target: to, code })
                     (false, code)
                 },

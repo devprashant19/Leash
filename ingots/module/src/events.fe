@@ -46,3 +46,15 @@ pub struct GuardianSet {
     #[indexed]
     pub guardian: Address,
 }
+
+#[event]
+pub struct CircuitTrippedEvent {
+    #[indexed]
+    pub agent: Address,
+}
+
+#[event]
+pub struct CircuitResetEvent {
+    #[indexed]
+    pub agent: Address,
+}

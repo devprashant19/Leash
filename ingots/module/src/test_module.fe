@@ -731,3 +731,122 @@ fn test_per_agent_policies_isolation() uses (evm: mut Evm) {
     assert(ok_3)
     assert(code_3 == 0)
 }
+
+#[cfg(target = "evm")]
+#[test]
+fn test_circuit_breaker_trips_and_resets() uses (evm: mut Evm) {
+    let agent = evm.address()
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::EnableModule { module_addr },
+    )
+    evm.call(
+        addr: safe,
+        gas: 500000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent,
+            expiry: Timestamp::from_seconds(9999999999),
+            label: 1,
+        },
+    )
+
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+    let bad_target = Address::new(0xdead000000000000000000000000000000000000)
+
+    // Denial #1 (TargetNotAllowed = 4)
+    let (ok_1, code_1): (bool, u8) = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::TryExecute {
+                to: bad_target,
+                value: 0,
+                data: empty_data.clone(),
+                operation: 0,
+            },
+        )
+    assert(!ok_1)
+    assert(code_1 == 4)
+
+    // Denial #2 (TargetNotAllowed = 4)
+    let (ok_2, code_2): (bool, u8) = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::TryExecute {
+                to: bad_target,
+                value: 0,
+                data: empty_data.clone(),
+                operation: 0,
+            },
+        )
+    assert(!ok_2)
+    assert(code_2 == 4)
+
+    // Denial #3 (TargetNotAllowed = 4) -> Trips the breaker!
+    let (ok_3, code_3): (bool, u8) = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::TryExecute {
+                to: bad_target,
+                value: 0,
+                data: empty_data.clone(),
+                operation: 0,
+            },
+        )
+    assert(!ok_3)
+    assert(code_3 == 4)
+
+    // Next transaction: even a valid transaction to ADDR_TREASURY is denied with CircuitTripped (15)!
+    let (ok_4, code_4): (bool, u8) = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::TryExecute {
+                to: ADDR_TREASURY,
+                value: 1_000_000_000_000_000,
+                data: empty_data.clone(),
+                operation: 0,
+            },
+        )
+    assert(!ok_4)
+    assert(code_4 == 15) // CircuitTripped = 15
+
+    // Safe resets the breaker
+    evm.call(
+        addr: safe,
+        gas: 500000,
+        value: Wei::zero(),
+        message: SafeMsg::ResetBreakerOn { module_addr, agent },
+    )
+
+    // Valid transaction is now ALLOWED!
+    let (ok_5, code_5): (bool, u8) = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::TryExecute {
+                to: ADDR_TREASURY,
+                value: 1_000_000_000_000_000,
+                data: empty_data,
+                operation: 0,
+            },
+        )
+    assert(ok_5)
+    assert(code_5 == 0)
+}

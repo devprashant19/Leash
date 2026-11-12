@@ -43,6 +43,8 @@ pub msg SafeMsg {
     UnpauseOn { module_addr: Address },
     #[selector = sol("revokeAgentOn(address,address)")]
     RevokeAgentOn { module_addr: Address, agent: Address },
+    #[selector = sol("resetBreakerOn(address,address)")]
+    ResetBreakerOn { module_addr: Address, agent: Address },
 }
 
 pub msg ModuleAdminMsg {
@@ -59,6 +61,8 @@ pub msg ModuleAdminMsg {
     Unpause,
     #[selector = sol("revokeAgent(address)")]
     RevokeAgent { agent: Address },
+    #[selector = sol("resetBreaker(address)")]
+    ResetBreaker { agent: Address },
 }
 
 pub contract MockSafe uses (ctx: Ctx, call: mut Call) {
@@ -188,6 +192,15 @@ pub contract MockSafe uses (ctx: Ctx, call: mut Call) {
                 gas: 500000,
                 value: Wei::zero(),
                 message: ModuleAdminMsg::RevokeAgent { agent },
+            )
+        }
+
+        ResetBreakerOn { module_addr, agent } uses (mut call) {
+            call.call(
+                addr: module_addr,
+                gas: 500000,
+                value: Wei::zero(),
+                message: ModuleAdminMsg::ResetBreaker { agent },
             )
         }
     }
