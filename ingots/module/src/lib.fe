@@ -50,17 +50,22 @@ pub msg LeashMsg {
     Fingerprint -> u256,
 }
 
-fn make_agent_state(_ paused: bool, _ expiry: Timestamp, _ ledger: ref AgentLedger) -> AgentState {
-    var st = AgentState::empty()
-    st.paused = paused
-    st.expiry = expiry
-    st.eth_window = ledger.eth_window
-    st
-}
-
 pub enum ExecOutcome {
     Success,
     Denied(policy::DenyReason),
+}
+
+fn extract_selector(_ data: ref Bytes) -> u32 {
+    if data.len() < 4 {
+        0
+    } else {
+        let span = data.span()
+        let b0: u32 = span.byte_at(0) as u32
+        let b1: u32 = span.byte_at(1) as u32
+        let b2: u32 = span.byte_at(2) as u32
+        let b3: u32 = span.byte_at(3) as u32
+        (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
+    }
 }
 
 fn evaluate_tx(
@@ -72,23 +77,20 @@ fn evaluate_tx(
     _ expiry: Timestamp,
     _ ledger: ref AgentLedger,
     _ now: Timestamp,
-) -> (Verdict, Calldata, u256, u256) {
+) -> Verdict {
     let pol = policy::config::default_policy()
-    var st = make_agent_state(paused, expiry, ledger)
+    let st = AgentState {
+        paused,
+        tripped: false,
+        expiry,
+        eth_window: ledger.eth_window,
+        last_action: Timestamp::from_seconds(0),
+        action_window: Window24::empty(),
+    }
     let op = resolve_op(operation)
     let cd = policy::calldata_from_bytes(data)
     let tx = Tx { to, value: wei(value), data: cd, op, now }
-    let verdict = policy::decide(tx, pol, st)
-    let spent_win = policy::spent_in_window(st.eth_window, now)
-    let max_win = pol.max_per_window.as_wei()
-    let rem_win = if max_win > spent_win {
-        max_win - spent_win
-    } else {
-        0
-    }
-    let max_tx = pol.max_per_tx.as_wei()
-    let rem_tx = if max_tx > value { max_tx - value } else { 0 }
-    (verdict, cd, rem_tx, rem_win)
+    policy::decide(tx, pol, st)
 }
 
 fn execute_tx(
@@ -105,7 +107,7 @@ fn execute_tx(
 ) -> ExecOutcome
 uses (call: mut Call, log: mut Log)
 {
-    let (verdict, cd, _rem_tx, _rem_win) = evaluate_tx(
+    let verdict = evaluate_tx(
         to,
         value,
         data,
@@ -122,10 +124,7 @@ uses (call: mut Call, log: mut Log)
             if value > 0 {
                 policy::record_spend(mut ledger.eth_window, now, value)
             }
-            let sel = match policy::selector_of(cd) {
-                Option::Some(s) => s,
-                Option::None => 0,
-            }
+            let sel = extract_selector(data)
             log.emit(Allowed { agent, target: to, value, selector: sel })
             let success: bool = call
                 .call(
@@ -230,7 +229,14 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
         State { agent } -> [u256; 52] uses (agents, ledgers, paused) {
             let cfg = agents.get(key: agent)
             let ledger = ledgers.get(key: agent)
-            var st = make_agent_state(paused, cfg.expiry, ledger)
+            let st = AgentState {
+                paused,
+                tripped: false,
+                expiry: cfg.expiry,
+                eth_window: ledger.eth_window,
+                last_action: Timestamp::from_seconds(0),
+                action_window: Window24::empty(),
+            }
             policy::encoding::encode_state(st)
         }
 
@@ -243,7 +249,7 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
                 return (policy::reason_code(policy::DenyReason::SessionExpired), 0, 0)
             }
             let ledger = ledgers.get(key: agent)
-            let (verdict, _cd, rem_tx, rem_win) = evaluate_tx(
+            let verdict = evaluate_tx(
                 to,
                 value,
                 data,
@@ -253,10 +259,21 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
                 ledger,
                 now,
             )
-            match verdict {
-                Verdict::Allow => (0, rem_tx, rem_win),
-                Verdict::Deny(r) => (policy::reason_code(r), rem_tx, rem_win),
+            let pol = policy::config::default_policy()
+            let spent_win = policy::spent_in_window(ledger.eth_window, now)
+            let max_win = pol.max_per_window.as_wei()
+            let rem_win = if max_win > spent_win {
+                max_win - spent_win
+            } else {
+                0
             }
+            let max_tx = pol.max_per_tx.as_wei()
+            let rem_tx = if max_tx > value { max_tx - value } else { 0 }
+            let code = match verdict {
+                Verdict::Allow => 0,
+                Verdict::Deny(r) => policy::reason_code(r),
+            }
+            (code, rem_tx, rem_win)
         }
 
         Execute { to, value, data, operation } -> bool

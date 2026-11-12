@@ -54,6 +54,7 @@ pub fn record(_ tx: ref Tx, _ policy: ref Policy, _ state: mut AgentState) {
     if tx.value.as_wei() > 0 {
         record_spend(mut state.eth_window, tx.now, tx.value.as_wei())
     }
+    record_spend(mut state.action_window, tx.now, 1)
     state.last_action = tx.now
 }
 

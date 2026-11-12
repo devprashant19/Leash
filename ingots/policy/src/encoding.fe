@@ -160,7 +160,14 @@ pub fn decode_state(_ words: [u256; STATE_WORDS]) -> AgentState {
     let last_action = Timestamp::from_seconds(words[idx])
     idx += 1
 
-    AgentState { paused, tripped, expiry, eth_window: eth_win, last_action }
+    AgentState {
+        paused,
+        tripped,
+        expiry,
+        eth_window: eth_win,
+        last_action,
+        action_window: Window24::empty(),
+    }
 }
 
 pub fn decode_state_bytes(_ b: ref core::Bytes) -> Option<AgentState> {

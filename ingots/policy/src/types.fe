@@ -283,6 +283,7 @@ pub struct AgentState {
     pub expiry: Timestamp,
     pub eth_window: Window24,
     pub last_action: Timestamp,
+    pub action_window: Window24,
 }
 
 impl Copy for AgentState {}
@@ -296,6 +297,7 @@ impl AgentState {
             expiry: Timestamp::from_seconds(0),
             eth_window: Window24::empty(),
             last_action: Timestamp::from_seconds(0),
+            action_window: Window24::empty(),
         }
     }
 }

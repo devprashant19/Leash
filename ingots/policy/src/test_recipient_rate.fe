@@ -1,0 +1,140 @@
+use ingot::config::{ADDR_TOKEN, ADDR_TREASURY, default_policy}
+use ingot::ledger::{record, record_spend}
+use ingot::rules::decide
+use ingot::test_decode::{make_approve_calldata, make_transfer_calldata}
+use ingot::types::{Address, AgentState, DenyReason, Operation, Timestamp, Tx, Verdict}
+use std::evm::units::{hours, seconds, wei}
+
+#[test]
+fn test_erc20_recipient_allowlist_transfer() {
+    var pol = default_policy()
+    // Configure recipients: TREASURY only
+    pol.n_recipients = 1
+    pol.recipients[0] = ADDR_TREASURY
+
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(1000)
+
+    // Transfer to TREASURY -> Allowed
+    let tx_ok = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data: make_transfer_calldata(to: ADDR_TREASURY, amt: 10),
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx_ok, pol, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+
+    // Transfer to unlisted attacker -> Denied RecipientNotAllowed
+    let attacker = Address::new(0x9999999999999999999999999999999999999999)
+    let tx_bad = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data: make_transfer_calldata(to: attacker, amt: 10),
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx_bad, pol, state) {
+        Verdict::Deny(r) => match r {
+            DenyReason::RecipientNotAllowed => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_erc20_spender_attack_denied() {
+    var pol = default_policy()
+    pol.n_recipients = 1
+    pol.recipients[0] = ADDR_TREASURY
+
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(1000)
+    let attacker = Address::new(0x9999999999999999999999999999999999999999)
+
+    // Approve to attacker -> Denied RecipientNotAllowed (even if within cap)
+    let tx_bad_approve = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data: make_approve_calldata(spender: attacker, amt: 50),
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx_bad_approve, pol, state) {
+        Verdict::Deny(r) => match r {
+            DenyReason::RecipientNotAllowed => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+
+    // Exception: approve 0 (revoke) to attacker is ALWAYS allowed
+    let tx_revoke = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data: make_approve_calldata(spender: attacker, amt: 0),
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx_revoke, pol, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_rate_limiting_actions_per_window() {
+    var pol = default_policy()
+    pol.max_actions_per_window = 2 // max 2 actions per 24h
+
+    var state = AgentState::empty()
+    let now = Timestamp::from_seconds(1000)
+
+    let tx = Tx {
+        to: ADDR_TREASURY,
+        value: wei(1000),
+        data: ingot::types::Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+
+    // Action 1: Allowed
+    match decide(tx, pol, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+    record(tx, pol, mut state)
+
+    // Action 2: Allowed
+    match decide(tx, pol, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+    record(tx, pol, mut state)
+
+    // Action 3: Denied RateLimited
+    match decide(tx, pol, state) {
+        Verdict::Deny(r) => match r {
+            DenyReason::RateLimited => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+
+    // After 25 hours (window rollover): Action 3 is now allowed
+    let future_tx = Tx {
+        to: ADDR_TREASURY,
+        value: wei(1000),
+        data: ingot::types::Calldata::empty(),
+        op: Operation::Call,
+        now: now + hours(25),
+    }
+    match decide(future_tx, pol, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+}

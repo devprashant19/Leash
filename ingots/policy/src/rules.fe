@@ -101,6 +101,12 @@ fn check_selector_and_calldata(_ tx: ref Tx, _ target: ref TargetRule) -> Option
 fn check_rate_limit(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
     DenyReason,
 > {
+    if policy.max_actions_per_window > 0 {
+        let count = spent_in_window(state.action_window, tx.now)
+        if count + 1 > (policy.max_actions_per_window as u256) {
+            return Option::Some(DenyReason::RateLimited)
+        }
+    }
     Option::None
 }
 
@@ -190,15 +196,31 @@ fn check_erc20_guard(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState
                 Option::None
             }
         },
-        Erc20Call::Approve(_spender, amt) => {
+        Erc20Call::Approve(spender, amt) => {
             if amt == 0 {
                 Option::None
-            } else if amt == U256_MAX {
-                Option::Some(DenyReason::UnlimitedApproval)
-            } else if amt > token_rule.max_approve.as_u256() {
-                Option::Some(DenyReason::UnlimitedApproval)
             } else {
-                Option::None
+                if policy.n_recipients > 0 {
+                    var recipient_ok = false
+                    var r: usize = 0
+                    while r < (policy.n_recipients as usize) {
+                        if policy.recipients[r] == spender {
+                            recipient_ok = true
+                            break
+                        }
+                        r += 1
+                    }
+                    if !recipient_ok {
+                        return Option::Some(DenyReason::RecipientNotAllowed)
+                    }
+                }
+                if amt == U256_MAX {
+                    Option::Some(DenyReason::UnlimitedApproval)
+                } else if amt > token_rule.max_approve.as_u256() {
+                    Option::Some(DenyReason::UnlimitedApproval)
+                } else {
+                    Option::None
+                }
             }
         },
     }

@@ -61,6 +61,7 @@ pub fn default_check_state() -> AgentState {
         expiry: Timestamp::from_seconds(u256::max()),
         eth_window: Window24::empty(),
         last_action: Timestamp::from_seconds(0),
+        action_window: Window24::empty(),
     }
 }
 

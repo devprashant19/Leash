@@ -26,6 +26,7 @@ use test_rule_order::*
 use test_malformed::*
 use test_fingerprint::*
 use test_validate::*
+use test_recipient_rate::*
 
 pub fn version() -> u32 {
     1
