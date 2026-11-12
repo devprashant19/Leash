@@ -1,0 +1,48 @@
+use ingot::ledger::{bucket_index_of, spent_in_window}
+use ingot::types::{AgentState, BUCKETS, Policy, Timestamp}
+
+pub struct Budget {
+    pub eth_per_tx_wei: u256,
+    pub eth_window_wei: u256,
+    pub actions_in_window: u32,
+    pub window_resets_at: u256,
+}
+
+pub fn remaining(_ policy: ref Policy, _ state: ref AgentState, _ now: Timestamp) -> Budget {
+    let spent = spent_in_window(state.eth_window, now)
+    let max_win = policy.max_per_window.as_wei()
+    let rem_win = if spent >= max_win { 0 } else { max_win - spent }
+
+    let current_index = bucket_index_of(now)
+    let buckets_count: u64 = BUCKETS.downcast_truncate()
+    var oldest_reset = now.as_seconds()
+    var min_index: u64 = u64::max()
+
+    var i: usize = 0
+    while i < BUCKETS {
+        let b = state.eth_window.buckets[i]
+        if b.amount > 0 && b.index <= current_index && (current_index - b.index) < buckets_count {
+            if b.index < min_index {
+                min_index = b.index
+                oldest_reset = ((min_index + buckets_count) as u256) * 3600
+            }
+        }
+        i += 1
+    }
+
+    var actions_rem: u32 = 0
+    if policy.max_actions_per_window > 0 {
+        let act_count_u256 = spent_in_window(state.action_window, now)
+        let act_count: u32 = act_count_u256.downcast_truncate()
+        if act_count < policy.max_actions_per_window {
+            actions_rem = policy.max_actions_per_window - act_count
+        }
+    }
+
+    Budget {
+        eth_per_tx_wei: policy.max_per_tx.as_wei(),
+        eth_window_wei: rem_win,
+        actions_in_window: actions_rem,
+        window_resets_at: oldest_reset,
+    }
+}

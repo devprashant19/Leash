@@ -1,0 +1,63 @@
+use ingot::budget::remaining
+use ingot::config::default_policy
+use ingot::ledger::record
+use ingot::types::{AgentState, Calldata, Operation, Timestamp, Tx, Window24}
+use std::evm::units::wei
+
+#[test]
+fn test_remaining_fresh_state() {
+    let pol = default_policy()
+    let now = Timestamp::from_seconds(100000)
+    let st = AgentState {
+        paused: false,
+        tripped: false,
+        expiry: Timestamp::from_seconds(999999),
+        eth_window: Window24::empty(),
+        last_action: Timestamp::from_seconds(0),
+        action_window: Window24::empty(),
+    }
+
+    let b = remaining(pol, st, now)
+    assert(b.eth_per_tx_wei == 100_000_000_000_000_000) // 0.1 ETH
+    assert(b.eth_window_wei == 500_000_000_000_000_000) // 0.5 ETH
+    assert(
+        b.actions_in_window == 0,
+    ) // default max_actions is 0 (unlimited)
+    assert(b.window_resets_at == 100000) // no spends
+}
+
+#[test]
+fn test_remaining_after_spend() {
+    var pol = default_policy()
+    pol.max_actions_per_window = 5
+
+    let now = Timestamp::from_seconds(72000) // hour 20
+    var st = AgentState {
+        paused: false,
+        tripped: false,
+        expiry: Timestamp::from_seconds(999999),
+        eth_window: Window24::empty(),
+        last_action: Timestamp::from_seconds(0),
+        action_window: Window24::empty(),
+    }
+
+    let tx = Tx {
+        to: ingot::config::ADDR_TREASURY,
+        value: wei(100_000_000_000_000_000),
+        // 0.1 ETH
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+
+    record(tx, pol, mut st)
+
+    let b = remaining(pol, st, now)
+    assert(b.eth_per_tx_wei == 100_000_000_000_000_000)
+    assert(
+        b.eth_window_wei == 400_000_000_000_000_000,
+    ) // 0.5 - 0.1 = 0.4 ETH
+    assert(b.actions_in_window == 4) // 5 - 1 = 4 remaining
+    // bucket index is hour 20, so it resets at (20 + 24) * 3600 = 44 * 3600 = 158400
+    assert(b.window_resets_at == 158400)
+}

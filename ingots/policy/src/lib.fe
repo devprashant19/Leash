@@ -16,6 +16,7 @@ pub use encoding::{
 }
 pub use fingerprint::{explain_reason, fingerprint}
 pub use validate::{PolicyCheck, check_code, check_name, validate}
+pub use budget::{Budget, remaining}
 
 use test_types::*
 use test_decode::*
@@ -27,6 +28,7 @@ use test_malformed::*
 use test_fingerprint::*
 use test_validate::*
 use test_recipient_rate::*
+use test_budget::*
 
 pub fn version() -> u32 {
     1

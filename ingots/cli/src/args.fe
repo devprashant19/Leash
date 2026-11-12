@@ -27,6 +27,7 @@ pub struct CheckArgs {
     pub op: Operation,
     pub now: Timestamp,
     pub state: AgentState,
+    pub json: bool,
 }
 
 pub enum ParseResult {
@@ -76,6 +77,7 @@ pub fn parse_check_args() -> ParseResult uses (args: Args) {
     var data = Calldata::empty()
     var op = Operation::Call
     var state = default_check_state()
+    var json = false
 
     let count = args.count()
     var i: usize = 2
@@ -194,6 +196,8 @@ pub fn parse_check_args() -> ParseResult uses (args: Args) {
                     return ParseResult::Err(ParseError::InvalidState)
                 },
             }
+        } else if flag == "--json" {
+            json = true
         } else {
             return ParseResult::Err(ParseError::UnknownFlag)
         }
@@ -207,5 +211,7 @@ pub fn parse_check_args() -> ParseResult uses (args: Args) {
         return ParseResult::Err(ParseError::MissingNow)
     }
 
-    ParseResult::Ok(CheckArgs { to, value: val_wei, data, op, now, state })
+    ParseResult::Ok(
+        CheckArgs { to, value: val_wei, data, op, now, state, json },
+    )
 }

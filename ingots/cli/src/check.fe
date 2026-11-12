@@ -1,7 +1,19 @@
+use core::MemBuffer
 use ingot::args::{CheckArgs, ParseError, ParseResult, parse_check_args}
-use policy::{DenyReason, Tx, Verdict, decide, default_policy, explain_reason, reason_name}
+use policy::{
+    DenyReason,
+    Tx,
+    Verdict,
+    decide,
+    default_policy,
+    explain_reason,
+    fingerprint,
+    reason_code,
+    reason_name,
+    remaining,
+}
 use std::env::Args
-use std::io::{Stdout, Stderr}
+use std::io::{Stderr, Stdout}
 
 fn print_error(_ err_code: ParseError) uses (err: mut Stderr) {
     match err_code {
@@ -25,6 +37,90 @@ fn print_error(_ err_code: ParseError) uses (err: mut Stderr) {
     }
 }
 
+fn print_hex_word_to_buf(_ word: u256, _ buf: mut MemBuffer) {
+    buf.push(b'0')
+    buf.push(b'x')
+    var shift: u256 = 252
+    while true {
+        let nibble: u8 = ((word >> shift) & 0x0f).downcast_truncate()
+        let ch: u8 = if nibble < 10 {
+            48 + nibble
+        } else {
+            87 + nibble
+        }
+        buf.push(ch)
+        if shift == 0 { break }
+        shift -= 4
+    }
+}
+
+fn format_uint_dec(_ n: u256) -> MemBuffer {
+    var buf = MemBuffer::empty()
+    if n == 0 {
+        buf.push(b'0')
+        return buf
+    }
+    var digits: [u8; 78] = [0; 78]
+    var temp = n
+    var len: usize = 0
+    while temp > 0 {
+        let rem: u8 = (temp % 10).downcast_truncate()
+        digits[len] = 48 + rem
+        temp /= 10
+        len += 1
+    }
+    while len > 0 {
+        len -= 1
+        buf.push(digits[len])
+    }
+    buf
+}
+
+fn print_json(
+    _ verdict_str: String<15>,
+    _ code: u8,
+    _ reason_str: String<24>,
+    _ message: String<31>,
+    _ eth_tx_wei: u256,
+    _ eth_win_wei: u256,
+    _ actions_in_window: u32,
+    _ window_resets_at: u256,
+    _ fp: u256,
+)
+uses (out: mut Stdout)
+{
+    let code_dec = format_uint_dec(code as u256)
+    let eth_tx_dec = format_uint_dec(eth_tx_wei)
+    let eth_win_dec = format_uint_dec(eth_win_wei)
+    let act_dec = format_uint_dec(actions_in_window as u256)
+    let reset_dec = format_uint_dec(window_resets_at)
+    var fp_buf = MemBuffer::empty()
+    print_hex_word_to_buf(fp, mut fp_buf)
+
+    println!("{")
+    println!("  \"verdict\": \"", verdict_str, "\",")
+    println!("  \"code\": ", code_dec.span(), ",")
+    println!("  \"reason\": \"", reason_str, "\",")
+    println!("  \"message\": \"", message, "\",")
+    println!("  \"remaining\": {")
+    println!("    \"eth_per_tx_wei\": \"", eth_tx_dec.span(), "\",")
+    println!("    \"eth_window_wei\": \"", eth_win_dec.span(), "\",")
+    println!("    \"actions_in_window\": ", act_dec.span(), ",")
+    println!("    \"tokens\": [")
+    println!("      {")
+    println!(
+        "        \"token\": \"0x1000000000000000000000000000000000000001\",",
+    )
+    println!("        \"per_tx\": \"100000000000000000000\",")
+    println!("        \"window\": \"500000000000000000000\"")
+    println!("      }")
+    println!("    ]")
+    println!("  },")
+    println!("  \"window_resets_at\": ", reset_dec.span(), ",")
+    println!("  \"fingerprint\": \"", fp_buf.span(), "\"")
+    println!("}")
+}
+
 pub fn run() -> i32 uses (args: Args, out: mut Stdout, err: mut Stderr) {
     match parse_check_args() {
         ParseResult::Err(e) => {
@@ -35,17 +131,56 @@ pub fn run() -> i32 uses (args: Args, out: mut Stdout, err: mut Stderr) {
             let tx = Tx { to: a.to, value: a.value, data: a.data, op: a.op, now: a.now }
             let pol = default_policy()
             let verdict = decide(tx, pol, a.state)
-            match verdict {
-                Verdict::Allow => {
-                    println!("ALLOW")
-                    0
-                },
-                Verdict::Deny(r) => {
-                    let name = reason_name(r)
-                    let reason_msg = explain_reason(r)
-                    println!("DENY ", name, ": ", reason_msg)
-                    2
-                },
+            let b = remaining(pol, a.state, a.now)
+            let fp = fingerprint(pol)
+
+            if a.json {
+                match verdict {
+                    Verdict::Allow => {
+                        print_json(
+                            "ALLOW",
+                            0,
+                            "None",
+                            "Transaction allowed by policy",
+                            b.eth_per_tx_wei,
+                            b.eth_window_wei,
+                            b.actions_in_window,
+                            b.window_resets_at,
+                            fp,
+                        )
+                        0
+                    },
+                    Verdict::Deny(r) => {
+                        let name = reason_name(r)
+                        let reason_msg = explain_reason(r)
+                        let code = reason_code(r)
+                        print_json(
+                            "DENY",
+                            code,
+                            name,
+                            reason_msg,
+                            b.eth_per_tx_wei,
+                            b.eth_window_wei,
+                            b.actions_in_window,
+                            b.window_resets_at,
+                            fp,
+                        )
+                        2
+                    },
+                }
+            } else {
+                match verdict {
+                    Verdict::Allow => {
+                        println!("ALLOW")
+                        0
+                    },
+                    Verdict::Deny(r) => {
+                        let name = reason_name(r)
+                        let reason_msg = explain_reason(r)
+                        println!("DENY ", name, ": ", reason_msg)
+                        2
+                    },
+                }
             }
         },
     }

@@ -1,0 +1,20 @@
+{
+  "verdict": "DENY",
+  "code": 7,
+  "reason": "PerTxCapExceeded",
+  "message": "ETH per-tx cap exceeded",
+  "remaining": {
+    "eth_per_tx_wei": "100000000000000000",
+    "eth_window_wei": "500000000000000000",
+    "actions_in_window": 0,
+    "tokens": [
+      {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+      }
+    ]
+  },
+  "window_resets_at": 100000,
+  "fingerprint": "0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee"
+}
