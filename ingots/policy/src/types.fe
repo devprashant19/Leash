@@ -1,5 +1,5 @@
-use std::evm::Address
-use std::evm::units::{Duration, Timestamp, Wei}
+pub use std::evm::Address
+pub use std::evm::units::{Duration, Timestamp, Wei}
 
 pub const MAX_TARGETS: usize = 8
 pub const MAX_SELECTORS: usize = 8

@@ -71,3 +71,10 @@ Wrote out/cli.native.sona
 - **What**: Implemented core types (TokenAmount, Operation, DenyReason codes 1..20, Verdict, TargetKind, TargetRule, TokenRule, Policy, Bucket, Window24, AgentState, Calldata, Tx), selector constants, default_policy in config.fe, testkit fixtures, compile-fail test with test runner script, and comprehensive unit tests.
 - **Reviewed by human**: pending confirmation.
 
+## 2026-11-13 — Phase 1 — Calldata Decoding (T4, T7)
+- **AI-assisted**: yes (Antigravity).
+- **Files**: `ingots/policy/src/decode.fe`, `ingots/policy/src/test_decode.fe`, `ingots/policy/src/lib.fe`.
+- **What**: Implemented safe calldata decoding (selector_of, is_address_word with high-12 zero byte validation, read_word, read_address, and decode_erc20 for transfer, approve, and transferFrom with exact length enforcement rejecting truncated or oversized calldata).
+- **Reviewed by human**: pending confirmation.
+
+

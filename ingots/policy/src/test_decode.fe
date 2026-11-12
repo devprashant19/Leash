@@ -1,0 +1,156 @@
+use ingot::config::{ADDR_TOKEN, ADDR_TREASURY}
+use ingot::decode::{Erc20Call, decode_erc20, selector_of}
+use ingot::types::{Address, Calldata, MAX_CALLDATA, SEL_APPROVE, SEL_TRANSFER, SEL_TRANSFER_FROM}
+
+fn make_transfer_calldata(to: Address, amt: u256) -> Calldata {
+    var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    buf[0] = ((SEL_TRANSFER >> 24) & 0xff).downcast_truncate()
+    buf[1] = ((SEL_TRANSFER >> 16) & 0xff).downcast_truncate()
+    buf[2] = ((SEL_TRANSFER >> 8) & 0xff).downcast_truncate()
+    buf[3] = (SEL_TRANSFER & 0xff).downcast_truncate()
+
+    var i: usize = 0
+    while i < 32 {
+        let shift = ((31 - i) * 8) as u256
+        buf[4 + i] = ((to.word() >> shift) & 0xff).downcast_truncate()
+        buf[36 + i] = ((amt >> shift) & 0xff).downcast_truncate()
+        i += 1
+    }
+    Calldata { len: 68, bytes: buf }
+}
+
+fn make_approve_calldata(spender: Address, amt: u256) -> Calldata {
+    var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    buf[0] = ((SEL_APPROVE >> 24) & 0xff).downcast_truncate()
+    buf[1] = ((SEL_APPROVE >> 16) & 0xff).downcast_truncate()
+    buf[2] = ((SEL_APPROVE >> 8) & 0xff).downcast_truncate()
+    buf[3] = (SEL_APPROVE & 0xff).downcast_truncate()
+
+    var i: usize = 0
+    while i < 32 {
+        let shift = ((31 - i) * 8) as u256
+        buf[4 + i] = ((spender.word() >> shift) & 0xff).downcast_truncate()
+        buf[36 + i] = ((amt >> shift) & 0xff).downcast_truncate()
+        i += 1
+    }
+    Calldata { len: 68, bytes: buf }
+}
+
+fn make_transfer_from_calldata(from: Address, to: Address, amt: u256) -> Calldata {
+    var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    buf[0] = ((SEL_TRANSFER_FROM >> 24) & 0xff).downcast_truncate()
+    buf[1] = ((SEL_TRANSFER_FROM >> 16) & 0xff).downcast_truncate()
+    buf[2] = ((SEL_TRANSFER_FROM >> 8) & 0xff).downcast_truncate()
+    buf[3] = (SEL_TRANSFER_FROM & 0xff).downcast_truncate()
+
+    var i: usize = 0
+    while i < 32 {
+        let shift = ((31 - i) * 8) as u256
+        buf[4 + i] = ((from.word() >> shift) & 0xff).downcast_truncate()
+        buf[36 + i] = ((to.word() >> shift) & 0xff).downcast_truncate()
+        buf[68 + i] = ((amt >> shift) & 0xff).downcast_truncate()
+        i += 1
+    }
+    Calldata { len: 100, bytes: buf }
+}
+
+#[test]
+fn test_selector_of_cases() {
+    let empty = Calldata::empty()
+    match selector_of(empty) {
+        Option::None => {},
+        _ => assert(false),
+    }
+
+    var short_buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    short_buf[0] = 0x12
+    short_buf[1] = 0x34
+    short_buf[2] = 0x56
+    let short_data = Calldata { len: 3, bytes: short_buf }
+    match selector_of(short_data) {
+        Option::None => {},
+        _ => assert(false),
+    }
+
+    let transfer_data = make_transfer_calldata(to: ADDR_TREASURY, amt: 1000)
+    match selector_of(transfer_data) {
+        Option::Some(sel) => assert(sel == SEL_TRANSFER),
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_decode_transfer_success() {
+    let transfer_data = make_transfer_calldata(to: ADDR_TREASURY, amt: 123456789)
+    match decode_erc20(transfer_data) {
+        Erc20Call::Transfer(to, amt) => {
+            assert(to == ADDR_TREASURY)
+            assert(amt == 123456789)
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_decode_approve_success() {
+    let approve_data = make_approve_calldata(spender: ADDR_TREASURY, amt: 9999)
+    match decode_erc20(approve_data) {
+        Erc20Call::Approve(spender, amt) => {
+            assert(spender == ADDR_TREASURY)
+            assert(amt == 9999)
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_decode_transfer_from_success() {
+    let tf_data = make_transfer_from_calldata(from: ADDR_TOKEN, to: ADDR_TREASURY, amt: 777)
+    match decode_erc20(tf_data) {
+        Erc20Call::TransferFrom(from, to, amt) => {
+            assert(from == ADDR_TOKEN)
+            assert(to == ADDR_TREASURY)
+            assert(amt == 777)
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_decode_malformed_lengths() {
+    var data = make_transfer_calldata(to: ADDR_TREASURY, amt: 1000)
+    data.len = 67
+    match decode_erc20(data) {
+        Erc20Call::Malformed => {},
+        _ => assert(false),
+    }
+
+    data.len = 69
+    match decode_erc20(data) {
+        Erc20Call::Malformed => {},
+        _ => assert(false),
+    }
+
+    var tf = make_transfer_from_calldata(from: ADDR_TOKEN, to: ADDR_TREASURY, amt: 100)
+    tf.len = 99
+    match decode_erc20(tf) {
+        Erc20Call::Malformed => {},
+        _ => assert(false),
+    }
+
+    tf.len = 101
+    match decode_erc20(tf) {
+        Erc20Call::Malformed => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_decode_dirty_address() {
+    var data = make_transfer_calldata(to: ADDR_TREASURY, amt: 1000)
+    data.bytes[4] = 1
+    match decode_erc20(data) {
+        Erc20Call::Malformed => {},
+        _ => assert(false),
+    }
+}
