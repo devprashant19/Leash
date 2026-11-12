@@ -1,0 +1,26 @@
+use policy
+use std::evm::{Evm, revert_error}
+
+#[error]
+pub struct Paused {}
+
+pub msg LeashMsg {
+    #[selector = sol("version()")]
+    Version -> u32,
+}
+
+pub contract LeashModule {
+    init() {}
+
+    recv LeashMsg {
+        Version -> u32 {
+            policy::version()
+        }
+    }
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert, selector = 0x9e87fac8)]
+fn test_paused_custom_error() uses (evm: mut Evm) {
+    revert_error(Paused {})
+}

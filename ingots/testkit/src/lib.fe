@@ -1,0 +1,41 @@
+use policy
+use std::abi::Bytes
+use std::evm::{Address, Create, Evm, Wei}
+
+pub msg SafeMsg {
+    #[selector = sol("execTransactionFromModule(address,uint256,bytes,uint8)")]
+    ExecTransactionFromModule { to: Address, value: u256, data: Bytes, operation: u8 } -> bool,
+}
+
+pub contract MockSafe {
+    init() {}
+
+    recv SafeMsg {
+        ExecTransactionFromModule { to, value, data, operation } -> bool {
+            true
+        }
+    }
+}
+
+pub fn testkit_version() -> u32 {
+    policy::version()
+}
+
+#[cfg(target = "evm")]
+#[test]
+fn test_mock_safe_call() uses (evm: mut Evm) {
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let success: bool = evm
+        .call(
+            addr: safe,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: SafeMsg::ExecTransactionFromModule {
+                to: Address::zero(),
+                value: 100,
+                data: Bytes::empty(),
+                operation: 0,
+            },
+        )
+    assert(success)
+}

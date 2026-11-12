@@ -1,0 +1,24 @@
+use core::text::decode_hex
+use policy
+use std::env::Args
+use std::io::Stdout
+
+#[cfg(target = "native")]
+pub fn main() -> i32 uses (out: mut Stdout, args: Args) {
+    if args.count() < 2 {
+        return 1
+    }
+    let arg = args.get(1)
+    match decode_hex(arg.span()) {
+        Option::Some(bytes) => {
+            println!(bytes.len())
+            0
+        },
+        Option::None => 1,
+    }
+}
+
+#[cfg(target = "evm")]
+pub fn main() -> i32 {
+    0
+}

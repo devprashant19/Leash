@@ -2,25 +2,92 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
   contents: read
 
 env:
-  # Any Fe release from 26.5.0 on is allowed for the contest.
-  FE_VERSION: v26.5.0
+  FE_VERSION: v26.6.0
 
 jobs:
-  test:
+  fmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v4
       - name: Install Fe
         run: |
           curl -fsSL https://raw.githubusercontent.com/argotorg/fe/master/feup/feup.sh | bash -s -- --version "$FE_VERSION" --no-modify-path
           echo "$HOME/.fe/bin" >> "$GITHUB_PATH"
       - run: fe --version
-      - run: fe fmt --check
+      - run: fe fmt --check ingots
+
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Fe
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/argotorg/fe/master/feup/feup.sh | bash -s -- --version "$FE_VERSION" --no-modify-path
+          echo "$HOME/.fe/bin" >> "$GITHUB_PATH"
+      - run: fe check
+
+  test-evm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Fe
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/argotorg/fe/master/feup/feup.sh | bash -s -- --version "$FE_VERSION" --no-modify-path
+          echo "$HOME/.fe/bin" >> "$GITHUB_PATH"
       - run: fe test
+
+  test-native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Fe
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/argotorg/fe/master/feup/feup.sh | bash -s -- --version "$FE_VERSION" --no-modify-path
+          echo "$HOME/.fe/bin" >> "$GITHUB_PATH"
+      - run: fe test --backend native
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Fe
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/argotorg/fe/master/feup/feup.sh | bash -s -- --version "$FE_VERSION" --no-modify-path
+          echo "$HOME/.fe/bin" >> "$GITHUB_PATH"
       - run: fe build
+      - run: fe build --backend native
+      - name: Verify module size under 24,576 bytes
+        run: |
+          fe build --emit sizes
+          size=$(awk '/runtime:/ {print $2}' out/LeashModule.sizes.txt)
+          echo "LeashModule runtime size: $size bytes"
+          if [ "$size" -ge 24576 ]; then
+            echo "Error: LeashModule size $size exceeds 24,576 bytes!"
+            exit 1
+          fi
+
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check decide has no uses clause
+        run: |
+          if grep -nE 'fn decide[^{]*uses' ingots/policy/src/*.fe 2>/dev/null; then
+            echo "Violation: policy::decide must have no uses clause!"
+            exit 1
+          fi
+          echo "Rule check passed: decide is pure."
+      - name: Check no rule logic outside policy
+        run: |
+          if grep -nE 'policy::rules|policy::ledger' ingots/cli/src/*.fe ingots/module/src/*.fe 2>/dev/null; then
+            echo "Violation: CLI and Module must only access policy public API!"
+            exit 1
+          fi
+          echo "Component isolation check passed."

@@ -1,0 +1,23 @@
+use core::hash::keccak256_word
+
+pub fn version() -> u32 {
+    1
+}
+
+pub fn compute_cap_multiplier(base: u256, factor: u256) -> u256 {
+    base * factor
+}
+
+#[test]
+fn test_cap_multiplier() {
+    assert(compute_cap_multiplier(base: 100, factor: 3) == 300)
+}
+
+#[test]
+fn test_keccak_word() {
+    let bytes: [u8; 4] = [116, 101, 115, 116]
+    let hash: u256 = keccak256_word(bytes)
+    assert(
+        hash == 0x9c22ff5f21f0b81b113e63f7db6da94fedef11b2119b4088b89664fb9a3cb658,
+    )
+}

@@ -1,3 +1,9 @@
-[ingot]
-name = "starter"
+[workspace]
+name = "leash"
 version = "0.1.0"
+members = [
+  "ingots/policy",
+  "ingots/module",
+  "ingots/cli",
+  "ingots/testkit",
+]
