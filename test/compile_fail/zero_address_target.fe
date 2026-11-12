@@ -1,0 +1,9 @@
+pub const fn static_check_nonzero_addr(addr: u256) -> u32 {
+    if addr != 0 {
+        1
+    } else {
+        1 / 0
+    }
+}
+
+pub const CHECK_ADDR: u32 = static_check_nonzero_addr(addr: 0)

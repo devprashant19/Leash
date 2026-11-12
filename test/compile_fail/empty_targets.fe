@@ -1,0 +1,9 @@
+pub const fn static_check_targets(n_targets: u8) -> u32 {
+    if n_targets > 0 {
+        1
+    } else {
+        1 / 0
+    }
+}
+
+pub const CHECK_TARGETS: u32 = static_check_targets(n_targets: 0)

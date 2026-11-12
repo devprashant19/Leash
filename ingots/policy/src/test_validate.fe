@@ -1,0 +1,178 @@
+use ingot::config::{ADDR_TOKEN, ADDR_TREASURY, default_policy}
+use ingot::types::{
+    Address,
+    MAX_SELECTORS,
+    MAX_TARGETS,
+    MAX_TOKENS,
+    Policy,
+    SEL_APPROVE,
+    SEL_TRANSFER,
+    SEL_TRANSFER_FROM,
+    TargetKind,
+    TargetRule,
+    TokenAmount,
+    TokenRule,
+}
+use ingot::validate::{PolicyCheck, check_code, check_name, validate}
+use std::evm::units::{hours, seconds, wei}
+
+#[test]
+fn test_validate_default_policy_ok() {
+    let pol = default_policy()
+    let check = validate(pol)
+    match check {
+        PolicyCheck::Ok => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_validate_zero_window() {
+    var pol = default_policy()
+    pol.window = seconds(0)
+    match validate(pol) {
+        PolicyCheck::ZeroWindow => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_validate_window_mismatch() {
+    var pol = default_policy()
+    pol.window = hours(12)
+    match validate(pol) {
+        PolicyCheck::WindowMismatch => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_validate_empty_targets() {
+    var pol = default_policy()
+    pol.n_targets = 0
+    match validate(pol) {
+        PolicyCheck::EmptyTargets => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_validate_zero_window_cap() {
+    var pol = default_policy()
+    pol.max_per_window = wei(0)
+    match validate(pol) {
+        PolicyCheck::ZeroWindowCap => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_validate_per_tx_above_window() {
+    var pol = default_policy()
+    pol.max_per_tx = pol.max_per_window + wei(1)
+    match validate(pol) {
+        PolicyCheck::PerTxAboveWindow => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_validate_zero_address_target() {
+    var pol = default_policy()
+    pol.targets[0].target = Address::zero()
+    match validate(pol) {
+        PolicyCheck::ZeroAddressTarget => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_validate_unsorted_targets() {
+    var pol = default_policy()
+    // Swap target 0 and 1 so they are descending
+    let t0 = pol.targets[0]
+    pol.targets[0] = pol.targets[1]
+    pol.targets[1] = t0
+    match validate(pol) {
+        PolicyCheck::UnsortedOrDuplicateTargets => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_validate_duplicate_targets() {
+    var pol = default_policy()
+    pol.targets[1].target = pol.targets[0].target
+    match validate(pol) {
+        PolicyCheck::UnsortedOrDuplicateTargets => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_validate_target_no_permissions() {
+    var pol = default_policy()
+    // Target 1 is generic EOA: disable allow_eth_transfer and no selectors
+    pol.targets[1].allow_eth_transfer = false
+    pol.targets[1].n_selectors = 0
+    match validate(pol) {
+        PolicyCheck::TargetWithNoPermissions => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_validate_unsorted_selectors() {
+    var pol = default_policy()
+    // Make target 0 selectors descending
+    pol.targets[0].selectors[0] = SEL_TRANSFER
+    pol.targets[0].selectors[1] = SEL_APPROVE
+    match validate(pol) {
+        PolicyCheck::UnsortedOrDuplicateSelectors => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_validate_token_without_erc20_target() {
+    var pol = default_policy()
+    // Change target 0 kind to Generic
+    pol.targets[0].kind = TargetKind::Generic
+    pol.targets[0].allow_eth_transfer = true
+    match validate(pol) {
+        PolicyCheck::TokenRuleWithoutErc20Target => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_validate_erc20_target_without_token() {
+    var pol = default_policy()
+    // Remove token rule
+    pol.n_tokens = 0
+    match validate(pol) {
+        PolicyCheck::Erc20TargetWithoutTokenRule => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_validate_dirty_unused_slot() {
+    var pol = default_policy()
+    // Put non-zero address in unused slot
+    pol.targets[2].target = ADDR_TREASURY
+    match validate(pol) {
+        PolicyCheck::DirtyUnusedSlot => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_validate_check_names_and_codes() {
+    assert(check_code(PolicyCheck::Ok) == 0)
+    assert(check_code(PolicyCheck::ZeroWindow) == 1)
+    assert(check_code(PolicyCheck::WindowMismatch) == 2)
+    assert(check_code(PolicyCheck::InvalidSchedule) == 15)
+    assert(check_name(PolicyCheck::Ok) == "Ok")
+    assert(check_name(PolicyCheck::ZeroWindow) == "ZeroWindow")
+}

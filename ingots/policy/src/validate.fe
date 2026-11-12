@@ -1,0 +1,267 @@
+use ingot::types::{
+    Address,
+    BUCKET_LEN,
+    BUCKETS,
+    MAX_RECIPIENTS,
+    MAX_SELECTORS,
+    MAX_TARGETS,
+    MAX_TOKENS,
+    Policy,
+    TargetKind,
+}
+
+pub enum PolicyCheck {
+    Ok,
+    ZeroWindow,
+    WindowMismatch,
+    EmptyTargets,
+    UnsortedOrDuplicateTargets,
+    ZeroAddressTarget,
+    TargetWithNoPermissions,
+    UnsortedOrDuplicateSelectors,
+    PerTxAboveWindow,
+    ZeroWindowCap,
+    TokenRuleWithoutErc20Target,
+    Erc20TargetWithoutTokenRule,
+    DirtyUnusedSlot,
+    UnsortedOrDuplicateRecipients,
+    EmptyRecipientsWithErc20,
+    InvalidSchedule,
+}
+
+impl Copy for PolicyCheck {}
+impl Snapshot for PolicyCheck {}
+
+pub fn check_code(_ c: PolicyCheck) -> u8 {
+    match c {
+        PolicyCheck::Ok => 0,
+        PolicyCheck::ZeroWindow => 1,
+        PolicyCheck::WindowMismatch => 2,
+        PolicyCheck::EmptyTargets => 3,
+        PolicyCheck::UnsortedOrDuplicateTargets => 4,
+        PolicyCheck::ZeroAddressTarget => 5,
+        PolicyCheck::TargetWithNoPermissions => 6,
+        PolicyCheck::UnsortedOrDuplicateSelectors => 7,
+        PolicyCheck::PerTxAboveWindow => 8,
+        PolicyCheck::ZeroWindowCap => 9,
+        PolicyCheck::TokenRuleWithoutErc20Target => 10,
+        PolicyCheck::Erc20TargetWithoutTokenRule => 11,
+        PolicyCheck::DirtyUnusedSlot => 12,
+        PolicyCheck::UnsortedOrDuplicateRecipients => 13,
+        PolicyCheck::EmptyRecipientsWithErc20 => 14,
+        PolicyCheck::InvalidSchedule => 15,
+    }
+}
+
+pub fn check_name(_ c: PolicyCheck) -> String<31> {
+    match c {
+        PolicyCheck::Ok => "Ok",
+        PolicyCheck::ZeroWindow => "ZeroWindow",
+        PolicyCheck::WindowMismatch => "WindowMismatch",
+        PolicyCheck::EmptyTargets => "EmptyTargets",
+        PolicyCheck::UnsortedOrDuplicateTargets => "UnsortedOrDuplicateTargets",
+        PolicyCheck::ZeroAddressTarget => "ZeroAddressTarget",
+        PolicyCheck::TargetWithNoPermissions => "TargetWithNoPermissions",
+        PolicyCheck::UnsortedOrDuplicateSelectors => "UnsortedOrDuplicateSelectors",
+        PolicyCheck::PerTxAboveWindow => "PerTxAboveWindow",
+        PolicyCheck::ZeroWindowCap => "ZeroWindowCap",
+        PolicyCheck::TokenRuleWithoutErc20Target => "TokenRuleWithoutErc20Target",
+        PolicyCheck::Erc20TargetWithoutTokenRule => "Erc20TargetWithoutTokenRule",
+        PolicyCheck::DirtyUnusedSlot => "DirtyUnusedSlot",
+        PolicyCheck::UnsortedOrDuplicateRecipients => "UnsortedOrDuplicateRecipients",
+        PolicyCheck::EmptyRecipientsWithErc20 => "EmptyRecipientsWithErc20",
+        PolicyCheck::InvalidSchedule => "InvalidSchedule",
+    }
+}
+
+pub fn validate(_ p: Policy) -> PolicyCheck {
+    // 1. ZeroWindow
+    if p.window.as_seconds() == 0 {
+        return PolicyCheck::ZeroWindow
+    }
+
+    // 2. WindowMismatch (must equal BUCKETS * BUCKET_LEN in v1)
+    let expected_window: u256 = (BUCKETS as u256) * (BUCKET_LEN as u256)
+    if p.window.as_seconds() != expected_window {
+        return PolicyCheck::WindowMismatch
+    }
+
+    // 3. EmptyTargets
+    let n_tgts = p.n_targets as usize
+    if n_tgts == 0 || n_tgts > MAX_TARGETS {
+        return PolicyCheck::EmptyTargets
+    }
+
+    // 4. ZeroWindowCap
+    if p.max_per_window.as_wei() == 0 {
+        return PolicyCheck::ZeroWindowCap
+    }
+
+    // 5. PerTxAboveWindow
+    if p.max_per_tx.as_wei() > p.max_per_window.as_wei() {
+        return PolicyCheck::PerTxAboveWindow
+    }
+
+    // 6. Target rules
+    var i: usize = 0
+    var last_target: u256 = 0
+    var has_erc20_target: bool = false
+    while i < n_tgts {
+        let t = p.targets[i]
+        let t_addr_u256 = t.target.word()
+        if t.target == Address::zero() {
+            return PolicyCheck::ZeroAddressTarget
+        }
+        if i > 0 && t_addr_u256 <= last_target {
+            return PolicyCheck::UnsortedOrDuplicateTargets
+        }
+        last_target = t_addr_u256
+
+        match t.kind {
+            TargetKind::Generic => {
+                if !t.allow_eth_transfer && t.n_selectors == 0 {
+                    return PolicyCheck::TargetWithNoPermissions
+                }
+            },
+            TargetKind::Erc20 => {
+                has_erc20_target = true
+            },
+            _ => {},
+        }
+
+        let n_sels = t.n_selectors as usize
+        if n_sels > MAX_SELECTORS {
+            return PolicyCheck::DirtyUnusedSlot
+        }
+
+        if n_sels > 0 {
+            var j: usize = 0
+            var last_sel: u32 = 0
+            while j < n_sels {
+                let sel = t.selectors[j]
+                if j > 0 && sel <= last_sel {
+                    return PolicyCheck::UnsortedOrDuplicateSelectors
+                }
+                last_sel = sel
+                j += 1
+            }
+            while j < MAX_SELECTORS {
+                if t.selectors[j] != 0 {
+                    return PolicyCheck::DirtyUnusedSlot
+                }
+                j += 1
+            }
+        }
+
+        i += 1
+    }
+
+    // Unused target slots must be empty
+    while i < MAX_TARGETS {
+        if p.targets[i].target != Address::zero()
+            || p.targets[i].n_selectors != 0
+            || p.targets[i].allow_eth_transfer {
+            return PolicyCheck::DirtyUnusedSlot
+        }
+        i += 1
+    }
+
+    // 7. Token rules
+    let n_toks = p.n_tokens as usize
+    if n_toks > MAX_TOKENS {
+        return PolicyCheck::DirtyUnusedSlot
+    }
+    var k: usize = 0
+    var last_token: u256 = 0
+    while k < n_toks {
+        let tok = p.tokens[k]
+        let tok_addr_u256 = tok.token.word()
+        if tok.token == Address::zero() {
+            return PolicyCheck::ZeroAddressTarget
+        }
+        if k > 0 && tok_addr_u256 <= last_token {
+            return PolicyCheck::UnsortedOrDuplicateTargets
+        }
+        last_token = tok_addr_u256
+
+        // Must correspond to an Erc20 target
+        var found_erc20: bool = false
+        var m: usize = 0
+        while m < n_tgts {
+            if p.targets[m].target == tok.token {
+                match p.targets[m].kind {
+                    TargetKind::Erc20 => {
+                        found_erc20 = true
+                    },
+                    _ => {},
+                }
+            }
+            m += 1
+        }
+        if !found_erc20 {
+            return PolicyCheck::TokenRuleWithoutErc20Target
+        }
+
+        k += 1
+    }
+
+    // Erc20 target without token rule
+    if has_erc20_target {
+        var t_idx: usize = 0
+        while t_idx < n_tgts {
+            match p.targets[t_idx].kind {
+                TargetKind::Erc20 => {
+                    var found_rule: bool = false
+                    var r_idx: usize = 0
+                    while r_idx < n_toks {
+                        if p.tokens[r_idx].token == p.targets[t_idx].target {
+                            found_rule = true
+                        }
+                        r_idx += 1
+                    }
+                    if !found_rule {
+                        return PolicyCheck::Erc20TargetWithoutTokenRule
+                    }
+                },
+                _ => {},
+            }
+            t_idx += 1
+        }
+    }
+
+    // Unused token slots must be zero
+    while k < MAX_TOKENS {
+        if p.tokens[k].token != Address::zero() || p.tokens[k].max_per_tx.as_u256() != 0 {
+            return PolicyCheck::DirtyUnusedSlot
+        }
+        k += 1
+    }
+
+    // 8. Recipients
+    let n_recips = p.n_recipients as usize
+    if n_recips > MAX_RECIPIENTS {
+        return PolicyCheck::DirtyUnusedSlot
+    }
+    var r: usize = 0
+    var last_recip: u256 = 0
+    while r < n_recips {
+        let recip = p.recipients[r]
+        let recip_u256 = recip.word()
+        if recip == Address::zero() {
+            return PolicyCheck::ZeroAddressTarget
+        }
+        if r > 0 && recip_u256 <= last_recip {
+            return PolicyCheck::UnsortedOrDuplicateRecipients
+        }
+        last_recip = recip_u256
+        r += 1
+    }
+    while r < MAX_RECIPIENTS {
+        if p.recipients[r] != Address::zero() {
+            return PolicyCheck::DirtyUnusedSlot
+        }
+        r += 1
+    }
+
+    PolicyCheck::Ok
+}
