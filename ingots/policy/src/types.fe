@@ -1,0 +1,287 @@
+use std::evm::Address
+use std::evm::units::{Duration, Timestamp, Wei}
+
+pub const MAX_TARGETS: usize = 8
+pub const MAX_SELECTORS: usize = 8
+pub const MAX_TOKENS: usize = 4
+pub const MAX_RECIPIENTS: usize = 8
+pub const BUCKETS: usize = 24
+pub const BUCKET_LEN: u64 = 3600
+pub const MAX_CALLDATA: usize = 260
+
+pub const SEL_TRANSFER: u32 = sol("transfer(address,uint256)")
+pub const SEL_APPROVE: u32 = sol("approve(address,uint256)")
+pub const SEL_TRANSFER_FROM: u32 = sol("transferFrom(address,address,uint256)")
+
+pub struct TokenAmount { pub raw: u256 }
+
+impl Copy for TokenAmount {}
+impl Snapshot for TokenAmount {}
+
+impl TokenAmount {
+    pub const fn from(_ raw: u256) -> Self {
+        TokenAmount { raw }
+    }
+
+    pub const fn as_u256(self) -> u256 {
+        self.raw
+    }
+
+    pub const fn zero() -> Self {
+        TokenAmount { raw: 0 }
+    }
+}
+
+pub enum Operation {
+    Call,
+    DelegateCall,
+}
+
+impl Copy for Operation {}
+impl Snapshot for Operation {}
+
+pub fn operation_from_u8(_ op: u8) -> Option<Operation> {
+    if op == 0 {
+        Option::Some(Operation::Call)
+    } else if op == 1 {
+        Option::Some(Operation::DelegateCall)
+    } else {
+        Option::None
+    }
+}
+
+pub enum DenyReason {
+    Paused,
+    SessionExpired,
+    DelegateCallBlocked,
+    TargetNotAllowed,
+    SelectorNotAllowed,
+    MalformedCalldata,
+    PerTxCapExceeded,
+    WindowCapExceeded,
+    TokenCapExceeded,
+    UnlimitedApproval,
+    RecipientNotAllowed,
+    RateLimited,
+    CooldownActive,
+    OutsideTradingHours,
+    CircuitTripped,
+    SwapNotAllowed,
+    LendingNotAllowed,
+    PriceUnavailable,
+    UsdCapExceeded,
+    EscalationRequired,
+}
+
+impl Copy for DenyReason {}
+impl Snapshot for DenyReason {}
+
+pub fn reason_code(_ reason: DenyReason) -> u8 {
+    match reason {
+        DenyReason::Paused => 1,
+        DenyReason::SessionExpired => 2,
+        DenyReason::DelegateCallBlocked => 3,
+        DenyReason::TargetNotAllowed => 4,
+        DenyReason::SelectorNotAllowed => 5,
+        DenyReason::MalformedCalldata => 6,
+        DenyReason::PerTxCapExceeded => 7,
+        DenyReason::WindowCapExceeded => 8,
+        DenyReason::TokenCapExceeded => 9,
+        DenyReason::UnlimitedApproval => 10,
+        DenyReason::RecipientNotAllowed => 11,
+        DenyReason::RateLimited => 12,
+        DenyReason::CooldownActive => 13,
+        DenyReason::OutsideTradingHours => 14,
+        DenyReason::CircuitTripped => 15,
+        DenyReason::SwapNotAllowed => 16,
+        DenyReason::LendingNotAllowed => 17,
+        DenyReason::PriceUnavailable => 18,
+        DenyReason::UsdCapExceeded => 19,
+        DenyReason::EscalationRequired => 20,
+    }
+}
+
+pub fn reason_name(_ reason: DenyReason) -> String<24> {
+    match reason {
+        DenyReason::Paused => "Paused",
+        DenyReason::SessionExpired => "SessionExpired",
+        DenyReason::DelegateCallBlocked => "DelegateCallBlocked",
+        DenyReason::TargetNotAllowed => "TargetNotAllowed",
+        DenyReason::SelectorNotAllowed => "SelectorNotAllowed",
+        DenyReason::MalformedCalldata => "MalformedCalldata",
+        DenyReason::PerTxCapExceeded => "PerTxCapExceeded",
+        DenyReason::WindowCapExceeded => "WindowCapExceeded",
+        DenyReason::TokenCapExceeded => "TokenCapExceeded",
+        DenyReason::UnlimitedApproval => "UnlimitedApproval",
+        DenyReason::RecipientNotAllowed => "RecipientNotAllowed",
+        DenyReason::RateLimited => "RateLimited",
+        DenyReason::CooldownActive => "CooldownActive",
+        DenyReason::OutsideTradingHours => "OutsideTradingHours",
+        DenyReason::CircuitTripped => "CircuitTripped",
+        DenyReason::SwapNotAllowed => "SwapNotAllowed",
+        DenyReason::LendingNotAllowed => "LendingNotAllowed",
+        DenyReason::PriceUnavailable => "PriceUnavailable",
+        DenyReason::UsdCapExceeded => "UsdCapExceeded",
+        DenyReason::EscalationRequired => "EscalationRequired",
+    }
+}
+
+pub enum Verdict {
+    Allow,
+    Deny(DenyReason),
+}
+
+impl Copy for Verdict {}
+impl Snapshot for Verdict {}
+
+pub enum TargetKind {
+    Generic,
+    Erc20,
+    UniswapRouter,
+    AavePool,
+}
+
+impl Copy for TargetKind {}
+impl Snapshot for TargetKind {}
+
+pub struct TargetRule {
+    pub target: Address,
+    pub kind: TargetKind,
+    pub allow_eth_transfer: bool,
+    pub delegate_ok: bool,
+    pub n_selectors: u8,
+    pub selectors: [u32; MAX_SELECTORS],
+}
+
+impl Copy for TargetRule {}
+impl Snapshot for TargetRule {}
+
+impl TargetRule {
+    pub fn empty() -> Self {
+        TargetRule {
+            target: Address::zero(),
+            kind: TargetKind::Generic,
+            allow_eth_transfer: false,
+            delegate_ok: false,
+            n_selectors: 0,
+            selectors: [0; MAX_SELECTORS],
+        }
+    }
+}
+
+pub struct TokenRule {
+    pub token: Address,
+    pub max_per_tx: TokenAmount,
+    pub max_per_window: TokenAmount,
+    pub max_approve: TokenAmount,
+}
+
+impl Copy for TokenRule {}
+impl Snapshot for TokenRule {}
+
+impl TokenRule {
+    pub fn empty() -> Self {
+        TokenRule {
+            token: Address::zero(),
+            max_per_tx: TokenAmount::zero(),
+            max_per_window: TokenAmount::zero(),
+            max_approve: TokenAmount::zero(),
+        }
+    }
+}
+
+pub struct Policy {
+    pub version: u8,
+    pub n_targets: u8,
+    pub targets: [TargetRule; MAX_TARGETS],
+    pub max_per_tx: Wei,
+    pub max_per_window: Wei,
+    pub window: Duration,
+    pub n_tokens: u8,
+    pub tokens: [TokenRule; MAX_TOKENS],
+    pub n_recipients: u8,
+    pub recipients: [Address; MAX_RECIPIENTS],
+    pub max_actions_per_window: u32,
+    pub cooldown: Duration,
+    pub breaker_threshold: u32,
+}
+
+impl Copy for Policy {}
+impl Snapshot for Policy {}
+
+pub struct Bucket { pub index: u64, pub amount: u256 }
+
+impl Copy for Bucket {}
+impl Snapshot for Bucket {}
+
+impl Bucket {
+    pub fn empty() -> Self {
+        Bucket { index: 0, amount: 0 }
+    }
+}
+
+pub struct Window24 { pub buckets: [Bucket; BUCKETS] }
+
+impl Copy for Window24 {}
+impl Snapshot for Window24 {}
+
+impl Window24 {
+    pub fn empty() -> Self {
+        Window24 { buckets: [Bucket { index: 0, amount: 0 }; BUCKETS] }
+    }
+}
+
+pub struct AgentState {
+    pub paused: bool,
+    pub tripped: bool,
+    pub expiry: Timestamp,
+    pub eth_window: Window24,
+    pub token_windows: [Window24; MAX_TOKENS],
+    pub action_window: Window24,
+    pub last_action: Timestamp,
+    pub denials: Window24,
+}
+
+impl Copy for AgentState {}
+impl Snapshot for AgentState {}
+
+impl AgentState {
+    pub fn empty() -> Self {
+        AgentState {
+            paused: false,
+            tripped: false,
+            expiry: Timestamp::from_seconds(0),
+            eth_window: Window24::empty(),
+            token_windows: [Window24::empty(); MAX_TOKENS],
+            action_window: Window24::empty(),
+            last_action: Timestamp::from_seconds(0),
+            denials: Window24::empty(),
+        }
+    }
+}
+
+pub struct Calldata { pub len: usize, pub bytes: [u8; MAX_CALLDATA] }
+
+impl Copy for Calldata {}
+impl Snapshot for Calldata {}
+
+impl Calldata {
+    pub const fn empty() -> Self {
+        Calldata { len: 0, bytes: [0; MAX_CALLDATA] }
+    }
+
+    pub fn from_slice(bytes: [u8; MAX_CALLDATA], len: usize) -> Self {
+        Calldata { len, bytes }
+    }
+}
+
+pub struct Tx {
+    pub to: Address,
+    pub value: Wei,
+    pub data: Calldata,
+    pub op: Operation,
+    pub now: Timestamp,
+}
+
+impl Copy for Tx {}
+impl Snapshot for Tx {}

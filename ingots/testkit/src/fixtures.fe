@@ -1,0 +1,76 @@
+use policy::{
+    Address,
+    Calldata,
+    MAX_CALLDATA,
+    Policy,
+    SEL_APPROVE,
+    SEL_TRANSFER,
+    SEL_TRANSFER_FROM,
+    Timestamp,
+    default_policy,
+}
+
+pub fn addr_token() -> Address {
+    Address::new(0x1000000000000000000000000000000000000001)
+}
+
+pub fn addr_treasury() -> Address {
+    Address::new(0x2000000000000000000000000000000000000002)
+}
+
+pub fn addr_attacker() -> Address {
+    Address::new(0x9999999999999999999999999999999999999999)
+}
+
+pub fn addr_user() -> Address {
+    Address::new(0x3000000000000000000000000000000000000003)
+}
+
+pub fn t0() -> Timestamp {
+    Timestamp::from_seconds(1_763_000_000)
+}
+
+pub fn policy_basic() -> Policy {
+    default_policy()
+}
+
+fn write_u32(buf: mut [u8; MAX_CALLDATA], offset: usize, val: u32) {
+    buf[offset] = (val >> 24).downcast_truncate()
+    buf[offset + 1] = (val >> 16).downcast_truncate()
+    buf[offset + 2] = (val >> 8).downcast_truncate()
+    buf[offset + 3] = val.downcast_truncate()
+}
+
+fn write_word(buf: mut [u8; MAX_CALLDATA], offset: usize, val: u256) {
+    var i: usize = 0
+    while i < 32 {
+        let shift = ((31 - i) * 8) as u256
+        buf[offset + i] = (val >> shift).downcast_truncate()
+        i += 1
+    }
+}
+
+pub fn erc20_transfer(to: Address, amt: u256) -> Calldata {
+    var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    write_u32(buf: mut buf, offset: 0, val: SEL_TRANSFER)
+    write_word(buf: mut buf, offset: 4, val: to.word())
+    write_word(buf: mut buf, offset: 36, val: amt)
+    Calldata { len: 68, bytes: buf }
+}
+
+pub fn erc20_approve(spender: Address, amt: u256) -> Calldata {
+    var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    write_u32(buf: mut buf, offset: 0, val: SEL_APPROVE)
+    write_word(buf: mut buf, offset: 4, val: spender.word())
+    write_word(buf: mut buf, offset: 36, val: amt)
+    Calldata { len: 68, bytes: buf }
+}
+
+pub fn erc20_transfer_from(from: Address, to: Address, amt: u256) -> Calldata {
+    var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    write_u32(buf: mut buf, offset: 0, val: SEL_TRANSFER_FROM)
+    write_word(buf: mut buf, offset: 4, val: from.word())
+    write_word(buf: mut buf, offset: 36, val: to.word())
+    write_word(buf: mut buf, offset: 68, val: amt)
+    Calldata { len: 100, bytes: buf }
+}

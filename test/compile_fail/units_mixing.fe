@@ -1,0 +1,5 @@
+use std::evm::units::{Duration, Wei}
+
+pub fn bad_math() -> Wei {
+    Wei::zero() + Duration::zero()
+}

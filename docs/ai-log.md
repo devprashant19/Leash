@@ -64,3 +64,10 @@ Wrote out/MockSafe.sizes.txt
 $ fe build -i cli --backend native --emit ir
 Wrote out/cli.native.sona
 ```
+
+## 2026-11-13 — Phase 1 — T1 Core Types and Constants
+- **AI-assisted**: yes (Antigravity).
+- **Files**: `ingots/policy/src/types.fe`, `ingots/policy/src/config.fe`, `ingots/policy/src/test_types.fe`, `ingots/testkit/src/fixtures.fe`, `test/compile_fail/units_mixing.fe`, `scripts/compile-fail.sh`.
+- **What**: Implemented core types (TokenAmount, Operation, DenyReason codes 1..20, Verdict, TargetKind, TargetRule, TokenRule, Policy, Bucket, Window24, AgentState, Calldata, Tx), selector constants, default_policy in config.fe, testkit fixtures, compile-fail test with test runner script, and comprehensive unit tests.
+- **Reviewed by human**: pending confirmation.
+

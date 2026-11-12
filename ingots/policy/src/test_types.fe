@@ -1,0 +1,93 @@
+use ingot::types::{
+    DenyReason,
+    Operation,
+    SEL_APPROVE,
+    SEL_TRANSFER,
+    SEL_TRANSFER_FROM,
+    operation_from_u8,
+    reason_code,
+    reason_name,
+}
+
+#[test]
+fn test_selectors_match() {
+    assert(SEL_TRANSFER == 0xa9059cbb)
+    assert(SEL_APPROVE == 0x095ea7b3)
+    assert(SEL_TRANSFER_FROM == 0x23b872dd)
+}
+
+#[test]
+fn test_operation_conversion() {
+    match operation_from_u8(0) {
+        Option::Some(Operation::Call) => {},
+        _ => assert(false),
+    }
+    match operation_from_u8(1) {
+        Option::Some(Operation::DelegateCall) => {},
+        _ => assert(false),
+    }
+    match operation_from_u8(2) {
+        Option::None => {},
+        _ => assert(false),
+    }
+    match operation_from_u8(255) {
+        Option::None => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_reason_codes_exhaustive() {
+    assert(reason_code(DenyReason::Paused) == 1)
+    assert(reason_code(DenyReason::SessionExpired) == 2)
+    assert(reason_code(DenyReason::DelegateCallBlocked) == 3)
+    assert(reason_code(DenyReason::TargetNotAllowed) == 4)
+    assert(reason_code(DenyReason::SelectorNotAllowed) == 5)
+    assert(reason_code(DenyReason::MalformedCalldata) == 6)
+    assert(reason_code(DenyReason::PerTxCapExceeded) == 7)
+    assert(reason_code(DenyReason::WindowCapExceeded) == 8)
+    assert(reason_code(DenyReason::TokenCapExceeded) == 9)
+    assert(reason_code(DenyReason::UnlimitedApproval) == 10)
+    assert(reason_code(DenyReason::RecipientNotAllowed) == 11)
+    assert(reason_code(DenyReason::RateLimited) == 12)
+    assert(reason_code(DenyReason::CooldownActive) == 13)
+    assert(reason_code(DenyReason::OutsideTradingHours) == 14)
+    assert(reason_code(DenyReason::CircuitTripped) == 15)
+    assert(reason_code(DenyReason::SwapNotAllowed) == 16)
+    assert(reason_code(DenyReason::LendingNotAllowed) == 17)
+    assert(reason_code(DenyReason::PriceUnavailable) == 18)
+    assert(reason_code(DenyReason::UsdCapExceeded) == 19)
+    assert(reason_code(DenyReason::EscalationRequired) == 20)
+}
+
+#[test]
+fn test_reason_names_exhaustive() {
+    assert(reason_name(DenyReason::Paused) == "Paused")
+    assert(
+        reason_name(DenyReason::SessionExpired) == "SessionExpired",
+    )
+    assert(
+        reason_name(DenyReason::DelegateCallBlocked) == "DelegateCallBlocked",
+    )
+    assert(
+        reason_name(DenyReason::TargetNotAllowed) == "TargetNotAllowed",
+    )
+    assert(
+        reason_name(DenyReason::SelectorNotAllowed) == "SelectorNotAllowed",
+    )
+    assert(
+        reason_name(DenyReason::MalformedCalldata) == "MalformedCalldata",
+    )
+    assert(
+        reason_name(DenyReason::PerTxCapExceeded) == "PerTxCapExceeded",
+    )
+    assert(
+        reason_name(DenyReason::WindowCapExceeded) == "WindowCapExceeded",
+    )
+    assert(
+        reason_name(DenyReason::TokenCapExceeded) == "TokenCapExceeded",
+    )
+    assert(
+        reason_name(DenyReason::UnlimitedApproval) == "UnlimitedApproval",
+    )
+}

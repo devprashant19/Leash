@@ -1,4 +1,5 @@
 use policy
+pub use fixtures::*
 use std::abi::Bytes
 use std::evm::{Address, Create, Evm, Wei}
 
