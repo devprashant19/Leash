@@ -1,0 +1,72 @@
+use policy::{
+    Address,
+    AgentState,
+    Calldata,
+    DenyReason,
+    Operation,
+    Timestamp,
+    Tx,
+    Verdict,
+    Wei,
+    decide,
+    default_policy,
+}
+use testkit::addr_treasury
+
+#[test]
+pub fn test_attack_07_expired_session_key() {
+    let pol = default_policy()
+    var state = AgentState::empty()
+    // Session expired at 1_763_000_000
+    state.expiry = Timestamp::from_seconds(1_763_000_000)
+
+    let tx = Tx {
+        to: addr_treasury(),
+        value: Wei::zero(),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_001),
+        // 1 second after expiry
+    }
+
+    match decide(tx, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::SessionExpired => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // Boundary: exactly at expiry (tx.now == state.expiry) -> Denied
+    let tx_exact = Tx {
+        to: addr_treasury(),
+        value: Wei::zero(),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+    match decide(tx: tx_exact, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::SessionExpired => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // Boundary: 1 second before expiry (tx.now == state.expiry - 1) -> Allowed
+    let tx_before = Tx {
+        to: addr_treasury(),
+        value: Wei::zero(),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_762_999_999),
+    }
+    match decide(tx: tx_before, pol, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+}

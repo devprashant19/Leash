@@ -1,0 +1,89 @@
+use policy::{
+    Address,
+    AgentState,
+    DenyReason,
+    Operation,
+    Timestamp,
+    Tx,
+    U256_MAX,
+    Verdict,
+    Wei,
+    decide,
+    default_policy,
+}
+use testkit::{addr_token, addr_treasury, erc20_approve}
+
+#[test]
+pub fn test_attack_03_unlimited_approve() {
+    var pol = default_policy()
+    pol.n_recipients = 1
+    pol.recipients[0] = addr_treasury()
+
+    var state = AgentState::empty()
+    state.expiry = Timestamp::from_seconds(2_000_000_000)
+
+    // Attacker calls approve(treasury, 2^256 - 1)
+    let bad_data = erc20_approve(spender: addr_treasury(), amt: U256_MAX)
+    let tx = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: bad_data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::UnlimitedApproval => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // Conversely, zero-approval revocation is always allowed
+    let zero_data = erc20_approve(spender: addr_treasury(), amt: 0)
+    let tx_zero = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: zero_data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+    // Boundary checks: max_approve is 100 tokens
+    let max_app = pol.tokens[0].max_approve.as_u256()
+
+    // 1. Exactly max_approve -> Allowed
+    let ok_data = erc20_approve(spender: addr_treasury(), amt: max_app)
+    let tx_ok = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: ok_data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+    match decide(tx: tx_ok, pol, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+
+    // 2. max_approve + 1 -> Denied (UnlimitedApproval)
+    let over_data = erc20_approve(spender: addr_treasury(), amt: max_app + 1)
+    let tx_over = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: over_data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+    match decide(tx: tx_over, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::UnlimitedApproval => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+}

@@ -1,0 +1,63 @@
+use policy::{
+    Address,
+    AgentState,
+    DenyReason,
+    Operation,
+    Timestamp,
+    Tx,
+    Verdict,
+    Wei,
+    decide,
+    default_policy,
+}
+use testkit::{addr_attacker, addr_token, addr_treasury, erc20_approve, erc20_transfer}
+
+#[test]
+pub fn test_attack_04_attacker_spender_or_recipient() {
+    var pol = default_policy()
+    pol.n_recipients = 1
+    pol.recipients[0] = addr_treasury()
+
+    var state = AgentState::empty()
+    state.expiry = Timestamp::from_seconds(2_000_000_000)
+
+    // Attacker tries to transfer tokens to unlisted attacker address
+    let bad_transfer = erc20_transfer(to: addr_attacker(), amt: 100)
+    let tx1 = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: bad_transfer,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx: tx1, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::RecipientNotAllowed => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // Attacker tries to approve unlisted attacker spender
+    let bad_approve = erc20_approve(spender: addr_attacker(), amt: 50)
+    let tx2 = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: bad_approve,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx: tx2, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::RecipientNotAllowed => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+}

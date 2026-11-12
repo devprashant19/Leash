@@ -47,6 +47,8 @@ pub msg SafeMsg {
     RevokeAgentOn { module_addr: Address, agent: Address },
     #[selector = sol("resetBreakerOn(address,address)")]
     ResetBreakerOn { module_addr: Address, agent: Address },
+    #[selector = sol("setReenterTarget(address)")]
+    SetReenterTarget { target: Address },
 }
 
 pub msg ModuleAdminMsg {
@@ -75,6 +77,7 @@ pub contract MockSafe uses (ctx: Ctx, call: mut Call) {
     mut last_op: u8,
     mut should_fail: bool,
     mut forward_calls: bool,
+    mut reenter_target: Address,
 
     init() {}
 
@@ -93,6 +96,10 @@ pub contract MockSafe uses (ctx: Ctx, call: mut Call) {
 
         SetForwardCalls { forward } uses (mut forward_calls) {
             forward_calls = forward
+        }
+
+        SetReenterTarget { target } uses (mut reenter_target) {
+            reenter_target = target
         }
 
         CallCount -> u256 uses (call_count) {
@@ -122,6 +129,7 @@ pub contract MockSafe uses (ctx: Ctx, call: mut Call) {
             mut last_op,
             should_fail,
             forward_calls,
+            reenter_target,
         )
         {
             let caller = ctx.caller()
@@ -135,6 +143,15 @@ pub contract MockSafe uses (ctx: Ctx, call: mut Call) {
             last_to = to
             last_value = value
             last_op = operation
+
+            if reenter_target != Address::zero() {
+                call.call(
+                    addr: reenter_target,
+                    gas: 500000,
+                    value: Wei::zero(),
+                    message: ReenterMsg::Ping {},
+                )
+            }
 
             if forward_calls && to != Address::zero() {
                 var ret = core::ptr::MemBuffer::empty()
@@ -408,7 +425,9 @@ pub fn test_splitmix64_and_digest() {
     // cast keccak 0x00000000000000000000000000000000000000000000000000000000000000000000000100
     // is 0xfa8ce0549471a4369b2ea1ed45180de2be3bb3666d02ce2ececc0beadff86c68
     let d1 = rolling_digest(prev_digest: 0, i: 1, code: 0)
-    assert(d1 == 0xfa8ce0549471a4369b2ea1ed45180de2be3bb3666d02ce2ececc0beadff86c68)
+    assert(
+        d1 == 0xfa8ce0549471a4369b2ea1ed45180de2be3bb3666d02ce2ececc0beadff86c68,
+    )
 }
 
 #[test]

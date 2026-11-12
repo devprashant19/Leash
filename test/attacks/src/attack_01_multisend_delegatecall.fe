@@ -1,0 +1,86 @@
+use module::{LeashModule, LeashMsg}
+use policy::{
+    Address,
+    AgentState,
+    Calldata,
+    DenyReason,
+    Operation,
+    Timestamp,
+    Tx,
+    Verdict,
+    Wei,
+    decide,
+    default_policy,
+}
+use std::abi::{Bytes, bytes_from_words}
+use std::evm::Evm
+use testkit::{MockSafe, SafeMsg}
+
+#[test]
+pub fn test_attack_01_multisend_delegatecall() {
+    let pol = default_policy()
+    let state = AgentState::empty()
+
+    // Attacker crafts a DelegateCall to MultiSend
+    let multisend_addr = Address::new(0x9999000000000000000000000000000000000001)
+    let tx = Tx {
+        to: multisend_addr,
+        value: Wei::zero(),
+        data: Calldata::empty(),
+        op: Operation::DelegateCall,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::DelegateCallBlocked => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+pub fn test_attack_01_evm_delegatecall_reverts() uses (evm: mut Evm) {
+    let agent = evm.address()
+    let safe_addr = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let guardian_addr = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe_addr, guardian_addr))
+
+    evm.call(
+        addr: safe_addr,
+        gas: 200000,
+        value: Wei::zero(),
+        message: SafeMsg::EnableModule { module_addr },
+    )
+    evm.call(
+        addr: safe_addr,
+        gas: 200000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent,
+            expiry: Timestamp::from_seconds(2_000_000_000),
+            label: 0x1,
+        },
+    )
+
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+
+    // Attacker passes operation = 1 (DelegateCall) -> reverts with DelegateCallBlocked
+    evm.call(
+        addr: module_addr,
+        gas: 300000,
+        value: Wei::zero(),
+        message: LeashMsg::Execute {
+            to: Address::new(0x9999000000000000000000000000000000000001),
+            value: 0,
+            data: empty_data,
+            operation: 1,
+        },
+    )
+}

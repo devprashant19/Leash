@@ -1,0 +1,23 @@
+use policy::{AgentState, BUCKET_LEN, Bucket, Timestamp, Window24, record_spend, spent_in_window}
+
+#[test]
+pub fn test_attack_09_window_rollover_no_double_spend() {
+    var win = Window24::empty()
+    let t0 = Timestamp::from_seconds(1_000 * (BUCKET_LEN as u256))
+
+    // Spend 100 at t0 (bucket 1000)
+    record_spend(win: mut win, t0, 100)
+    assert(spent_in_window(win: ref win, t0) == 100)
+
+    // At t0 + 23 hours (bucket 1023), bucket 1000 is still active
+    let t23 = Timestamp::from_seconds(t0.as_seconds() + (23 * (BUCKET_LEN as u256)))
+    assert(spent_in_window(win: ref win, t23) == 100)
+
+    // At t0 + 24 hours (bucket 1024), bucket 1000 is exactly 24 hours old -> expired!
+    let t24 = Timestamp::from_seconds(t0.as_seconds() + (24 * (BUCKET_LEN as u256)))
+    assert(spent_in_window(win: ref win, t24) == 0)
+
+    // If attacker spends 100 at t24, spent_in_window is exactly 100 (not 200 double-spend)
+    record_spend(win: mut win, t24, 100)
+    assert(spent_in_window(win: ref win, t24) == 100)
+}

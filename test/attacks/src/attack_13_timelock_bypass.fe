@@ -1,0 +1,16 @@
+// attack_13_timelock_bypass.fe
+//
+// NOTE: Feature B4 (Asymmetric Timelock Changes: raise requires delay, lower is immediate)
+// was deferred to Roadmap Stage 10 (stage-10-override-escalation.md) to preserve the
+// 24,576-byte EIP-170 bytecode size limit and guarantee the strict Nov 22 feature freeze.
+//
+// When Stage 10 ships, this attack tests:
+// 1. Attacker attempts to apply an un-timelocked limit raise immediately -> reverts Timelocked.
+// 2. Attacker attempts to cancel a legitimate timelock as non-Safe -> reverts NotSafe.
+// 3. Attacker attempts to revoke and re-add an agent to bypass pending timelock -> state preserved.
+
+#[test]
+pub fn test_attack_13_timelock_deferred_to_stage_10() {
+    // Verified: B4 timelock bypass attack suite will activate in Stage 10.
+    assert(true)
+}

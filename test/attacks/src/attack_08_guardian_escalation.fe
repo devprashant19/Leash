@@ -1,0 +1,187 @@
+use module::{LeashModule, LeashMsg}
+use std::abi::{Bytes, bytes_from_words}
+use std::evm::{Address, Evm, Timestamp, Wei}
+use testkit::{MockSafe, SafeMsg, addr_treasury}
+
+// Selectors:
+// NotSafe: 0x9dc4246e
+// NotGuardian: 0xef6d0f02
+// NotAgent: 0x0d9ab13f
+// InvalidExpiry: 0xd36c8500
+
+#[cfg(target = "evm")]
+#[test(should_revert, selector = 0x9dc4246e)]
+pub fn test_attack_08_guardian_cannot_set_agent() uses (evm: mut Evm) {
+    let caller = evm.address()
+    let safe = Address::new(0x1111)
+    let guardian = caller
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    // Guardian attempts to call setAgent: reverts NotSafe (0x9dc4246e)
+    evm.call(
+        addr: module_addr,
+        gas: 200000,
+        value: Wei::zero(),
+        message: LeashMsg::SetAgent {
+            agent: caller,
+            expiry: Timestamp::from_seconds(2_000_000_000),
+            label: 0xbeef,
+        },
+    )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert, selector = 0x9dc4246e)]
+pub fn test_attack_08_guardian_cannot_unpause() uses (evm: mut Evm) {
+    let caller = evm.address()
+    let safe = Address::new(0x1111)
+    let guardian = caller
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    // Guardian attempts to call unpause: reverts NotSafe (0x9dc4246e)
+    evm.call(
+        addr: module_addr,
+        gas: 200000,
+        value: Wei::zero(),
+        message: LeashMsg::Unpause {},
+    )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert, selector = 0x9dc4246e)]
+pub fn test_attack_08_guardian_cannot_reset_breaker() uses (evm: mut Evm) {
+    let caller = evm.address()
+    let safe = Address::new(0x1111)
+    let guardian = caller
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    // Guardian attempts to call resetBreaker: reverts NotSafe (0x9dc4246e)
+    evm.call(
+        addr: module_addr,
+        gas: 200000,
+        value: Wei::zero(),
+        message: LeashMsg::ResetBreaker { agent: caller },
+    )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert, selector = 0xef6d0f02)]
+pub fn test_attack_08_unauthorized_pause_rejected() uses (evm: mut Evm) {
+    let caller = evm.address()
+    let safe = Address::new(0x1111)
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    // Caller is neither Safe nor Guardian -> reverts NotGuardian (0xef6d0f02)
+    evm.call(
+        addr: module_addr,
+        gas: 200000,
+        value: Wei::zero(),
+        message: LeashMsg::Pause {},
+    )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert, selector = 0x9dc4246e)]
+pub fn test_attack_08_unauthorized_set_guardian_rejected() uses (evm: mut Evm) {
+    let caller = evm.address()
+    let safe = Address::new(0x1111)
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    // Caller is not Safe -> reverts NotSafe (0x9dc4246e)
+    evm.call(
+        addr: module_addr,
+        gas: 200000,
+        value: Wei::zero(),
+        message: LeashMsg::SetGuardian { guardian_addr: caller },
+    )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert, selector = 0x9dc4246e)]
+pub fn test_attack_08_unauthorized_revoke_agent_rejected() uses (evm: mut Evm) {
+    let caller = evm.address()
+    let safe = Address::new(0x1111)
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    // Caller is not Safe -> reverts NotSafe (0x9dc4246e)
+    evm.call(
+        addr: module_addr,
+        gas: 200000,
+        value: Wei::zero(),
+        message: LeashMsg::RevokeAgent { agent: Address::new(0x3333) },
+    )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert, selector = 0xd36c8500)]
+pub fn test_attack_08_invalid_expiry_rejected() uses (evm: mut Evm) {
+    let safe_addr = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let guardian_addr = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe_addr, guardian_addr))
+
+    // Safe attempts to set agent with expiry = 0 <= ctx.timestamp() -> reverts InvalidExpiry (0xd36c8500)
+    evm.call(
+        addr: safe_addr,
+        gas: 200000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent: Address::new(0x4444),
+            expiry: Timestamp::from_seconds(0),
+            label: 0x1,
+        },
+    )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert, selector = 0x0d9ab13f)]
+pub fn test_attack_08_revoked_agent_cannot_execute() uses (evm: mut Evm) {
+    let agent = evm.address()
+    let safe_addr = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let guardian_addr = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe_addr, guardian_addr))
+
+    evm.call(
+        addr: safe_addr,
+        gas: 200000,
+        value: Wei::zero(),
+        message: SafeMsg::EnableModule { module_addr },
+    )
+    evm.call(
+        addr: safe_addr,
+        gas: 200000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent,
+            expiry: Timestamp::from_seconds(2_000_000_000),
+            label: 0x1,
+        },
+    )
+    // Safe revokes agent
+    evm.call(
+        addr: safe_addr,
+        gas: 200000,
+        value: Wei::zero(),
+        message: SafeMsg::RevokeAgentOn { module_addr, agent },
+    )
+
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+
+    // Revoked agent attempts to Execute -> reverts NotAgent (0x0d9ab13f)
+    evm.call(
+        addr: module_addr,
+        gas: 300000,
+        value: Wei::zero(),
+        message: LeashMsg::Execute {
+            to: addr_treasury(),
+            value: 1000,
+            data: empty_data,
+            operation: 0,
+        },
+    )
+}

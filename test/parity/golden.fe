@@ -32,9 +32,5 @@ pub fn chunk_digest(_ idx: usize) -> u256 {
         CHUNK_DIGEST_7
     } else if idx == 8 {
         CHUNK_DIGEST_8
-    } else if idx == 9 {
-        CHUNK_DIGEST_9
-    } else {
-        0
-    }
+    } else if idx == 9 { CHUNK_DIGEST_9 } else { 0 }
 }

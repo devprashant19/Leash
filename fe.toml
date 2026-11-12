@@ -8,4 +8,5 @@ members = [
   "ingots/testkit",
   "test/parity",
   "test/policy",
+  "test/attacks",
 ]

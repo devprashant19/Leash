@@ -1,0 +1,40 @@
+use policy::{
+    Address,
+    AgentState,
+    DenyReason,
+    Operation,
+    Timestamp,
+    Tx,
+    Verdict,
+    Wei,
+    decide,
+    default_policy,
+}
+use testkit::{addr_treasury, addr_user, erc20_transfer_from}
+
+#[test]
+pub fn test_attack_10_unlisted_token_target_denied() {
+    let pol = default_policy()
+    let state = AgentState::empty()
+
+    // Unlisted token target
+    let unlisted_token = Address::new(0x7777777777777777777777777777777777777777)
+    let bad_data = erc20_transfer_from(from: addr_user(), to: addr_treasury(), amt: 50)
+    let tx = Tx {
+        to: unlisted_token,
+        value: Wei::zero(),
+        data: bad_data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::TargetNotAllowed => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+}

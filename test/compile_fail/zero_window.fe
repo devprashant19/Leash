@@ -1,9 +1,5 @@
 pub const fn static_check_zero_window(window_sec: u64) -> u32 {
-    if window_sec > 0 {
-        1
-    } else {
-        1 / 0
-    }
+    if window_sec > 0 { 1 } else { 1 / 0 }
 }
 
 pub const CHECK_WINDOW: u32 = static_check_zero_window(window_sec: 0)

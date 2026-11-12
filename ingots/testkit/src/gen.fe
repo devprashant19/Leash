@@ -30,9 +30,7 @@ use ingot::fixtures::{
     erc20_transfer_from,
 }
 
-pub struct SplitMix64 {
-    pub state: u256,
-}
+pub struct SplitMix64 { pub state: u256 }
 
 impl SplitMix64 {
     pub fn new(seed: u256) -> Self {
@@ -50,9 +48,7 @@ pub fn rng_next_u64(rng: mut SplitMix64) -> u64 {
 }
 
 pub fn rng_next_range(rng: mut SplitMix64, min: u256, max: u256) -> u256 {
-    if min >= max {
-        return min
-    }
+    if min >= max { return min }
     let span = max - min + 1
     let r: u256 = rng_next_u64(rng: mut rng) as u256
     min + (r % span)
@@ -86,14 +82,15 @@ pub fn gen_tx(rng: mut SplitMix64, pol: Policy, prev_now: u256) -> Tx {
     if roll_to < 70 {
         if pol.n_targets > 0 {
             let max_idx = (pol.n_targets as u256) - 1
-            let idx: usize = (rng_next_range(rng: mut rng, min: 0, max: max_idx)).downcast_truncate()
+            let idx: usize = (rng_next_range(rng: mut rng, min: 0, max: max_idx))
+                .downcast_truncate()
             to = pol.targets[idx].target
             is_listed = true
             match pol.targets[idx].kind {
                 TargetKind::Erc20 => {
                     is_erc20 = true
-                }
-                _ => {}
+                },
+                _ => {},
             }
         } else {
             to = addr_treasury()
@@ -160,7 +157,8 @@ pub fn gen_tx(rng: mut SplitMix64, pol: Policy, prev_now: u256) -> Tx {
             if roll_rec < 80 {
                 if pol.n_recipients > 0 {
                     let r_max = (pol.n_recipients as u256) - 1
-                    let r_idx: usize = (rng_next_range(rng: mut rng, min: 0, max: r_max)).downcast_truncate()
+                    let r_idx: usize = (rng_next_range(rng: mut rng, min: 0, max: r_max))
+                        .downcast_truncate()
                     rec = pol.recipients[r_idx]
                 } else {
                     rec = addr_treasury()
@@ -237,13 +235,7 @@ pub fn gen_tx(rng: mut SplitMix64, pol: Policy, prev_now: u256) -> Tx {
         }
     }
 
-    Tx {
-        to,
-        value: wei(val),
-        data,
-        op,
-        now: Timestamp::from_seconds(now_sec),
-    }
+    Tx { to, value: wei(val), data, op, now: Timestamp::from_seconds(now_sec) }
 }
 
 pub fn parity_policy() -> Policy {

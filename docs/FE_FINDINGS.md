@@ -48,3 +48,24 @@
 ### Spike 5: Custom `#[error]` Reverts
 - **Code**: `#[error] pub struct Paused {}` with selector `0x9e87fac8`.
 - **Result**: `#[test(should_revert, selector = 0x9e87fac8)]` passes. Matches `cast sig "Paused()" == 0x9e87fac8`.
+
+---
+
+## 4. Phase 5 Findings: Advanced Patterns, Gas Boundaries, and Parity
+
+1. **Mutable Bindings (`var` vs `let mut`)**:
+   - `let mut x = ...` causes compiler error `unexpected token 'mut'`.
+   - In Fe 26.6.0, mutable local variables MUST be declared with `var x = ...`. Mutable references passed to functions use `mut x` or `label: mut x`.
+2. **Top-Level `pub use` Semicolons**:
+   - In Fe source files, `pub use module::*;` fails with `unexpected token ';'`.
+   - Top-level `pub use` statements must omit the trailing semicolon (e.g., `pub use golden::*`).
+3. **`Bytes` Move Semantics**:
+   - `Bytes` does not implement `Copy`. Passing a `Bytes` struct into an EVM message call or function moves it.
+   - For repeated calls in loops (such as circuit breaker probing or multi-tx simulation), either re-instantiate `Bytes` inside each loop iteration or use explicit `.clone()`.
+4. **Single-Element Tuples for `evm.create<T>`**:
+   - Calling `evm.create<T>(args: (x))` treats `(x)` as parenthesized expression rather than a tuple.
+   - Single-element tuples require a trailing comma: `evm.create<T>(args: (x,))`.
+5. **EVM Gas Limits in Off-chain Test Harnesses**:
+   - Running 10,000 complex cryptographic transactions in a single EVM contract execution exceeds standard gas limits (30M gas).
+   - Solution: Sharding the parity suite into 10 deterministic chunks of 1,000 transactions with rolling seeds (`PARITY_SEED + chunk_idx`) allows instant verification across both EVM and native backends (~0.35s per chunk) with rolling Keccak-256 state continuity.
+

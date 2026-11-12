@@ -1,9 +1,4 @@
-use testkit::{
-    CHUNK_DIGEST_0,
-    PARITY_GOLDEN_DIGEST,
-    chunk_digest,
-    run_parity_chunk,
-}
+use testkit::{CHUNK_DIGEST_0, PARITY_GOLDEN_DIGEST, chunk_digest, run_parity_chunk}
 use core::hash::Keccak256
 
 #[test]

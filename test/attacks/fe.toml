@@ -1,0 +1,8 @@
+[ingot]
+name = "attack_tests"
+version = "0.1.0"
+
+[dependencies]
+policy = { path = "../../ingots/policy" }
+module = { path = "../../ingots/module" }
+testkit = { path = "../../ingots/testkit" }

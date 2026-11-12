@@ -1,0 +1,124 @@
+use policy::{
+    Address,
+    AgentState,
+    Calldata,
+    DenyReason,
+    MAX_CALLDATA,
+    Operation,
+    Timestamp,
+    Tx,
+    Verdict,
+    Wei,
+    decide,
+    default_policy,
+}
+use testkit::{addr_token, addr_treasury, erc20_transfer}
+
+#[test]
+pub fn test_attack_05_malformed_calldata_robustness() {
+    let pol = default_policy()
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(1_763_000_000)
+
+    // 1. Truncated calldata (35 bytes)
+    let valid = erc20_transfer(to: addr_treasury(), amt: 100)
+    let tx_truncated = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: Calldata { len: 35, bytes: valid.bytes },
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx: tx_truncated, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::MalformedCalldata => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // 2. Extra trailing bytes (70 bytes)
+    let tx_extra = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: Calldata { len: 70, bytes: valid.bytes },
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx: tx_extra, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::MalformedCalldata => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // 3. Dirty address high word (high 12 bytes non-zero)
+    var dirty_buf: [u8; MAX_CALLDATA] = valid.bytes
+    dirty_buf[4] = 0xff
+    let tx_dirty = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: Calldata { len: 68, bytes: dirty_buf },
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx: tx_dirty, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::MalformedCalldata => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // 4. Short calldata: 1, 2, and 3 bytes (< 4 byte selector)
+    var short_buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    short_buf[0] = 0xaa
+    short_buf[1] = 0xbb
+    short_buf[2] = 0xcc
+
+    var l: usize = 1
+    while l <= 3 {
+        let tx_short = Tx {
+            to: addr_token(),
+            value: Wei::zero(),
+            data: Calldata { len: l, bytes: short_buf },
+            op: Operation::Call,
+            now,
+        }
+        match decide(tx: tx_short, pol, state) {
+            Verdict::Deny(reason) => {
+                match reason {
+                    DenyReason::MalformedCalldata => {},
+                    _ => assert(false),
+                }
+            },
+            _ => assert(false),
+        }
+        l += 1
+    }
+
+    // 5. Zero-byte calldata to ERC-20 target (disallows ETH transfer) -> SelectorNotAllowed
+    let tx_empty = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx: tx_empty, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::SelectorNotAllowed => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+}

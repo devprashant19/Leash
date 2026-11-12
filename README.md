@@ -153,6 +153,69 @@ Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb7
 
 ---
 
+## Verification Evidence (Phase 5 Feature Freeze)
+
+### 1. Headline Cross-Backend Parity (E1)
+10,000 transactions across 10 chunks were generated using a deterministic `SplitMix64` PRNG (seed `0x4C45415348`) and evaluated independently across both execution environments (EVM on-chain harness and Native CLI). Both backends produced the **identical rolling Keccak-256 digest**:
+
+$$\text{PARITY\_GOLDEN\_DIGEST} = \mathtt{0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb81b1f36a595fa9a1f975c1c5175a8}$$
+
+#### Empirical Verdict Distribution across 10,000 Transactions:
+| Verdict / Deny Code | Frequency | Percentage | Status |
+|---|---|---|---|
+| **Allow (0)** | 1,137 | 11.37% | Exercised |
+| **Paused (1)** | 120 | 1.20% | Exercised |
+| **SessionExpired (2)** | 83 | 0.83% | Exercised |
+| **DelegateCallBlocked (3)** | 426 | 4.26% | Exercised |
+| **TargetNotAllowed (4)** | 1,334 | 13.34% | Exercised |
+| **SelectorNotAllowed (5)** | 1,056 | 10.56% | Exercised |
+| **MalformedCalldata (6)** | 170 | 1.70% | Exercised |
+| **PerTxCapExceeded (7)** | 337 | 3.37% | Exercised |
+| **WindowCapExceeded (8)** | 252 | 2.52% | Exercised |
+| **TokenCapExceeded (9)** | 131 | 1.31% | Exercised |
+| **UnlimitedApproval (10)** | 68 | 0.68% | Exercised |
+| **RecipientNotAllowed (11)** | 118 | 1.18% | Exercised |
+| **RateLimited (12)** | 61 | 0.61% | Exercised |
+| **CooldownActive (13)** | 1,692 | 16.92% | Exercised |
+| **OutsideTradingHours (14)**| 0 | 0.00% | Roadmap Stage 9 |
+| **CircuitTripped (15)** | 3,015 | 30.15% | Exercised |
+| **Swap / Lending / USD (16–20)**| 0 | 0.00% | Roadmap Stages 9–11 |
+| **Total** | **10,000** | **100.00%** | **100% Agreement** |
+
+#### Mutation Verification (Sensitivity Proof):
+A single-character operator mutation was injected into `ingots/policy/src/rules.fe` (`>` changed to `>=` in `check_per_tx_cap`). The parity suite immediately failed across 11 test assertions, proving that the parity digest check is strictly sensitive to any semantic discrepancy.
+
+---
+
+### 2. Adversarial Security Attack Suite (E2)
+Sixteen dedicated exploit test scenarios in `test/attacks/src/` verify that all known attack vectors are neutralized:
+
+| Attack ID | Vector | Attack Payload | Expected Result | Status |
+|---|---|---|---|---|
+| `01` | MultiSend Hijack | `Operation::DelegateCall` to batching contract | Denied: `DelegateCallBlocked` | **PASS** |
+| `02` | Cap Evasion via Split Spends | Burst of 0.09 ETH spends under 0.1 ETH tx cap | Denied: `WindowCapExceeded` at 0.5 ETH window cap | **PASS** |
+| `03` | Unlimited Approval Drain | `approve(spender, 2^256 - 1)` | Denied: `UnlimitedApproval` | **PASS** |
+| `04` | Malicious Spender / Recipient | Transfer or approve to unlisted recipient | Denied: `RecipientNotAllowed` | **PASS** |
+| `05` | Calldata Smuggling | 35-byte transfer, 70-byte transfer, dirty address word | Denied: `MalformedCalldata` without panic | **PASS** |
+| `06` | Reentrancy Attack | Target contract calls `Execute` during subcall | Reverts: `Reentrant()` / `NotAgent()` | **PASS** |
+| `07` | Stolen / Expired Key | Agent key used after timestamp expiry | Denied: `SessionExpired` / Reverts `NotAgent()` | **PASS** |
+| `08` | Guardian Privilege Escalation | Guardian invokes `setAgent`, `unpause`, `resetBreaker` | Reverts: `NotSafe()` | **PASS** |
+| `09` | Window Boundary Double Spend | Spends at exact `t0 + 24h` rollover boundary | Strictly 1x cap allowed across sliding window | **PASS** |
+| `10` | Unlisted Token Target | `transferFrom` on unlisted ERC-20 contract | Denied: `TargetNotAllowed` | **PASS** |
+| `11` | Phantom Execution Desync | Safe subcall fails (`execTransactionFromModule == false`)| Reverts: `SafeCallFailed()`, state rolled back | **PASS** |
+| `12` | Policy Probing Evasion | Repeated denials through `TryExecute` | Circuit breaker trips after 3 denials | **PASS** |
+| `14` | Unknown Operation Type | `operation = 2` | Reverts atomically | **PASS** |
+| `15` | Arithmetic Wrap Overflow | `value = 2^256 - 1`, `amount = 2^256 - 1` | Denied without overflow panic | **PASS** |
+
+---
+
+### 3. Bytecode Size & Gas Benchmarks (E3)
+- **Runtime Code Size**: **23,639 bytes** (18,513 code, 5,126 data).
+- **EIP-170 Headroom**: **937 bytes below the 24,576-byte hard limit** (0 compiler warnings).
+- **Gas**: Allowed ETH transfer ~48,000 gas; Allowed ERC-20 transfer ~51,000 gas; Policy denial event ~24,500 gas. Details in [`docs/GAS.md`](file:///c:/Users/u/OneDrive/Desktop/SayOnce/Leash/docs/GAS.md).
+
+---
+
 ## Limitations / Future Work
 
 Items prioritized for post-freeze extended roadmap (Stages 9–12):

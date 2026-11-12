@@ -1,9 +1,5 @@
 pub const fn static_check_caps(max_tx: u256, max_win: u256) -> u32 {
-    if max_tx <= max_win {
-        1
-    } else {
-        1 / 0
-    }
+    if max_tx <= max_win { 1 } else { 1 / 0 }
 }
 
 pub const CHECK_CAPS: u32 = static_check_caps(max_tx: 200, max_win: 100)

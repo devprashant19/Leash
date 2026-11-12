@@ -80,3 +80,31 @@
 1. **Direct Safe Owner Bypass**: Safe owners hold multi-sig authority and can remove `LeashModule` via `Safe.disableModule(...)` at any time. Leash is a constraint on semi-autonomous *agents*, not a lock on owners.
 2. **Oracle & Price Volatility**: Pure Fe `policy` in Phase 1-2 enforces static token caps and raw amounts; dynamic USD-denominated pricing is deferred to Stage 9+ oracle integrations.
 3. **EVM Gas Exhaustion**: If gas limit is insufficient, transactions revert cleanly without partial state corruption.
+
+---
+
+## 6. Formal Claim-to-Test Mapping Matrix
+
+Every security invariant and threat mitigation asserted in the documentation is backed by automated tests:
+
+| Claim ID | Security Invariant | Implementing Test File | Test Function | Backend | Expected Outcome |
+|---|---|---|---|---|---|
+| **C1** | **DelegateCall Blocked** | `test/attacks/src/attack_01_multisend_delegatecall.fe` | `test_attack_01_multisend_delegatecall`<br>`test_attack_01_evm_delegatecall_reverts` | Native & EVM | Denied: `DelegateCallBlocked`<br>Reverts: `DelegateCallBlocked()` |
+| **C2** | **Window Cap Enforcement** | `test/attacks/src/attack_02_split_transfers.fe` | `test_attack_02_split_transfers_evading_window` | Native & EVM | Denied: `WindowCapExceeded` |
+| **C3** | **Unlimited Approval Block** | `test/attacks/src/attack_03_unlimited_approve.fe` | `test_attack_03_unlimited_approve` | Native & EVM | Denied: `UnlimitedApproval` (tested at max, max+1, and 0) |
+| **C4** | **Recipient Isolation** | `test/attacks/src/attack_04_attacker_spender.fe` | `test_attack_04_attacker_spender_or_recipient` | Native & EVM | Denied: `RecipientNotAllowed` |
+| **C5** | **Malformed Calldata Guard** | `test/attacks/src/attack_05_malformed_calldata.fe` | `test_attack_05_malformed_calldata_robustness` | Native & EVM | Denied: `MalformedCalldata` (1-3 bytes, 35b, 70b, dirty high word) |
+| **C6** | **Reentrancy Protection** | `test/attacks/src/attack_06_reentrancy.fe` | `test_attack_06_reentrancy_rejected` | EVM | Reverts: `Reentrant()` (`0xed3ba6a6`) |
+| **C7** | **Session Expiry** | `test/attacks/src/attack_07_expired_key.fe` | `test_attack_07_expired_session_key` | Native & EVM | Denied: `SessionExpired` (tested at expiry, expiry+1, expiry-1) |
+| **C8** | **Guardian & Admin Boundary** | `test/attacks/src/attack_08_guardian_escalation.fe` | `test_attack_08_*` (7 distinct tests) | EVM | Reverts: `NotSafe()`, `NotGuardian()`, `NotAgent()`, `InvalidExpiry()` |
+| **C9** | **Exact Rollover Boundary** | `test/attacks/src/attack_09_window_rollover.fe` | `test_attack_09_window_rollover_no_double_spend` | Native & EVM | Strictly 1x cap allowed across 24h boundary |
+| **C10** | **Unlisted Target Denial** | `test/attacks/src/attack_10_unlisted_token.fe` | `test_attack_10_unlisted_token_target_denied` | Native & EVM | Denied: `TargetNotAllowed` |
+| **C11** | **Atomic Rollback on Failure** | `test/attacks/src/attack_11_safe_call_fails.fe` | `test_attack_11_safe_call_fails_rolls_back` | EVM | Reverts: `SafeCallFailed()` |
+| **C12** | **Circuit Breaker Trips** | `test/attacks/src/attack_12_breaker_evasion.fe` | `test_attack_12_circuit_breaker_trips_and_blocks_probing` | EVM | Tripped: Code 15 (`CircuitTripped`) |
+| **C13** | **Unknown Opcode Rejection** | `test/attacks/src/attack_14_unknown_operation.fe` | `test_attack_14_unknown_operation_rejected` | EVM | Reverts |
+| **C14** | **Value Overflow Immunity** | `test/attacks/src/attack_15_value_overflow.fe` | `test_attack_15_value_overflow_attempts_denied` | Native & EVM | Denied without panic (`PerTxCapExceeded`, `TokenCapExceeded`) |
+| **C15** | **Rate Limiting Burst Guard** | `test/attacks/src/attack_16_rate_limit_burst.fe` | `test_attack_16_rate_limit_burst` | Native & EVM | Denied: `RateLimited` |
+| **C16** | **Cooldown Period Protection** | `test/attacks/src/attack_17_cooldown_subversion.fe` | `test_attack_17_cooldown_subversion` | Native & EVM | Denied: `CooldownActive` (tested at cd-1s and cd) |
+| **C17** | **Pure Decide Invariant** | Static analysis / CI Grep | `git grep -nE 'fn decide[^{]*uses'` | Compiler | 0 occurrences |
+| **C18** | **Component Isolation** | Static analysis / CI Grep | `git grep -nE 'policy::rules'` | Compiler | 0 occurrences |
+

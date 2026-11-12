@@ -1,0 +1,58 @@
+use module::{LeashModule, LeashMsg}
+use testkit::{MockSafe, SafeMsg, addr_treasury}
+use std::abi::{Bytes, bytes_from_words}
+use std::evm::{Address, Evm, Timestamp, Wei}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+pub fn test_attack_11_safe_call_fails_rolls_back() uses (evm: mut Evm) {
+    let agent = evm.address()
+    let safe_addr = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let guardian_addr = Address::new(0x2222)
+
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe_addr, guardian_addr))
+
+    // Safe enables module and registers agent
+    evm.call(
+        addr: safe_addr,
+        gas: 200000,
+        value: Wei::zero(),
+        message: SafeMsg::EnableModule { module_addr },
+    )
+
+    evm.call(
+        addr: safe_addr,
+        gas: 200000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent,
+            expiry: Timestamp::from_seconds(2_000_000_000),
+            label: 0x1,
+        },
+    )
+
+    // Instruct MockSafe to fail execution
+    evm.call(
+        addr: safe_addr,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetFail { fail: true },
+    )
+
+    // Execute must revert with SafeCallFailed
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+
+    evm.call(
+        addr: module_addr,
+        gas: 300000,
+        value: Wei::zero(),
+        message: LeashMsg::Execute {
+            to: addr_treasury(),
+            value: 1000,
+            data: empty_data,
+            operation: 0,
+        },
+    )
+}

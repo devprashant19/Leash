@@ -1,9 +1,5 @@
 pub const fn static_check_distinct(t1: u256, t2: u256) -> u32 {
-    if t1 < t2 {
-        1
-    } else {
-        1 / 0
-    }
+    if t1 < t2 { 1 } else { 1 / 0 }
 }
 
 pub const CHECK_TARGETS: u32 = static_check_distinct(t1: 0x100, t2: 0x100)

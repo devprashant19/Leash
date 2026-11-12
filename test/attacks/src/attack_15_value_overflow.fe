@@ -1,0 +1,60 @@
+use policy::{
+    Address,
+    AgentState,
+    Calldata,
+    DenyReason,
+    Operation,
+    Timestamp,
+    Tx,
+    U256_MAX,
+    Verdict,
+    Wei,
+    decide,
+    default_policy,
+    wei,
+}
+use testkit::{addr_token, addr_treasury, erc20_transfer}
+
+#[test]
+pub fn test_attack_15_value_overflow_attempts_denied() {
+    let pol = default_policy()
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(1_763_000_000)
+
+    // 1. ETH value = U256_MAX
+    let tx_eth = Tx {
+        to: addr_treasury(),
+        value: wei(U256_MAX),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx: tx_eth, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::PerTxCapExceeded => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // 2. ERC-20 amount = U256_MAX
+    let bad_erc20 = erc20_transfer(to: addr_treasury(), amt: U256_MAX)
+    let tx_token = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: bad_erc20,
+        op: Operation::Call,
+        now,
+    }
+    match decide(tx: tx_token, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::TokenCapExceeded => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+}

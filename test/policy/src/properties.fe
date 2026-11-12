@@ -16,14 +16,7 @@ use policy::{
     spent_in_window,
     verdict_code,
 }
-use testkit::{
-    SplitMix64,
-    gen_tx,
-    parity_policy,
-    rng_next_pct,
-    rng_next_range,
-    rng_next_u64,
-}
+use testkit::{SplitMix64, gen_tx, parity_policy, rng_next_pct, rng_next_range, rng_next_u64}
 
 #[test]
 pub fn test_property_window_safety() {
@@ -154,8 +147,12 @@ pub fn test_property_encoding_roundtrip() {
         s.paused = roll_paused < 50
         let roll_tripped = rng_next_pct(rng: mut rng)
         s.tripped = roll_tripped < 50
-        s.expiry = Timestamp::from_seconds(rng_next_range(rng: mut rng, min: 1_000_000, max: 2_000_000_000))
-        s.last_action = Timestamp::from_seconds(rng_next_range(rng: mut rng, min: 1_000_000, max: 2_000_000_000))
+        s.expiry = Timestamp::from_seconds(
+            rng_next_range(rng: mut rng, min: 1_000_000, max: 2_000_000_000),
+        )
+        s.last_action = Timestamp::from_seconds(
+            rng_next_range(rng: mut rng, min: 1_000_000, max: 2_000_000_000),
+        )
 
         let b_idx: u64 = rng_next_u64(rng: mut rng)
         let b_amt: u256 = rng_next_range(rng: mut rng, min: 0, max: 1000000000)
@@ -168,8 +165,12 @@ pub fn test_property_encoding_roundtrip() {
         assert(decoded.tripped == s.tripped)
         assert(decoded.expiry == s.expiry)
         assert(decoded.last_action == s.last_action)
-        assert(decoded.eth_window.buckets[0].index == s.eth_window.buckets[0].index)
-        assert(decoded.eth_window.buckets[0].amount == s.eth_window.buckets[0].amount)
+        assert(
+            decoded.eth_window.buckets[0].index == s.eth_window.buckets[0].index,
+        )
+        assert(
+            decoded.eth_window.buckets[0].amount == s.eth_window.buckets[0].amount,
+        )
 
         i += 1
     }
