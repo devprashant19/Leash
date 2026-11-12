@@ -8,7 +8,14 @@ pub use errors::*
 pub use events::*
 pub use safe::*
 
-pub struct AgentConfig { pub active: bool, pub expiry: Timestamp, pub label: u256 }
+pub struct AgentConfig {
+    pub active: bool,
+    pub expiry: Timestamp,
+    pub label: u256,
+    pub max_per_tx: Wei,
+    pub max_per_window: Wei,
+    pub custom_fingerprint: u256,
+}
 impl Copy for AgentConfig {}
 impl Snapshot for AgentConfig {}
 
@@ -42,12 +49,21 @@ pub msg LeashMsg {
     Unpause,
     #[selector = sol("setAgent(address,uint256,uint256)")]
     SetAgent { agent: Address, expiry: Timestamp, label: u256 },
+    #[selector = sol("setAgentPolicy(address,uint256,uint256,uint256)")]
+    SetAgentPolicy {
+        agent: Address,
+        max_per_tx: u256,
+        max_per_window: u256,
+        custom_fingerprint: u256,
+    },
     #[selector = sol("revokeAgent(address)")]
     RevokeAgent { agent: Address },
     #[selector = sol("setGuardian(address)")]
     SetGuardian { guardian_addr: Address },
     #[selector = sol("fingerprint()")]
     Fingerprint -> u256,
+    #[selector = sol("fingerprintOf(address)")]
+    FingerprintOf { agent: Address } -> u256,
 }
 
 pub enum ExecOutcome {
@@ -74,15 +90,15 @@ fn evaluate_tx(
     _ data: ref Bytes,
     _ operation: u8,
     _ paused: bool,
-    _ expiry: Timestamp,
+    _ cfg: ref AgentConfig,
     _ ledger: ref AgentLedger,
     _ now: Timestamp,
 ) -> Verdict {
-    let pol = policy::config::default_policy()
+    let pol = policy::config::policy_for_agent(cfg.max_per_tx, cfg.max_per_window)
     let st = AgentState {
         paused,
         tripped: false,
-        expiry,
+        expiry: cfg.expiry,
         eth_window: ledger.eth_window,
         last_action: Timestamp::from_seconds(0),
         action_window: Window24::empty(),
@@ -107,16 +123,7 @@ fn execute_tx(
 ) -> ExecOutcome
 uses (call: mut Call, log: mut Log)
 {
-    let verdict = evaluate_tx(
-        to,
-        value,
-        data,
-        operation,
-        paused,
-        cfg.expiry,
-        ledger,
-        now,
-    )
+    let verdict = evaluate_tx(to, value, data, operation, paused, cfg, ledger, now)
 
     match verdict {
         Verdict::Deny(r) => ExecOutcome::Denied(r),
@@ -191,23 +198,44 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             if expiry <= ctx.timestamp() {
                 revert_error(InvalidExpiry {})
             }
-            agents.set(
+            agents
+                .set(
                     key: agent,
-                    value: AgentConfig { active: true, expiry, label },
+                    value: AgentConfig {
+                        active: true,
+                        expiry,
+                        label,
+                        max_per_tx: Wei::zero(),
+                        max_per_window: Wei::zero(),
+                        custom_fingerprint: 0,
+                    },
                 )
             log.emit(AgentSet { agent, expiry })
+        }
+
+        SetAgentPolicy { agent, max_per_tx, max_per_window, custom_fingerprint }
+        uses (ctx, safe, mut agents)
+        {
+            if ctx.caller() != safe {
+                revert_error(NotSafe {})
+            }
+            var cfg = agents.get(key: agent)
+            if !cfg.active {
+                revert_error(NotAgent {})
+            }
+            cfg.max_per_tx = wei(max_per_tx)
+            cfg.max_per_window = wei(max_per_window)
+            cfg.custom_fingerprint = custom_fingerprint
+            agents.set(key: agent, value: cfg)
         }
 
         RevokeAgent { agent } uses (ctx, safe, mut agents, mut log) {
             if ctx.caller() != safe {
                 revert_error(NotSafe {})
             }
-            let cfg = agents.get(key: agent)
-            agents
-                .set(
-                    key: agent,
-                    value: AgentConfig { active: false, expiry: cfg.expiry, label: cfg.label },
-                )
+            var cfg = agents.get(key: agent)
+            cfg.active = false
+            agents.set(key: agent, value: cfg)
             log.emit(AgentRevoked { agent })
         }
 
@@ -224,6 +252,15 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
 
         Fingerprint -> u256 {
             0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee
+        }
+
+        FingerprintOf { agent } -> u256 uses (agents) {
+            let cfg = agents.get(key: agent)
+            if cfg.custom_fingerprint != 0 {
+                cfg.custom_fingerprint
+            } else {
+                0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee
+            }
         }
 
         State { agent } -> [u256; 52] uses (agents, ledgers, paused) {
@@ -249,16 +286,7 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
                 return (policy::reason_code(policy::DenyReason::SessionExpired), 0, 0)
             }
             let ledger = ledgers.get(key: agent)
-            let verdict = evaluate_tx(
-                to,
-                value,
-                data,
-                operation,
-                paused,
-                cfg.expiry,
-                ledger,
-                now,
-            )
+            let verdict = evaluate_tx(to, value, data, operation, paused, cfg, ledger, now)
             let pol = policy::config::default_policy()
             let spent_win = policy::spent_in_window(ledger.eth_window, now)
             let max_win = pol.max_per_window.as_wei()

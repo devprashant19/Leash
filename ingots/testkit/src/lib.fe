@@ -29,6 +29,16 @@ pub msg SafeMsg {
     LastOp -> u8,
     #[selector = sol("setAgentOn(address,address,uint256,uint256)")]
     SetAgentOn { module_addr: Address, agent: Address, expiry: Timestamp, label: u256 },
+    #[selector = sol(
+        "setAgentPolicyOn(address,address,uint256,uint256,uint256)",
+    )]
+    SetAgentPolicyOn {
+        module_addr: Address,
+        agent: Address,
+        max_per_tx: u256,
+        max_per_window: u256,
+        custom_fingerprint: u256,
+    },
     #[selector = sol("unpauseOn(address)")]
     UnpauseOn { module_addr: Address },
     #[selector = sol("revokeAgentOn(address,address)")]
@@ -38,6 +48,13 @@ pub msg SafeMsg {
 pub msg ModuleAdminMsg {
     #[selector = sol("setAgent(address,uint256,uint256)")]
     SetAgent { agent: Address, expiry: Timestamp, label: u256 },
+    #[selector = sol("setAgentPolicy(address,uint256,uint256,uint256)")]
+    SetAgentPolicy {
+        agent: Address,
+        max_per_tx: u256,
+        max_per_window: u256,
+        custom_fingerprint: u256,
+    },
     #[selector = sol("unpause()")]
     Unpause,
     #[selector = sol("revokeAgent(address)")]
@@ -137,6 +154,22 @@ pub contract MockSafe uses (ctx: Ctx, call: mut Call) {
                 gas: 500000,
                 value: Wei::zero(),
                 message: ModuleAdminMsg::SetAgent { agent, expiry, label },
+            )
+        }
+
+        SetAgentPolicyOn { module_addr, agent, max_per_tx, max_per_window, custom_fingerprint }
+        uses (mut call)
+        {
+            call.call(
+                addr: module_addr,
+                gas: 500000,
+                value: Wei::zero(),
+                message: ModuleAdminMsg::SetAgentPolicy {
+                    agent,
+                    max_per_tx,
+                    max_per_window,
+                    custom_fingerprint,
+                },
             )
         }
 

@@ -615,3 +615,119 @@ fn test_reentrancy_rejected_reentrant_flag() uses (evm: mut Evm) {
             },
         )
 }
+
+#[cfg(target = "evm")]
+#[test]
+fn test_per_agent_policies_isolation() uses (evm: mut Evm) {
+    let agent = evm.address()
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::EnableModule { module_addr },
+    )
+
+    // Register agent with default policy
+    evm.call(
+        addr: safe,
+        gas: 500000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent,
+            expiry: Timestamp::from_seconds(9999999999),
+            label: 1,
+        },
+    )
+
+    // Check default fingerprint
+    let fp_def: u256 = evm
+        .call(
+            addr: module_addr,
+            gas: 100000,
+            value: Wei::zero(),
+            message: LeashMsg::FingerprintOf { agent },
+        )
+    assert(
+        fp_def == 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee,
+    )
+
+    // Try 0.001 ETH transfer (allowed under default 0.1 ETH cap)
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+    let (ok_1, code_1): (bool, u8) = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::TryExecute {
+                to: ADDR_TREASURY,
+                value: 1_000_000_000_000_000,
+                data: empty_data.clone(),
+                operation: 0,
+            },
+        )
+    assert(ok_1)
+    assert(code_1 == 0)
+
+    // Now update agent's policy to 0.01 ETH cap (10^16 wei)
+    let custom_fp: u256 = 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef
+    evm.call(
+        addr: safe,
+        gas: 500000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentPolicyOn {
+            module_addr,
+            agent,
+            max_per_tx: 10_000_000_000_000_000,
+            max_per_window: 50_000_000_000_000_000,
+            custom_fingerprint: custom_fp,
+        },
+    )
+
+    // Check custom fingerprint
+    let fp_custom: u256 = evm
+        .call(
+            addr: module_addr,
+            gas: 100000,
+            value: Wei::zero(),
+            message: LeashMsg::FingerprintOf { agent },
+        )
+    assert(fp_custom == custom_fp)
+
+    // Try 0.05 ETH transfer again -> Denied (PerTxCapExceeded = 7)
+    let (ok_2, code_2): (bool, u8) = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::TryExecute {
+                to: ADDR_TREASURY,
+                value: 50_000_000_000_000_000,
+                data: empty_data.clone(),
+                operation: 0,
+            },
+        )
+    assert(!ok_2)
+    assert(code_2 == 7)
+
+    // Try 0.005 ETH transfer -> Allowed (0.005 ETH <= 0.01 ETH cap)
+    let (ok_3, code_3): (bool, u8) = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::TryExecute {
+                to: ADDR_TREASURY,
+                value: 5_000_000_000_000_000,
+                data: empty_data,
+                operation: 0,
+            },
+        )
+    assert(ok_3)
+    assert(code_3 == 0)
+}

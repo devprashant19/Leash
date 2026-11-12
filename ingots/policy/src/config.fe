@@ -74,3 +74,14 @@ pub fn default_policy() -> Policy {
         breaker_threshold: 0,
     }
 }
+
+pub fn policy_for_agent(_ max_tx: Wei, _ max_win: Wei) -> Policy {
+    var pol = default_policy()
+    if max_tx.as_wei() > 0 {
+        pol.max_per_tx = max_tx
+    }
+    if max_win.as_wei() > 0 {
+        pol.max_per_window = max_win
+    }
+    pol
+}
