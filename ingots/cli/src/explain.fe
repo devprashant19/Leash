@@ -6,17 +6,17 @@ pub fn run() -> i32 uses (out: mut Stdout) {
     )
     println!("- The agent may call 2 contracts:")
     println!(
-        "  - 0x1111111111111111111111111111111111111111 (ERC-20): transfer, approve, transferFrom",
+        "  - 0x1000000000000000000000000000000000000001 (ERC-20): transfer, approve, transferFrom",
     )
     println!(
-        "  - 0x2222222222222222222222222222222222222222: plain ETH transfers",
+        "  - 0x2000000000000000000000000000000000000002: plain ETH transfers",
     )
     println!("- At most 0.1 ETH per transaction.")
     println!(
         "- At most 0.5 ETH in any rolling 24 hours (hourly buckets).",
     )
     println!(
-        "- Token 0x1111111111111111111111111111111111111111: at most 100 tokens per transfer; approvals up to 100 tokens; unlimited approvals are always refused.",
+        "- Token 0x1000000000000000000000000000000000000001: at most 100 tokens per transfer; approvals up to 100 tokens; unlimited approvals are always refused.",
     )
     println!("- Delegatecall is always refused.")
     println!("- Anything not listed above is refused.")
