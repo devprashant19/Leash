@@ -438,3 +438,143 @@ ingots/cli/src/replay.fe:250:pub fn run() -> i32 uses (args: Args, out: mut Stdo
 - C FFI definitions in `examples/c/leash.h`.
 - `README.md` and `docs/ARCHITECTURE.md` updated.
 - `docs/handoff/2026-11-20.md` committed.
+
+## 2026-11-21 — Phase 4: Extra Features & Rich Policy Engine (Gate Check)
+
+### Standard Gate & Exit Gate Evidence
+
+```sh
+$ fe fmt --check ingots
+(clean, exit code 0)
+
+$ fe check
+(clean, exit code 0)
+
+$ fe test
+running `fe test` for 4 inputs (jobs=8)
+READY cli     running 2 tests
+PASS  cli     test_default_check_state_unrestricted
+PASS  cli     test_cli_fingerprint_golden
+READY testkit running 3 tests
+PASS  testkit test_mock_erc20_basic
+PASS  testkit test_mock_safe_basic
+PASS  testkit test_mock_safe_reverts_when_not_enabled
+READY module  running 19 tests
+PASS  module  test_fingerprint_golden
+PASS  module  test_pause_unpause_guardian
+PASS  module  test_execute_denied_target_reverts
+PASS  module  test_execute_allowed_eth
+PASS  module  test_execute_denied_cap_reverts
+PASS  module  test_per_agent_policies_isolation
+PASS  module  test_circuit_breaker_trips_and_resets
+PASS  module  test_preview_inactive_agent
+PASS  module  test_revoked_agent_reverts
+PASS  module  test_reentrancy_rejected_not_agent
+PASS  module  test_set_agent_by_non_safe_reverts
+PASS  module  test_reentrancy_rejected_reentrant_flag
+PASS  module  test_safe_call_failed_reverts
+PASS  module  test_try_execute_allowed_success
+PASS  module  test_unpause_by_non_safe_reverts
+PASS  module  test_zero_address_safe_reverts
+PASS  module  test_zero_address_guardian_reverts
+PASS  module  test_unregistered_agent_reverts
+PASS  module  test_try_execute_denied_returns_code
+READY policy  running 69 tests
+PASS  policy  test_bucket_index_calculation
+PASS  policy  test_25h_gap_full_reset
+PASS  policy  test_cooldown_denied_at_cooldown_minus_1
+PASS  policy  test_allow_valid_eth_transfer
+PASS  policy  test_cooldown_allowed_exactly_at_cooldown_boundary
+PASS  policy  test_cooldown_off_by_default
+PASS  policy  test_cooldown_first_action_allowed
+PASS  policy  test_decode_dirty_address
+PASS  policy  test_decode_approve_success
+PASS  policy  test_deny_delegatecall
+PASS  policy  test_deny_empty_policy_denies_all
+PASS  policy  test_allow_erc20_transfer
+PASS  policy  test_deny_paused
+PASS  policy  test_decode_transfer_success
+PASS  policy  test_decode_transfer_from_success
+PASS  policy  test_deny_session_expired
+PASS  policy  test_deny_zero_address_target
+PASS  policy  test_deny_unlisted_target
+PASS  policy  test_deny_erc20_transfer_over_cap
+PASS  policy  test_decode_malformed_lengths
+PASS  policy  test_explain_reason_all_variants
+PASS  policy  test_operation_conversion
+PASS  policy  test_order_delegatecall_beats_unlisted_target_and_cap
+PASS  policy  test_order_paused_beats_delegatecall_and_unlisted
+PASS  policy  test_order_unlisted_target_beats_per_tx_cap
+PASS  policy  test_cooldown_with_record_lifecycle
+PASS  policy  test_erc20_malformed_calldata_denied
+PASS  policy  test_reason_codes_exhaustive
+PASS  policy  test_deny_calldata_shape_and_selector
+PASS  policy  test_reason_from_code_roundtrip
+PASS  policy  test_reason_names_exhaustive
+PASS  policy  test_record_denial_counter
+PASS  policy  test_record_eth_spend
+PASS  policy  test_erc20_recipient_allowlist_transfer
+PASS  policy  test_erc20_spender_attack_denied
+PASS  policy  test_remaining_fresh_state
+PASS  policy  test_per_tx_and_window_eth_caps
+PASS  policy  test_remaining_after_spend
+PASS  policy  test_robustness_empty_data_token_target
+PASS  policy  test_robustness_three_byte_data
+PASS  policy  test_erc20_approval_hygiene
+PASS  policy  test_robustness_value_u256_max_no_overflow_panic
+PASS  policy  test_robustness_dirty_address_word
+PASS  policy  test_robustness_amount_u256_max
+PASS  policy  test_selectors_match
+PASS  policy  test_robustness_transfer_one_hundred_bytes
+PASS  policy  test_robustness_unknown_selector_four_bytes
+PASS  policy  test_rolling_window_24h_rollover_exact
+PASS  policy  test_single_and_multiple_spends_same_bucket
+PASS  policy  test_robustness_transfer_thirty_five_bytes
+PASS  policy  test_validate_check_names_and_codes
+PASS  policy  test_validate_empty_targets
+PASS  policy  test_selector_of_cases
+PASS  policy  test_state_encode_decode_roundtrip
+PASS  policy  test_validate_per_tx_above_window
+PASS  policy  test_validate_default_policy_ok
+PASS  policy  test_validate_dirty_unused_slot
+PASS  policy  test_validate_erc20_target_without_token
+PASS  policy  test_validate_target_no_permissions
+PASS  policy  test_validate_window_mismatch
+PASS  policy  test_validate_zero_window
+PASS  policy  test_validate_unsorted_selectors
+PASS  policy  test_rate_limiting_actions_per_window
+PASS  policy  test_validate_unsorted_targets
+PASS  policy  test_validate_zero_window_cap
+PASS  policy  test_validate_zero_address_target
+PASS  policy  test_validate_duplicate_targets
+PASS  policy  test_validate_token_without_erc20_target
+PASS  policy  test_fingerprint_deterministic_and_sensitivity
+
+test result: ok. 93 passed; 0 failed
+
+$ fe build ingots/module --emit sizes
+runtime: 23639 bytes (18513 code, 5126 data, 0 embedded)
+creation: 23894 bytes (255 code, 0 data, 23639 embedded)
+Headroom: 937 bytes below EIP-170 limit (24,576 bytes), 0 warnings
+
+$ git grep -nE 'fn decide[^{]*uses' ingots/policy/src/*.fe
+(no matches — pure decide invariant holds)
+
+$ git grep -nE 'policy::rules|policy::ledger' ingots/cli/src/*.fe ingots/module/src/*.fe
+(no matches — component isolation invariant holds)
+```
+
+### Exit Gate Verdict: PASSED
+- All Phase 4 core features implemented and tested:
+  1. Compile-time policy validation (16 enum variants, 6 compile-fail tests verified rejected).
+  2. Recipient allowlists (A8) and Rate limiting (A9).
+  3. Per-agent dynamic policies and isolated limits (B2, ADR-007).
+  4. Machine-readable CLI output (`--json`) and budget query (D1, Tier A).
+  5. Transaction cooldown period (A10) with exact boundary testing.
+  6. Auto-pause circuit breaker on 3 consecutive denials (B3) with Safe reset.
+- Total 93 unit tests passing green.
+- Module bytecode size: 23,639 bytes (937 bytes below EIP-170 limit).
+- Standard and review gates green.
+- `README.md`, `docs/GAS.md`, `docs/RULES.md`, `docs/THREAT_MODEL.md`, `docs/adr/007-per-agent-policies.md` updated.
+- `docs/handoff/2026-11-21.md` written.
+

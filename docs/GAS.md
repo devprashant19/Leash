@@ -7,14 +7,14 @@ EIP-3860 sets a maximum initcode limit of **49,152 bytes** (0xc000).
 
 | Contract | Runtime Size (Bytes) | EIP-170 Limit | Headroom | Initcode Size (Bytes) | EIP-3860 Limit | Status |
 |---|---|---|---|---|---|---|
-| `LeashModule` | 23,050 | 24,576 | +1,526 bytes (6.2%) | 23,305 | 49,152 | **PASS (No warnings)** |
+| `LeashModule` | 23,639 | 24,576 | +937 bytes (3.8%) | 23,894 | 49,152 | **PASS (No warnings)** |
 
 ### Top Runtime Functions Breakdown (`LeashModule`)
 
 From `fe build ingots/module --emit sizes`:
 
 ```
-runtime: 23050 bytes (17957 code, 5093 data, 0 embedded)
+runtime: 23639 bytes (18513 code, 5126 data, 0 embedded)
     8331 evaluate_tx
     4250 contract_runtime_root_LeashModule
     2009 contract_recv_abi_LeashModule_1368675399 (TryExecute)

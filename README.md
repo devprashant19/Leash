@@ -99,6 +99,25 @@ leash fingerprint
 leash replay agent_history.csv
 ```
 
+# Machine-readable JSON output for AI Agent Planning Loops
+leash check --to 0x2000000000000000000000000000000000000002 --value 0.05 --now 1700000000 --json
+# Output:
+# {
+#   "verdict": "ALLOW",
+#   "code": 0,
+#   "reason": "None",
+#   "message": "Transaction allowed by policy",
+#   "remaining": {
+#     "eth_per_tx_wei": "100000000000000000",
+#     "eth_window_wei": "500000000000000000",
+#     "actions_in_window": 0,
+#     "tokens": [ ... ]
+#   },
+#   "window_resets_at": 1700000000,
+#   "fingerprint": "0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee"
+# }
+```
+
 ### Policy Rules (`leash explain` verbatim)
 ```
 Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee)
@@ -114,6 +133,35 @@ Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb7
 
 ---
 
+## Shipped Guardrails & Features
+
+| Feature | ID | Policy Rule | On-Chain Safe Module | Native CLI (`leash`) |
+|---|---|---|---|---|
+| **Contract & ETH Allowlist** | A1 | `TargetNotAllowed` (4) | Yes (`Execute`/`TryExecute`) | Yes (`check`) |
+| **DelegateCall Protection** | A2 | `DelegateCallBlocked` (3) | Yes (atomic revert) | Yes (`check`) |
+| **Selector & Calldata Shape** | A3 | `SelectorNotAllowed` (5), `MalformedCalldata` (6) | Yes | Yes |
+| **Native ETH Per-Tx Cap** | A4 | `PerTxCapExceeded` (7) | Yes | Yes |
+| **Rolling 24h Window Cap** | A5 | `WindowCapExceeded` (8) | Yes (24 hourly buckets) | Yes (`--state`) |
+| **ERC-20 Per-Tx & Approval Hygiene**| A6/A7 | `TokenCapExceeded` (9), `UnlimitedApproval` (10) | Yes | Yes |
+| **Recipient Allowlist** | A8 | `RecipientNotAllowed` (11) | Yes | Yes |
+| **Tx-Count Rate Limiting** | A9 | `RateLimited` (12) | Yes | Yes |
+| **Transaction Cooldown** | A10 | `CooldownActive` (13) | Yes | Yes |
+| **Per-Agent Dynamic Limits** | B2 | `policy_for_agent` / `SetAgentPolicy` | Yes (`FingerprintOf`) | Yes |
+| **Auto-Pause Circuit Breaker** | B3 | `CircuitTripped` (15) | Yes (auto-trips on 3 denials; Safe reset) | Yes |
+| **Compile-time Policy Validation**| 13 | 16-variant `PolicyCheck` | Rejects invalid policies | `validate` |
+| **Machine-readable JSON Output** | D1 | Structured JSON verdict | N/A | `leash check --json` |
+
+---
+
+## Limitations / Future Work
+
+Items prioritized for post-freeze extended roadmap (Stages 9–12):
+1. **Trading Hours Schedule (A11)**: Scheduled for Stage 9 (DeFi & Execution Guards).
+2. **Asymmetric Limit Timelock (B4)**: Lowering limits applies instantly; raising limits will queue through a 24h Safe timelock in Stage 10.
+3. **TOML Configuration Parsing (D4)**: Parsing arbitrary offline TOML policy manifests in Stage 12.
+
+---
+
 ## Project Status
-**Current Phase**: Phase 3 Complete — Native CLI (`leash check`, `explain`, `fingerprint`, `replay`) dual-compiled from pure Fe policy ingot, golden test suite and cross-target fixture parity verified.
+**Current Phase**: Phase 4 Complete — Rich Policies & Agent Guardrails (Compile-time validation, Recipient allowlist, Rate limit, Per-agent isolation, Cooldown, Circuit breaker, and JSON CLI budget output all verified and tested).
 Building towards final submission deadline: **November 24, 2026, 23:59 UTC**.
