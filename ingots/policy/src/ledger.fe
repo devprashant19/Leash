@@ -1,28 +1,31 @@
 use ingot::decode::{Erc20Call, decode_erc20}
 use ingot::types::{
     AgentState,
-    BUCKET_LEN,
     BUCKETS,
+    BUCKET_LEN,
     Bucket,
-    MAX_TOKENS,
     Policy,
     TargetKind,
+    Timestamp,
     Tx,
     Window24,
 }
-use std::evm::units::Timestamp
 
 pub const U256_MAX: u256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 pub fn checked_add_saturate(_ a: u256, _ b: u256) -> u256 {
-    if U256_MAX - a < b { U256_MAX } else { a + b }
+    if U256_MAX - a < b {
+        U256_MAX
+    } else {
+        a + b
+    }
 }
 
 pub fn bucket_index_of(_ now: Timestamp) -> u64 {
     (now.as_seconds() / (BUCKET_LEN as u256)).downcast_truncate()
 }
 
-pub fn spent_in_window(_ window: Window24, _ now: Timestamp) -> u256 {
+pub fn spent_in_window(_ window: ref Window24, _ now: Timestamp) -> u256 {
     let current_index = bucket_index_of(now)
     let buckets_count: u64 = BUCKETS.downcast_truncate()
     var total: u256 = 0
@@ -39,77 +42,25 @@ pub fn spent_in_window(_ window: Window24, _ now: Timestamp) -> u256 {
     total
 }
 
-pub fn record_spend(_ window: Window24, _ now: Timestamp, _ amount: u256) -> Window24 {
-    var win = window
+pub fn record_spend(_ window: mut Window24, _ now: Timestamp, _ amount: u256) {
     let current_index = bucket_index_of(now)
     let buckets_count: u64 = BUCKETS.downcast_truncate()
     let slot_u64: u64 = current_index % buckets_count
     let slot: usize = slot_u64.downcast_truncate()
-    if win.buckets[slot].index == current_index {
-        win.buckets[slot].amount = checked_add_saturate(win.buckets[slot].amount, amount)
+    if window.buckets[slot].index == current_index {
+        window.buckets[slot].amount = checked_add_saturate(window.buckets[slot].amount, amount)
     } else {
-        win.buckets[slot] = Bucket { index: current_index, amount }
+        window.buckets[slot] = Bucket { index: current_index, amount }
     }
-    win
 }
 
-pub fn record(_ tx: Tx, _ policy: Policy, _ state: AgentState) -> AgentState {
-    var st = state
+pub fn record(_ tx: ref Tx, _ policy: ref Policy, _ state: mut AgentState) {
     if tx.value.as_wei() > 0 {
-        st.eth_window = record_spend(st.eth_window, tx.now, tx.value.as_wei())
+        record_spend(mut state.eth_window, tx.now, tx.value.as_wei())
     }
-
-    var i: usize = 0
-    while i < (policy.n_targets as usize) {
-        if policy.targets[i].target == tx.to {
-            match policy.targets[i].kind {
-                TargetKind::Erc20 => {
-                    match decode_erc20(tx.data) {
-                        Erc20Call::Transfer(_to, amount) => {
-                            var k: usize = 0
-                            while k < (policy.n_tokens as usize) {
-                                if policy.tokens[k].token == tx.to {
-                                    st.token_windows[k] = record_spend(
-                                        st.token_windows[k],
-                                        tx.now,
-                                        amount,
-                                    )
-                                    break
-                                }
-                                k += 1
-                            }
-                        },
-                        Erc20Call::TransferFrom(_from, _to, amount) => {
-                            var k: usize = 0
-                            while k < (policy.n_tokens as usize) {
-                                if policy.tokens[k].token == tx.to {
-                                    st.token_windows[k] = record_spend(
-                                        st.token_windows[k],
-                                        tx.now,
-                                        amount,
-                                    )
-                                    break
-                                }
-                                k += 1
-                            }
-                        },
-                        _ => {},
-                    }
-                },
-                _ => {},
-            }
-            break
-        }
-        i += 1
-    }
-
-    st.last_action = tx.now
-    st.action_window = record_spend(st.action_window, tx.now, 1)
-    st
+    state.last_action = tx.now
 }
 
-pub fn record_denial(_ now: Timestamp, _ state: AgentState) -> AgentState {
-    var st = state
-    st.denials = record_spend(st.denials, now, 1)
-    st
+pub fn record_denial(_ now: Timestamp, _ state: mut AgentState) {
+    state.last_action = now
 }

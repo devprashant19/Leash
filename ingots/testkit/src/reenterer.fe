@@ -1,0 +1,51 @@
+use std::abi::{Bytes, bytes_from_words}
+use std::evm::{Address, Call, Ctx, Evm, Wei}
+
+pub msg ReenterMsg {
+    #[selector = sol("attack(address,address,uint256)")]
+    Attack { module_addr: Address, to: Address, value: u256 },
+    #[selector = sol("ping()")]
+    Ping,
+}
+
+pub msg TargetModuleMsg {
+    #[selector = sol("execute(address,uint256,bytes,uint8)")]
+    Execute { to: Address, value: u256, data: Bytes, operation: u8 } -> bool,
+}
+
+pub contract Reenterer uses (ctx: Ctx, call: mut Call) {
+    mut target_module: Address
+
+    init(_module: Address) uses (mut target_module) {
+        target_module = _module
+    }
+
+    recv ReenterMsg {
+        Attack { module_addr, to, value } uses (mut call) {
+            let empty_words: [u256; 0] = [0; 0]
+            let empty_data: Bytes = bytes_from_words(empty_words)
+            call.call(
+                addr: module_addr,
+                gas: 500000,
+                value: Wei::zero(),
+                message: TargetModuleMsg::Execute { to, value, data: empty_data, operation: 0 },
+            )
+        }
+
+        Ping uses (mut call, target_module) {
+            let empty_words: [u256; 0] = [0; 0]
+            let empty_data: Bytes = bytes_from_words(empty_words)
+            call.call(
+                addr: target_module,
+                gas: 500000,
+                value: Wei::zero(),
+                message: TargetModuleMsg::Execute {
+                    to: Address::new(0x2000000000000000000000000000000000000002),
+                    value: 1000,
+                    data: empty_data,
+                    operation: 0,
+                },
+            )
+        }
+    }
+}

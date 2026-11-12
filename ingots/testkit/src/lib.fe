@@ -1,6 +1,7 @@
 use policy
 pub use fixtures::*
 pub use erc20::*
+pub use reenterer::*
 use std::abi::{Bytes, bytes_from_words}
 use std::evm::{Address, Call, Create, Ctx, Evm, StorageMap, Wei, revert_error, wei}
 
@@ -9,9 +10,9 @@ pub struct ModuleNotEnabled {}
 
 pub msg SafeMsg {
     #[selector = sol("enableModule(address)")]
-    EnableModule { module: Address },
+    EnableModule { module_addr: Address },
     #[selector = sol("isModuleEnabled(address)")]
-    IsModuleEnabled { module: Address } -> bool,
+    IsModuleEnabled { module_addr: Address } -> bool,
     #[selector = sol("execTransactionFromModule(address,uint256,bytes,uint8)")]
     ExecTransactionFromModule { to: Address, value: u256, data: Bytes, operation: u8 } -> bool,
     #[selector = sol("setFail(bool)")]
@@ -40,12 +41,12 @@ pub contract MockSafe uses (ctx: Ctx, call: mut Call) {
     init() {}
 
     recv SafeMsg {
-        EnableModule { module } uses (mut enabled) {
-            enabled.set(key: module, value: true)
+        EnableModule { module_addr } uses (mut enabled) {
+            enabled.set(key: module_addr, value: true)
         }
 
-        IsModuleEnabled { module } -> bool uses (enabled) {
-            enabled.get(key: module)
+        IsModuleEnabled { module_addr } -> bool uses (enabled) {
+            enabled.get(key: module_addr)
         }
 
         SetFail { fail } uses (mut should_fail) {
@@ -111,7 +112,7 @@ fn test_mock_safe_basic() uses (evm: mut Evm) {
         addr: safe,
         gas: 100000,
         value: Wei::zero(),
-        message: SafeMsg::IsModuleEnabled { module: module_addr },
+        message: SafeMsg::IsModuleEnabled { module_addr },
     )
     assert(!is_en)
 
@@ -120,13 +121,13 @@ fn test_mock_safe_basic() uses (evm: mut Evm) {
         addr: safe,
         gas: 100000,
         value: Wei::zero(),
-        message: SafeMsg::EnableModule { module: module_addr },
+        message: SafeMsg::EnableModule { module_addr },
     )
     let is_en2: bool = evm.call(
         addr: safe,
         gas: 100000,
         value: Wei::zero(),
-        message: SafeMsg::IsModuleEnabled { module: module_addr },
+        message: SafeMsg::IsModuleEnabled { module_addr },
     )
     assert(is_en2)
 

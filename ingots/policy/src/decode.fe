@@ -11,7 +11,7 @@ pub enum Erc20Call {
 impl Copy for Erc20Call {}
 impl Snapshot for Erc20Call {}
 
-pub fn selector_of(_ data: Calldata) -> Option<u32> {
+pub fn selector_of(_ data: ref Calldata) -> Option<u32> {
     if data.len < 4 {
         Option::None
     } else {
@@ -23,10 +23,10 @@ pub fn selector_of(_ data: Calldata) -> Option<u32> {
     }
 }
 
-pub fn is_address_word(bytes: [u8; MAX_CALLDATA], offset: usize) -> bool {
+pub fn is_address_word(_ data: ref Calldata, offset: usize) -> bool {
     var i: usize = 0
     while i < 12 {
-        if bytes[offset + i] != 0 {
+        if data.bytes[offset + i] != 0 {
             return false
         }
         i += 1
@@ -34,22 +34,22 @@ pub fn is_address_word(bytes: [u8; MAX_CALLDATA], offset: usize) -> bool {
     true
 }
 
-pub fn read_word(bytes: [u8; MAX_CALLDATA], offset: usize) -> u256 {
+pub fn read_word(_ data: ref Calldata, offset: usize) -> u256 {
     var res: u256 = 0
     var i: usize = 0
     while i < 32 {
-        res = (res << 8) | (bytes[offset + i] as u256)
+        res = (res << 8) | (data.bytes[offset + i] as u256)
         i += 1
     }
     res
 }
 
-pub fn read_address(bytes: [u8; MAX_CALLDATA], offset: usize) -> Address {
-    let w = read_word(bytes, offset)
+pub fn read_address(_ data: ref Calldata, offset: usize) -> Address {
+    let w = read_word(data, offset)
     Address::from_word_truncate(w)
 }
 
-pub fn decode_erc20(_ data: Calldata) -> Erc20Call {
+pub fn decode_erc20(_ data: ref Calldata) -> Erc20Call {
     if data.len < 4 {
         return Erc20Call::Malformed
     }
@@ -65,35 +65,35 @@ pub fn decode_erc20(_ data: Calldata) -> Erc20Call {
         if data.len != 68 {
             return Erc20Call::Malformed
         }
-        if !is_address_word(bytes: data.bytes, offset: 4) {
+        if !is_address_word(data, offset: 4) {
             return Erc20Call::Malformed
         }
-        let to = read_address(bytes: data.bytes, offset: 4)
-        let amt = read_word(bytes: data.bytes, offset: 36)
+        let to = read_address(data, offset: 4)
+        let amt = read_word(data, offset: 36)
         Erc20Call::Transfer(to, amt)
     } else if sel == SEL_APPROVE {
         if data.len != 68 {
             return Erc20Call::Malformed
         }
-        if !is_address_word(bytes: data.bytes, offset: 4) {
+        if !is_address_word(data, offset: 4) {
             return Erc20Call::Malformed
         }
-        let spender = read_address(bytes: data.bytes, offset: 4)
-        let amt = read_word(bytes: data.bytes, offset: 36)
+        let spender = read_address(data, offset: 4)
+        let amt = read_word(data, offset: 36)
         Erc20Call::Approve(spender, amt)
     } else if sel == SEL_TRANSFER_FROM {
         if data.len != 100 {
             return Erc20Call::Malformed
         }
-        if !is_address_word(bytes: data.bytes, offset: 4) {
+        if !is_address_word(data, offset: 4) {
             return Erc20Call::Malformed
         }
-        if !is_address_word(bytes: data.bytes, offset: 36) {
+        if !is_address_word(data, offset: 36) {
             return Erc20Call::Malformed
         }
-        let from = read_address(bytes: data.bytes, offset: 4)
-        let to = read_address(bytes: data.bytes, offset: 36)
-        let amt = read_word(bytes: data.bytes, offset: 68)
+        let from = read_address(data, offset: 4)
+        let to = read_address(data, offset: 36)
+        let amt = read_word(data, offset: 68)
         Erc20Call::TransferFrom(from, to, amt)
     } else {
         Erc20Call::Unknown

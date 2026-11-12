@@ -270,7 +270,7 @@ fn test_per_tx_and_window_eth_caps() {
     }
 
     // Window cap: already spent 0.45 ETH out of 0.5 ETH window cap
-    state.eth_window = record_spend(state.eth_window, now, (ether(1) * 45 / 100).as_wei())
+    record_spend(mut state.eth_window, now, (ether(1) * 45 / 100).as_wei())
     // Spending 0.06 ETH -> total 0.51 ETH > 0.5 ETH cap -> WindowCapExceeded
     let tx_window_over = Tx {
         to: ADDR_TREASURY,

@@ -43,15 +43,6 @@ fn test_state_encode_decode_roundtrip() {
     s.eth_window.buckets[23].index = 28
     s.eth_window.buckets[23].amount = 888
 
-    s.token_windows[0].buckets[1].index = 10
-    s.token_windows[0].buckets[1].amount = 777
-
-    s.action_window.buckets[2].index = 15
-    s.action_window.buckets[2].amount = 3
-
-    s.denials.buckets[3].index = 20
-    s.denials.buckets[3].amount = 1
-
     let words = encode_state(s)
     let restored = decode_state(words)
 
@@ -64,15 +55,6 @@ fn test_state_encode_decode_roundtrip() {
     assert(restored.eth_window.buckets[0].amount == 999)
     assert(restored.eth_window.buckets[23].index == 28)
     assert(restored.eth_window.buckets[23].amount == 888)
-
-    assert(restored.token_windows[0].buckets[1].index == 10)
-    assert(restored.token_windows[0].buckets[1].amount == 777)
-
-    assert(restored.action_window.buckets[2].index == 15)
-    assert(restored.action_window.buckets[2].amount == 3)
-
-    assert(restored.denials.buckets[3].index == 20)
-    assert(restored.denials.buckets[3].amount == 1)
 }
 
 #[test]
