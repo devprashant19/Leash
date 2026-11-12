@@ -89,6 +89,13 @@ Wrote out/cli.native.sona
 - **What**: Implemented pure `decide` with strict A12 rule precedence (Paused -> CircuitTripped -> SessionExpired -> CooldownActive -> DelegateCallBlocked -> TargetNotAllowed -> Calldata/Selector -> RateLimited -> PerTxCap -> WindowCap -> ERC-20 Guard). Added comprehensive unit tests for basic rules, ERC-20 approval/transfer limits, and multi-violation rule order precedence tests.
 - **Reviewed by human**: pending confirmation.
 
+## 2026-11-13 — Phase 1 — Robustness Against Malformed Calldata (T11)
+- **AI-assisted**: yes (Antigravity).
+- **Files**: `ingots/policy/src/test_malformed.fe`, `ingots/policy/src/lib.fe`.
+- **What**: Verified that arbitrary malformed inputs (0 bytes to token, 3 bytes, unknown 4-byte selector, 35-byte transfer, 100-byte transfer, dirty address high word, u256::MAX amounts and values) return appropriate Deny verdicts without panicking or reverting.
+- **Reviewed by human**: pending confirmation.
+
+
 
 
 

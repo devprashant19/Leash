@@ -13,6 +13,7 @@ use test_ledger::*
 use test_rules_basic::*
 use test_rules_erc20::*
 use test_rule_order::*
+use test_malformed::*
 
 pub fn version() -> u32 {
     1

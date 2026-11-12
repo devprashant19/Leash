@@ -1,0 +1,206 @@
+use ingot::config::{ADDR_TOKEN, default_policy}
+use ingot::ledger::U256_MAX
+use ingot::rules::decide
+use ingot::test_decode::make_transfer_calldata
+use ingot::types::{
+    AgentState,
+    Calldata,
+    DenyReason,
+    MAX_CALLDATA,
+    Operation,
+    Timestamp,
+    Tx,
+    Verdict,
+}
+use std::evm::units::wei
+
+#[test]
+fn test_robustness_empty_data_token_target() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    let tx = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::SelectorNotAllowed => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_robustness_three_byte_data() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    buf[0] = 0x12
+    buf[1] = 0x34
+    buf[2] = 0x56
+
+    let tx = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data: Calldata { len: 3, bytes: buf },
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::MalformedCalldata => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_robustness_unknown_selector_four_bytes() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    buf[0] = 0xff
+    buf[1] = 0xfe
+    buf[2] = 0xfd
+    buf[3] = 0xfc
+
+    let tx = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data: Calldata { len: 4, bytes: buf },
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::SelectorNotAllowed => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_robustness_transfer_thirty_five_bytes() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    var data = make_transfer_calldata(to: ADDR_TOKEN, amt: 100)
+    data.len = 35
+
+    let tx = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::MalformedCalldata => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_robustness_transfer_one_hundred_bytes() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    var data = make_transfer_calldata(to: ADDR_TOKEN, amt: 100)
+    data.len = 100
+
+    let tx = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::MalformedCalldata => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_robustness_dirty_address_word() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    var data = make_transfer_calldata(to: ADDR_TOKEN, amt: 100)
+    data.bytes[4] = 0x01 // dirty byte in high 12 bytes
+
+    let tx = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::MalformedCalldata => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_robustness_amount_u256_max() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    let data = make_transfer_calldata(to: ADDR_TOKEN, amt: U256_MAX)
+
+    let tx = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::TokenCapExceeded => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_robustness_value_u256_max_no_overflow_panic() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+
+    let tx = Tx {
+        to: ADDR_TOKEN,
+        value: wei(U256_MAX),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+
+    match decide(tx, policy, state) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::SelectorNotAllowed => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
