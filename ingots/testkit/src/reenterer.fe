@@ -14,11 +14,9 @@ pub msg TargetModuleMsg {
 }
 
 pub contract Reenterer uses (ctx: Ctx, call: mut Call) {
-    mut target_module: Address
+    mut target_module: Address,
 
-    init(_module: Address) uses (mut target_module) {
-        target_module = _module
-    }
+    init(_module: Address) uses (mut target_module) { target_module = _module }
 
     recv ReenterMsg {
         Attack { module_addr, to, value } uses (mut call) {

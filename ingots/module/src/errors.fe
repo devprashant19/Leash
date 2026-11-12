@@ -1,0 +1,137 @@
+use policy::DenyReason
+use std::evm::revert_error
+
+// Policy errors (codes 1..20)
+#[error]
+pub struct Paused {}
+// 0x9e87fac8
+
+#[error]
+pub struct SessionExpired {}
+// 0x1fd05a4a
+
+#[error]
+pub struct DelegateCallBlocked {}
+// 0xe125cec9
+
+#[error]
+pub struct TargetNotAllowed {}
+// 0x48cbf26d
+
+#[error]
+pub struct SelectorNotAllowed {}
+// 0xbdb518d2
+
+#[error]
+pub struct MalformedCalldata {}
+// 0x59170bf0
+
+#[error]
+pub struct PerTxCapExceeded {}
+// 0x66b3c6f6
+
+#[error]
+pub struct WindowCapExceeded {}
+// 0x48620e99
+
+#[error]
+pub struct TokenCapExceeded {}
+// 0x1bdfed9c
+
+#[error]
+pub struct UnlimitedApproval {}
+// 0xb84cddd8
+
+#[error]
+pub struct RecipientNotAllowed {}
+// 0x4ccc1eec
+
+#[error]
+pub struct RateLimited {}
+// 0x3f7b7a68
+
+#[error]
+pub struct CooldownActive {}
+// 0xaa9a98df
+
+#[error]
+pub struct OutsideTradingHours {}
+// 0x92180b03
+
+#[error]
+pub struct CircuitTripped {}
+// 0xc16b4f18
+
+#[error]
+pub struct SwapNotAllowed {}
+// 0x0dd99c55
+
+#[error]
+pub struct LendingNotAllowed {}
+// 0x3de87d99
+
+#[error]
+pub struct PriceUnavailable {}
+// 0xcb08be81
+
+#[error]
+pub struct UsdCapExceeded {}
+// 0x090b845e
+
+#[error]
+pub struct EscalationRequired {}
+// 0x48653cea
+
+// Non-policy module errors
+#[error]
+pub struct NotAgent {}
+// 0x0d9ab13f
+
+#[error]
+pub struct NotSafe {}
+// 0x9dc4246e
+
+#[error]
+pub struct NotGuardian {}
+// 0xef6d0f02
+
+#[error]
+pub struct SafeCallFailed {}
+// 0xdc1669a6
+
+#[error]
+pub struct Reentrant {}
+// 0xed3ba6a6
+
+#[error]
+pub struct InvalidExpiry {}
+// 0xd36c8500
+
+#[error]
+pub struct ZeroAddress {}
+// 0xd92e233d
+
+pub fn revert_for(_ reason: DenyReason) -> ! {
+    match reason {
+        DenyReason::Paused => revert_error(Paused {}),
+        DenyReason::SessionExpired => revert_error(SessionExpired {}),
+        DenyReason::DelegateCallBlocked => revert_error(DelegateCallBlocked {}),
+        DenyReason::TargetNotAllowed => revert_error(TargetNotAllowed {}),
+        DenyReason::SelectorNotAllowed => revert_error(SelectorNotAllowed {}),
+        DenyReason::MalformedCalldata => revert_error(MalformedCalldata {}),
+        DenyReason::PerTxCapExceeded => revert_error(PerTxCapExceeded {}),
+        DenyReason::WindowCapExceeded => revert_error(WindowCapExceeded {}),
+        DenyReason::TokenCapExceeded => revert_error(TokenCapExceeded {}),
+        DenyReason::UnlimitedApproval => revert_error(UnlimitedApproval {}),
+        DenyReason::RecipientNotAllowed => revert_error(RecipientNotAllowed {}),
+        DenyReason::RateLimited => revert_error(RateLimited {}),
+        DenyReason::CooldownActive => revert_error(CooldownActive {}),
+        DenyReason::OutsideTradingHours => revert_error(OutsideTradingHours {}),
+        DenyReason::CircuitTripped => revert_error(CircuitTripped {}),
+        DenyReason::SwapNotAllowed => revert_error(SwapNotAllowed {}),
+        DenyReason::LendingNotAllowed => revert_error(LendingNotAllowed {}),
+        DenyReason::PriceUnavailable => revert_error(PriceUnavailable {}),
+        DenyReason::UsdCapExceeded => revert_error(UsdCapExceeded {}),
+        DenyReason::EscalationRequired => revert_error(EscalationRequired {}),
+    }
+}

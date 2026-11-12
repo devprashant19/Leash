@@ -1,11 +1,5 @@
 use ingot::config::{ADDR_TOKEN, ADDR_TREASURY, default_policy}
-use ingot::ledger::{
-    bucket_index_of,
-    record,
-    record_denial,
-    record_spend,
-    spent_in_window,
-}
+use ingot::ledger::{bucket_index_of, record, record_denial, record_spend, spent_in_window}
 use ingot::types::{
     AgentState,
     BUCKET_LEN,

@@ -1,0 +1,617 @@
+use ingot::*
+use policy::config::{ADDR_TOKEN, ADDR_TREASURY}
+use std::abi::{Bytes, bytes_from_words}
+use std::evm::{Address, Call, Create, Ctx, Evm, Timestamp, Wei, wei}
+use testkit::{Erc20Msg, MockErc20, MockSafe, Reenterer, SafeMsg}
+
+#[cfg(target = "evm")]
+#[test]
+fn test_fingerprint_golden() uses (evm: mut Evm) {
+    let safe = Address::new(0x1111)
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    let fp: u256 = evm
+        .call(
+            addr: module_addr,
+            gas: 100000,
+            value: Wei::zero(),
+            message: LeashMsg::Fingerprint {},
+        )
+    assert(
+        fp == 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee,
+    )
+}
+
+#[cfg(target = "evm")]
+#[test]
+fn test_pause_unpause_guardian() uses (evm: mut Evm) {
+    let caller = evm.address()
+    let safe = Address::new(0x1111)
+    let guardian = caller
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    // Guardian can pause
+    evm.call(
+        addr: module_addr,
+        gas: 100000,
+        value: Wei::zero(),
+        message: LeashMsg::Pause {},
+    )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+fn test_unpause_by_non_safe_reverts() uses (evm: mut Evm) {
+    let caller = evm.address()
+    let safe = Address::new(0x1111)
+    let guardian = caller
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    // Caller is guardian, not safe. Unpause should revert NotSafe
+    evm.call(
+        addr: module_addr,
+        gas: 100000,
+        value: Wei::zero(),
+        message: LeashMsg::Unpause {},
+    )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+fn test_set_agent_by_non_safe_reverts() uses (evm: mut Evm) {
+    let caller = evm.address()
+    let safe = Address::new(0x1111)
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    // Caller is not safe
+    evm.call(
+        addr: module_addr,
+        gas: 100000,
+        value: Wei::zero(),
+        message: LeashMsg::SetAgent {
+            agent: caller,
+            expiry: Timestamp::from_seconds(9999999999),
+            label: 1,
+        },
+    )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+fn test_unregistered_agent_reverts() uses (evm: mut Evm) {
+    let safe = Address::new(0x1111)
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+    let _: bool = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::Execute {
+                to: ADDR_TREASURY,
+                value: 1000,
+                data: empty_data,
+                operation: 0,
+            },
+        )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+fn test_zero_address_safe_reverts() uses (evm: mut Evm) {
+    let _ = evm
+        .create<LeashModule>(
+            value: Wei::zero(),
+            args: (Address::zero(), Address::new(0x2222)),
+        )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+fn test_zero_address_guardian_reverts() uses (evm: mut Evm) {
+    let _ = evm
+        .create<LeashModule>(
+            value: Wei::zero(),
+            args: (Address::new(0x1111), Address::zero()),
+        )
+}
+
+#[cfg(target = "evm")]
+#[test]
+fn test_preview_inactive_agent() uses (evm: mut Evm) {
+    let safe = Address::new(0x1111)
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+    let (code, _rem_tx, _rem_win): (u8, u256, u256) = evm
+        .call(
+            addr: module_addr,
+            gas: 100000,
+            value: Wei::zero(),
+            message: LeashMsg::Preview {
+                agent: Address::new(0xdead),
+                to: ADDR_TREASURY,
+                value: 1000,
+                data: empty_data,
+                operation: 0,
+            },
+        )
+    assert(code == 2)
+}
+
+#[cfg(target = "evm")]
+#[test]
+fn test_execute_allowed_eth() uses (evm: mut Evm) {
+    let agent = evm.address()
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::EnableModule { module_addr },
+    )
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent,
+            expiry: Timestamp::from_seconds(9999999999),
+            label: 1,
+        },
+    )
+
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+    let val: u256 = 10000000000000000
+    let ok: bool = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::Execute {
+                to: ADDR_TREASURY,
+                value: val,
+                data: empty_data,
+                operation: 0,
+            },
+        )
+    assert(ok)
+
+    let count: u256 = evm
+        .call(
+            addr: safe,
+            gas: 100000,
+            value: Wei::zero(),
+            message: SafeMsg::CallCount {},
+        )
+    assert(count == 1)
+
+    let last_to: Address = evm
+        .call(
+            addr: safe,
+            gas: 100000,
+            value: Wei::zero(),
+            message: SafeMsg::LastTo {},
+        )
+    assert(last_to == ADDR_TREASURY)
+
+    let last_val: u256 = evm
+        .call(
+            addr: safe,
+            gas: 100000,
+            value: Wei::zero(),
+            message: SafeMsg::LastValue {},
+        )
+    assert(last_val == val)
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+fn test_execute_denied_target_reverts() uses (evm: mut Evm) {
+    let agent = evm.address()
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::EnableModule { module_addr },
+    )
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent,
+            expiry: Timestamp::from_seconds(9999999999),
+            label: 1,
+        },
+    )
+
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+    let unlisted = Address::new(0x9999)
+    let _: bool = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::Execute {
+                to: unlisted,
+                value: 1000,
+                data: empty_data,
+                operation: 0,
+            },
+        )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+fn test_execute_denied_cap_reverts() uses (evm: mut Evm) {
+    let agent = evm.address()
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::EnableModule { module_addr },
+    )
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent,
+            expiry: Timestamp::from_seconds(9999999999),
+            label: 1,
+        },
+    )
+
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+    let val: u256 = 200000000000000000
+    let _: bool = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::Execute {
+                to: ADDR_TREASURY,
+                value: val,
+                data: empty_data,
+                operation: 0,
+            },
+        )
+}
+
+#[cfg(target = "evm")]
+#[test]
+fn test_try_execute_denied_returns_code() uses (evm: mut Evm) {
+    let agent = evm.address()
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::EnableModule { module_addr },
+    )
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent,
+            expiry: Timestamp::from_seconds(9999999999),
+            label: 1,
+        },
+    )
+
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+    let unlisted = Address::new(0x9999)
+    let (success, code): (bool, u8) = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::TryExecute {
+                to: unlisted,
+                value: 1000,
+                data: empty_data,
+                operation: 0,
+            },
+        )
+    assert(!success)
+    assert(code == 4)
+
+    let count: u256 = evm
+        .call(
+            addr: safe,
+            gas: 100000,
+            value: Wei::zero(),
+            message: SafeMsg::CallCount {},
+        )
+    assert(count == 0)
+}
+
+#[cfg(target = "evm")]
+#[test]
+fn test_try_execute_allowed_success() uses (evm: mut Evm) {
+    let agent = evm.address()
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::EnableModule { module_addr },
+    )
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent,
+            expiry: Timestamp::from_seconds(9999999999),
+            label: 1,
+        },
+    )
+
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+    let val: u256 = 10000000000000000
+    let (success, code): (bool, u8) = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::TryExecute {
+                to: ADDR_TREASURY,
+                value: val,
+                data: empty_data,
+                operation: 0,
+            },
+        )
+    assert(success)
+    assert(code == 0)
+
+    let count: u256 = evm
+        .call(
+            addr: safe,
+            gas: 100000,
+            value: Wei::zero(),
+            message: SafeMsg::CallCount {},
+        )
+    assert(count == 1)
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+fn test_safe_call_failed_reverts() uses (evm: mut Evm) {
+    let agent = evm.address()
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::EnableModule { module_addr },
+    )
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent,
+            expiry: Timestamp::from_seconds(9999999999),
+            label: 1,
+        },
+    )
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetFail { fail: true },
+    )
+
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+    let _: bool = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::Execute {
+                to: ADDR_TREASURY,
+                value: 1000,
+                data: empty_data,
+                operation: 0,
+            },
+        )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+fn test_revoked_agent_reverts() uses (evm: mut Evm) {
+    let agent = evm.address()
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::EnableModule { module_addr },
+    )
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent,
+            expiry: Timestamp::from_seconds(9999999999),
+            label: 1,
+        },
+    )
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::RevokeAgentOn { module_addr, agent },
+    )
+
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+    let _: bool = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::Execute {
+                to: ADDR_TREASURY,
+                value: 1000,
+                data: empty_data,
+                operation: 0,
+            },
+        )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+fn test_reentrancy_rejected_not_agent() uses (evm: mut Evm) {
+    let agent = evm.address()
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+    let reenterer = evm.create<Reenterer>(value: Wei::zero(), args: (module_addr,))
+
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::EnableModule { module_addr },
+    )
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetForwardCalls { forward: true },
+    )
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent,
+            expiry: Timestamp::from_seconds(9999999999),
+            label: 1,
+        },
+    )
+
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+    let _: bool = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::Execute {
+                to: reenterer,
+                value: 1000,
+                data: empty_data,
+                operation: 0,
+            },
+        )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+fn test_reentrancy_rejected_reentrant_flag() uses (evm: mut Evm) {
+    let agent = evm.address()
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+    let reenterer = evm.create<Reenterer>(value: Wei::zero(), args: (module_addr,))
+
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::EnableModule { module_addr },
+    )
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetForwardCalls { forward: true },
+    )
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent,
+            expiry: Timestamp::from_seconds(9999999999),
+            label: 1,
+        },
+    )
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetAgentOn {
+            module_addr,
+            agent: reenterer,
+            expiry: Timestamp::from_seconds(9999999999),
+            label: 2,
+        },
+    )
+
+    let empty_words: [u256; 0] = [0; 0]
+    let empty_data: Bytes = bytes_from_words(empty_words)
+    let _: bool = evm
+        .call(
+            addr: module_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: LeashMsg::Execute {
+                to: reenterer,
+                value: 1000,
+                data: empty_data,
+                operation: 0,
+            },
+        )
+}

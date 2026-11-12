@@ -209,3 +209,111 @@ $ git grep -nE 'fn decide[^{]*uses' ingots/policy/src/*.fe
 
 
 
+
+---
+
+## 2026-11-18 — Phase 2: LeashModule Contract & Mock Safe Complete
+
+### Standard Gate & Review Gate Output
+
+```bash
+$ fe fmt --check ingots
+(clean - 0 errors)
+
+$ fe check
+(clean - 0 errors)
+
+$ fe test
+running `fe test` for 4 inputs (jobs=8)
+
+COMPILING        cli     ingots/cli
+COMPILING        module  ingots/module
+COMPILING        policy  ingots/policy
+COMPILING        testkit ingots/testkit
+READY [0.8615s]  cli     running 0 tests
+READY [4.1116s]  testkit running 3 tests
+PASS  [0.0006s]  testkit test_mock_safe_reverts_when_not_enabled
+PASS  [0.0006s]  testkit test_mock_safe_basic
+PASS  [0.0007s]  testkit test_mock_erc20_basic
+READY [4.9565s]  policy  running 43 tests
+PASS  [0.0001s]  policy  test_bucket_index_calculation
+PASS  [0.0001s]  policy  test_25h_gap_full_reset
+PASS  [0.0001s]  policy  test_allow_valid_eth_transfer
+PASS  [0.0002s]  policy  test_decode_dirty_address
+PASS  [0.0002s]  policy  test_decode_approve_success
+PASS  [0.0000s]  policy  test_deny_delegatecall
+PASS  [0.0000s]  policy  test_deny_empty_policy_denies_all
+PASS  [0.0000s]  policy  test_deny_paused
+PASS  [0.0002s]  policy  test_decode_transfer_from_success
+PASS  [0.0000s]  policy  test_deny_session_expired
+PASS  [0.0001s]  policy  test_decode_transfer_success
+PASS  [0.0003s]  policy  test_allow_erc20_transfer
+PASS  [0.0000s]  policy  test_deny_zero_address_target
+PASS  [0.0001s]  policy  test_deny_unlisted_target
+PASS  [0.0001s]  policy  test_explain_reason_all_variants
+PASS  [0.0002s]  policy  test_deny_erc20_transfer_over_cap
+PASS  [0.0000s]  policy  test_operation_conversion
+PASS  [0.0004s]  policy  test_decode_malformed_lengths
+PASS  [0.0000s]  policy  test_order_delegatecall_beats_unlisted_target_and_cap
+PASS  [0.0000s]  policy  test_order_paused_beats_delegatecall_and_unlisted
+PASS  [0.0001s]  policy  test_order_unlisted_target_beats_per_tx_cap
+PASS  [0.0001s]  policy  test_reason_codes_exhaustive
+PASS  [0.0000s]  policy  test_record_denial_counter
+PASS  [0.0001s]  policy  test_reason_names_exhaustive
+PASS  [0.0000s]  policy  test_record_eth_spend
+PASS  [0.0006s]  policy  test_deny_calldata_shape_and_selector
+PASS  [0.0002s]  policy  test_robustness_amount_u256_max
+PASS  [0.0000s]  policy  test_robustness_three_byte_data
+PASS  [0.0002s]  policy  test_robustness_dirty_address_word
+PASS  [0.0001s]  policy  test_robustness_empty_data_token_target
+PASS  [0.0004s]  policy  test_per_tx_and_window_eth_caps
+PASS  [0.0007s]  policy  test_erc20_malformed_calldata_denied
+PASS  [0.0001s]  policy  test_robustness_value_u256_max_no_overflow_panic
+PASS  [0.0002s]  policy  test_robustness_transfer_one_hundred_bytes
+PASS  [0.0002s]  policy  test_robustness_unknown_selector_four_bytes
+PASS  [0.0002s]  policy  test_robustness_transfer_thirty_five_bytes
+PASS  [0.0000s]  policy  test_selectors_match
+PASS  [0.0001s]  policy  test_single_and_multiple_spends_same_bucket
+PASS  [0.0001s]  policy  test_rolling_window_24h_rollover_exact
+PASS  [0.0002s]  policy  test_selector_of_cases
+PASS  [0.0001s]  policy  test_state_encode_decode_roundtrip
+PASS  [0.0009s]  policy  test_erc20_approval_hygiene
+PASS  [0.0359s]  policy  test_fingerprint_deterministic_and_sensitivity
+READY [8.0495s]  module  running 17 tests
+PASS  [0.0012s]  module  test_pause_unpause_guardian
+PASS  [0.0012s]  module  test_preview_inactive_agent
+PASS  [0.0013s]  module  test_fingerprint_golden
+PASS  [0.0016s]  module  test_execute_denied_target_reverts
+PASS  [0.0016s]  module  test_reentrancy_rejected_not_agent
+PASS  [0.0018s]  module  test_execute_denied_cap_reverts
+PASS  [0.0018s]  module  test_execute_allowed_eth
+PASS  [0.0019s]  module  test_reentrancy_rejected_reentrant_flag
+PASS  [0.0012s]  module  test_set_agent_by_non_safe_reverts
+PASS  [0.0014s]  module  test_safe_call_failed_reverts
+PASS  [0.0016s]  module  test_revoked_agent_reverts
+PASS  [0.0010s]  module  test_zero_address_guardian_reverts
+PASS  [0.0012s]  module  test_unregistered_agent_reverts
+PASS  [0.0014s]  module  test_try_execute_allowed_success
+PASS  [0.0014s]  module  test_try_execute_denied_returns_code
+PASS  [0.0008s]  module  test_zero_address_safe_reverts
+PASS  [0.0016s]  module  test_unpause_by_non_safe_reverts
+
+test result: ok. 63 passed; 0 failed
+
+$ fe build ingots/module --emit sizes
+runtime: 23050 bytes (17957 code, 5093 data, 0 embedded)
+creation: 23305 bytes (255 code, 0 data, 23050 embedded)
+EIP-170 limit: 24576 bytes (passed: 1526 bytes headroom, 0 warnings)
+
+$ git grep -nE 'fn decide[^{]*uses' ingots/policy/src/*.fe
+(no matches — pure decide invariant holds)
+```
+
+### Exit Gate Verdict: PASSED
+- `LeashModule` runs `policy::decide`, enforces checks, records spending in hourly buckets, and calls `MockSafe.execTransactionFromModule`.
+- Full integration tests pass on EVM: 17 module tests, 43 policy tests, 3 testkit tests = 63 tests green.
+- Reentrancy resistance tested and verified with `testkit::Reenterer`.
+- Contract runtime size is 23,050 bytes (< 24,576 bytes) with zero compiler warnings.
+- ADR-004 (`004-deny-semantics.md`) and ADR-006 (`006-state-export.md`) written and accepted.
+- `ARCHITECTURE.md` and `THREAT_MODEL.md` updated.
+- `docs/handoff/2026-11-18.md` committed.

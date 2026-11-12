@@ -26,9 +26,9 @@ pub msg Erc20Msg {
 }
 
 pub contract MockErc20 uses (ctx: Ctx) {
-    mut balances: StorageMap<Address, u256>
-    mut allowances: StorageMap<(Address, Address), u256>
-    mut total_supply: u256
+    mut balances: StorageMap<Address, u256>,
+    mut allowances: StorageMap<(Address, Address), u256>,
+    mut total_supply: u256,
 
     init() {}
 
@@ -51,7 +51,9 @@ pub contract MockErc20 uses (ctx: Ctx) {
             true
         }
 
-        TransferFrom { from, to, amount } -> bool uses (ctx, mut balances, mut allowances) {
+        TransferFrom { from, to, amount } -> bool
+        uses (ctx, mut balances, mut allowances)
+        {
             let spender = ctx.caller()
             let allowed = allowances.get(key: (from, spender))
             if allowed < amount {

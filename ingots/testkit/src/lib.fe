@@ -27,16 +27,31 @@ pub msg SafeMsg {
     LastValue -> u256,
     #[selector = sol("lastOp()")]
     LastOp -> u8,
+    #[selector = sol("setAgentOn(address,address,uint256,uint256)")]
+    SetAgentOn { module_addr: Address, agent: Address, expiry: Timestamp, label: u256 },
+    #[selector = sol("unpauseOn(address)")]
+    UnpauseOn { module_addr: Address },
+    #[selector = sol("revokeAgentOn(address,address)")]
+    RevokeAgentOn { module_addr: Address, agent: Address },
+}
+
+pub msg ModuleAdminMsg {
+    #[selector = sol("setAgent(address,uint256,uint256)")]
+    SetAgent { agent: Address, expiry: Timestamp, label: u256 },
+    #[selector = sol("unpause()")]
+    Unpause,
+    #[selector = sol("revokeAgent(address)")]
+    RevokeAgent { agent: Address },
 }
 
 pub contract MockSafe uses (ctx: Ctx, call: mut Call) {
-    mut enabled: StorageMap<Address, bool>
-    mut call_count: u256
-    mut last_to: Address
-    mut last_value: u256
-    mut last_op: u8
-    mut should_fail: bool
-    mut forward_calls: bool
+    mut enabled: StorageMap<Address, bool>,
+    mut call_count: u256,
+    mut last_to: Address,
+    mut last_value: u256,
+    mut last_op: u8,
+    mut should_fail: bool,
+    mut forward_calls: bool,
 
     init() {}
 
@@ -73,7 +88,19 @@ pub contract MockSafe uses (ctx: Ctx, call: mut Call) {
             last_op
         }
 
-        ExecTransactionFromModule { to, value, data, operation } -> bool uses (ctx, mut call, enabled, mut call_count, mut last_to, mut last_value, mut last_op, should_fail, forward_calls) {
+        ExecTransactionFromModule { to, value, data, operation } -> bool
+        uses (
+            ctx,
+            mut call,
+            enabled,
+            mut call_count,
+            mut last_to,
+            mut last_value,
+            mut last_op,
+            should_fail,
+            forward_calls,
+        )
+        {
             let caller = ctx.caller()
             if !enabled.get(key: caller) {
                 revert_error(ModuleNotEnabled {})
@@ -88,11 +115,47 @@ pub contract MockSafe uses (ctx: Ctx, call: mut Call) {
 
             if forward_calls && to != Address::zero() {
                 var ret = core::ptr::MemBuffer::empty()
-                let outcome = call.raw_call(addr: to, gas: 500000, value: wei(value), args: data.span(), ret: mut ret)
+                let outcome = call
+                    .raw_call(
+                        addr: to,
+                        gas: 500000,
+                        value: wei(value),
+                        args: data.span(),
+                        ret: mut ret,
+                    )
                 return outcome.success()
             }
 
             true
+        }
+
+        SetAgentOn { module_addr, agent, expiry, label }
+        uses (mut call)
+        {
+            call.call(
+                addr: module_addr,
+                gas: 500000,
+                value: Wei::zero(),
+                message: ModuleAdminMsg::SetAgent { agent, expiry, label },
+            )
+        }
+
+        UnpauseOn { module_addr } uses (mut call) {
+            call.call(
+                addr: module_addr,
+                gas: 500000,
+                value: Wei::zero(),
+                message: ModuleAdminMsg::Unpause {},
+            )
+        }
+
+        RevokeAgentOn { module_addr, agent } uses (mut call) {
+            call.call(
+                addr: module_addr,
+                gas: 500000,
+                value: Wei::zero(),
+                message: ModuleAdminMsg::RevokeAgent { agent },
+            )
         }
     }
 }
@@ -108,12 +171,13 @@ fn test_mock_safe_basic() uses (evm: mut Evm) {
     let module_addr = evm.address()
 
     // Initially not enabled
-    let is_en: bool = evm.call(
-        addr: safe,
-        gas: 100000,
-        value: Wei::zero(),
-        message: SafeMsg::IsModuleEnabled { module_addr },
-    )
+    let is_en: bool = evm
+        .call(
+            addr: safe,
+            gas: 100000,
+            value: Wei::zero(),
+            message: SafeMsg::IsModuleEnabled { module_addr },
+        )
     assert(!is_en)
 
     // Enable module
@@ -123,50 +187,55 @@ fn test_mock_safe_basic() uses (evm: mut Evm) {
         value: Wei::zero(),
         message: SafeMsg::EnableModule { module_addr },
     )
-    let is_en2: bool = evm.call(
-        addr: safe,
-        gas: 100000,
-        value: Wei::zero(),
-        message: SafeMsg::IsModuleEnabled { module_addr },
-    )
+    let is_en2: bool = evm
+        .call(
+            addr: safe,
+            gas: 100000,
+            value: Wei::zero(),
+            message: SafeMsg::IsModuleEnabled { module_addr },
+        )
     assert(is_en2)
 
     // Execute tx
-    let success: bool = evm.call(
-        addr: safe,
-        gas: 1000000,
-        value: Wei::zero(),
-        message: SafeMsg::ExecTransactionFromModule {
-            to: Address::new(0x1234),
-            value: 42,
-            data: Bytes::empty(),
-            operation: 0,
-        },
-    )
+    let success: bool = evm
+        .call(
+            addr: safe,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: SafeMsg::ExecTransactionFromModule {
+                to: Address::new(0x1234),
+                value: 42,
+                data: Bytes::empty(),
+                operation: 0,
+            },
+        )
     assert(success)
 
-    let count: u256 = evm.call(
-        addr: safe,
-        gas: 100000,
-        value: Wei::zero(),
-        message: SafeMsg::CallCount {},
-    )
+    let count: u256 = evm
+        .call(
+            addr: safe,
+            gas: 100000,
+            value: Wei::zero(),
+            message: SafeMsg::CallCount {},
+        )
     assert(count == 1)
 
-    let last_to: Address = evm.call(
-        addr: safe,
-        gas: 100000,
-        value: Wei::zero(),
-        message: SafeMsg::LastTo {},
-    )
+    let last_to: Address = evm
+        .call(
+            addr: safe,
+            gas: 100000,
+            value: Wei::zero(),
+            message: SafeMsg::LastTo {},
+        )
     assert(last_to == Address::new(0x1234))
 
-    let last_val: u256 = evm.call(
-        addr: safe,
-        gas: 100000,
-        value: Wei::zero(),
-        message: SafeMsg::LastValue {},
-    )
+    let last_val: u256 = evm
+        .call(
+            addr: safe,
+            gas: 100000,
+            value: Wei::zero(),
+            message: SafeMsg::LastValue {},
+        )
     assert(last_val == 42)
 
     // Test set_fail
@@ -176,17 +245,18 @@ fn test_mock_safe_basic() uses (evm: mut Evm) {
         value: Wei::zero(),
         message: SafeMsg::SetFail { fail: true },
     )
-    let success_fail: bool = evm.call(
-        addr: safe,
-        gas: 1000000,
-        value: Wei::zero(),
-        message: SafeMsg::ExecTransactionFromModule {
-            to: Address::new(0x1234),
-            value: 42,
-            data: Bytes::empty(),
-            operation: 0,
-        },
-    )
+    let success_fail: bool = evm
+        .call(
+            addr: safe,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: SafeMsg::ExecTransactionFromModule {
+                to: Address::new(0x1234),
+                value: 42,
+                data: Bytes::empty(),
+                operation: 0,
+            },
+        )
     assert(!success_fail)
 }
 
@@ -195,17 +265,18 @@ fn test_mock_safe_basic() uses (evm: mut Evm) {
 fn test_mock_safe_reverts_when_not_enabled() uses (evm: mut Evm) {
     let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
     // Not enabled, should revert
-    let _: bool = evm.call(
-        addr: safe,
-        gas: 1000000,
-        value: Wei::zero(),
-        message: SafeMsg::ExecTransactionFromModule {
-            to: Address::new(0x1234),
-            value: 42,
-            data: Bytes::empty(),
-            operation: 0,
-        },
-    )
+    let _: bool = evm
+        .call(
+            addr: safe,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: SafeMsg::ExecTransactionFromModule {
+                to: Address::new(0x1234),
+                value: 42,
+                data: Bytes::empty(),
+                operation: 0,
+            },
+        )
 }
 
 #[cfg(target = "evm")]
@@ -222,52 +293,57 @@ fn test_mock_erc20_basic() uses (evm: mut Evm) {
         value: Wei::zero(),
         message: Erc20Msg::Mint { to: owner, amount: 1000 },
     )
-    let bal: u256 = evm.call(
-        addr: token,
-        gas: 100000,
-        value: Wei::zero(),
-        message: Erc20Msg::BalanceOf { owner },
-    )
+    let bal: u256 = evm
+        .call(
+            addr: token,
+            gas: 100000,
+            value: Wei::zero(),
+            message: Erc20Msg::BalanceOf { owner },
+        )
     assert(bal == 1000)
 
     // Transfer
-    let ok: bool = evm.call(
-        addr: token,
-        gas: 100000,
-        value: Wei::zero(),
-        message: Erc20Msg::Transfer { to: receiver, amount: 300 },
-    )
+    let ok: bool = evm
+        .call(
+            addr: token,
+            gas: 100000,
+            value: Wei::zero(),
+            message: Erc20Msg::Transfer { to: receiver, amount: 300 },
+        )
     assert(ok)
-    let owner_bal: u256 = evm.call(
-        addr: token,
-        gas: 100000,
-        value: Wei::zero(),
-        message: Erc20Msg::BalanceOf { owner },
-    )
+    let owner_bal: u256 = evm
+        .call(
+            addr: token,
+            gas: 100000,
+            value: Wei::zero(),
+            message: Erc20Msg::BalanceOf { owner },
+        )
     assert(owner_bal == 700)
-    let rec_bal: u256 = evm.call(
-        addr: token,
-        gas: 100000,
-        value: Wei::zero(),
-        message: Erc20Msg::BalanceOf { owner: receiver },
-    )
+    let rec_bal: u256 = evm
+        .call(
+            addr: token,
+            gas: 100000,
+            value: Wei::zero(),
+            message: Erc20Msg::BalanceOf { owner: receiver },
+        )
     assert(rec_bal == 300)
 
     // Approve
     let spender = Address::new(0xcafe)
-    let ok_app: bool = evm.call(
-        addr: token,
-        gas: 100000,
-        value: Wei::zero(),
-        message: Erc20Msg::Approve { spender, amount: 500 },
-    )
+    let ok_app: bool = evm
+        .call(
+            addr: token,
+            gas: 100000,
+            value: Wei::zero(),
+            message: Erc20Msg::Approve { spender, amount: 500 },
+        )
     assert(ok_app)
-    let allowed: u256 = evm.call(
-        addr: token,
-        gas: 100000,
-        value: Wei::zero(),
-        message: Erc20Msg::Allowance { owner, spender },
-    )
+    let allowed: u256 = evm
+        .call(
+            addr: token,
+            gas: 100000,
+            value: Wei::zero(),
+            message: Erc20Msg::Allowance { owner, spender },
+        )
     assert(allowed == 500)
 }
-

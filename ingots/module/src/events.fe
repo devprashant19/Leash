@@ -1,0 +1,48 @@
+use std::evm::{Address, Timestamp}
+
+#[event]
+pub struct Allowed {
+    #[indexed]
+    pub agent: Address,
+    #[indexed]
+    pub target: Address,
+    pub value: u256,
+    pub selector: u32,
+}
+
+#[event]
+pub struct Denied {
+    #[indexed]
+    pub agent: Address,
+    #[indexed]
+    pub target: Address,
+    pub code: u8,
+}
+
+#[event]
+pub struct PausedEvent {
+    #[indexed]
+    pub by: Address,
+}
+
+#[event]
+pub struct UnpausedEvent {}
+
+#[event]
+pub struct AgentSet {
+    #[indexed]
+    pub agent: Address,
+    pub expiry: Timestamp,
+}
+
+#[event]
+pub struct AgentRevoked {
+    #[indexed]
+    pub agent: Address,
+}
+
+#[event]
+pub struct GuardianSet {
+    #[indexed]
+    pub guardian: Address,
+}

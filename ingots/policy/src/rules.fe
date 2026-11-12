@@ -38,7 +38,9 @@ fn check_session_expired(_ tx: ref Tx, _ state: ref AgentState) -> Option<DenyRe
     Option::None
 }
 
-fn check_cooldown(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<DenyReason> {
+fn check_cooldown(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
+    DenyReason,
+> {
     if policy.cooldown.as_seconds() > 0 {
         if state.last_action.as_seconds() > 0 {
             if tx.now < state.last_action + policy.cooldown {
@@ -96,7 +98,9 @@ fn check_selector_and_calldata(_ tx: ref Tx, _ target: ref TargetRule) -> Option
     }
 }
 
-fn check_rate_limit(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<DenyReason> {
+fn check_rate_limit(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
+    DenyReason,
+> {
     Option::None
 }
 
@@ -108,7 +112,9 @@ fn check_per_tx_cap(_ tx: ref Tx, _ policy: ref Policy) -> Option<DenyReason> {
     }
 }
 
-fn check_window_cap(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<DenyReason> {
+fn check_window_cap(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
+    DenyReason,
+> {
     let spent = spent_in_window(state.eth_window, tx.now)
     let total = checked_add_saturate(spent, tx.value.as_wei())
     if total > policy.max_per_window.as_wei() {
@@ -129,7 +135,9 @@ fn find_token_rule(_ token: Address, _ policy: ref Policy) -> Option<TokenRule> 
     Option::None
 }
 
-fn check_erc20_guard(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<DenyReason> {
+fn check_erc20_guard(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
+    DenyReason,
+> {
     let token_rule = match find_token_rule(token: tx.to, policy) {
         Option::Some(tr) => tr,
         Option::None => {
@@ -219,14 +227,18 @@ pub fn decide(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Ve
 
     // 5. DelegateCallBlocked
     match tx.op {
-        Operation::DelegateCall => return Verdict::Deny(DenyReason::DelegateCallBlocked),
+        Operation::DelegateCall => {
+            return Verdict::Deny(DenyReason::DelegateCallBlocked)
+        },
         Operation::Call => {},
     }
 
     // 6. TargetNotAllowed
     let target = match find_target(to: tx.to, policy) {
         Option::Some(t) => t,
-        Option::None => return Verdict::Deny(DenyReason::TargetNotAllowed),
+        Option::None => {
+            return Verdict::Deny(DenyReason::TargetNotAllowed)
+        },
     }
 
     // 7. MalformedCalldata / SelectorNotAllowed

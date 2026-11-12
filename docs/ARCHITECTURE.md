@@ -44,3 +44,27 @@
    - On `ALLOW`: `policy::record` updates the ledger state, and `LeashModule` calls `Safe.execTransactionFromModule(...)`.
    - On `DENY`: `LeashModule` reverts immediately with a typed custom error (or records denial in `TryExecute`). No state is modified.
 5. **Fingerprint Verification**: Both CLI and Module expose `fingerprint`, which computes the identical keccak-256 digest of the canonical policy encoding. Operators can verify that off-chain agents and on-chain guards execute the exact same policy rules.
+
+## 4. LeashModule Messages & Effects
+
+Fe's static effect system enforces minimal privilege for each message handler:
+
+| Message | Caller | Effects Declared | Description |
+|---|---|---|---|
+| `Execute { to, value, data, operation }` | Active agent | `mut self.locked, mut self.ledgers, call: mut Call, log: mut Log` | Evaluates `policy::decide`. Reverts with typed custom error if denied. If allowed, records spend and executes `Safe.execTransactionFromModule`. |
+| `TryExecute { to, value, data, operation }` | Active agent | `mut self.locked, mut self.ledgers, call: mut Call, log: mut Log` | Same as `Execute`, but on denial does NOT revert: emits `Denied(agent, to, code)` and returns `(false, code)`. On success executes and returns `(true, 0)`. |
+| `Preview { agent, to, value, data, operation }` | Anyone | Read-only (no storage mutation) | Returns `(code, remaining_eth_per_tx, remaining_eth_window)`. Zero state modifications. |
+| `State { agent }` | Anyone | Read-only (no storage mutation) | Returns canonical `policy::encode_state(agent_state)` bytes for off-chain CLI prediction. |
+| `Pause` | Safe or Guardian | `mut self.paused, log: mut Log` | Emergency kill switch. Guardian cannot touch funds or agent registrations. |
+| `Unpause` | Safe only | `mut self.paused, log: mut Log` | Resumes module operations. Callable strictly by Safe account. |
+| `SetAgent { agent, expiry, label }` | Safe only | `mut self.agents, log: mut Log` | Authorizes or updates an agent session key. Expiry must be > block timestamp. |
+| `RevokeAgent { agent }` | Safe only | `mut self.agents, log: mut Log` | Deactivates an agent session key immediately. |
+| `SetGuardian { guardian }` | Safe only | `mut self.guardian, log: mut Log` | Rotates the guardian emergency address. |
+| `Fingerprint` | Anyone | Read-only | Returns 32-byte Keccak-256 policy digest matching the native CLI. |
+
+## 5. Architectural Invariants
+
+1. **Pure `decide`**: `policy::decide` has NO `uses` clause. Policy decisions cannot perform I/O, touch storage, or read environment state outside their explicit parameters.
+2. **Default Deny**: Any action not explicitly allowed by policy rules is denied with an explicit `DenyReason`.
+3. **No Direct Spending**: Safe funds can only be moved through `Safe.execTransactionFromModule`, which is reachable only after `policy::decide` returns `Allow` and state is recorded.
+4. **Checks-Effects-Interactions (CEI)**: Internal ledger updates precede external calls to the Safe, backed by a reentrancy mutex.

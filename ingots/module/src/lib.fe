@@ -1,26 +1,369 @@
 use policy
-use std::evm::{Evm, revert_error}
+use policy::types::{AgentState, Calldata, Policy, Tx, Verdict, Window24}
+use policy::types::{MAX_CALLDATA, TokenAmount}
+use std::abi::Bytes
+use std::evm::{Address, Call, Create, Ctx, Evm, Log, StorageMap, Timestamp, Wei, revert_error, wei}
 
-#[error]
-pub struct Paused {}
+pub use errors::*
+pub use events::*
+pub use safe::*
 
-pub msg LeashMsg {
-    #[selector = sol("version()")]
-    Version -> u32,
+pub struct AgentConfig { pub active: bool, pub expiry: Timestamp, pub label: u256 }
+impl Copy for AgentConfig {}
+impl Snapshot for AgentConfig {}
+
+pub struct AgentLedger { pub eth_window: Window24 }
+impl Copy for AgentLedger {}
+impl Snapshot for AgentLedger {}
+
+pub fn calldata_from_bytes(_ data: ref Bytes) -> Calldata {
+    let span = data.span()
+    let len = span.len()
+    var bytes: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    let copy_len = if len > MAX_CALLDATA {
+        MAX_CALLDATA
+    } else {
+        len
+    }
+    var i: usize = 0
+    while i < copy_len {
+        bytes[i] = span.byte_at(i)
+        i = i + 1
+    }
+    Calldata { len, bytes }
 }
 
-pub contract LeashModule {
-    init() {}
+fn test_ref(_ tx: ref Tx) -> bool {
+    true
+}
 
-    recv LeashMsg {
-        Version -> u32 {
-            policy::version()
-        }
+fn resolve_op(_ op_u8: u8) -> policy::types::Operation {
+    match policy::types::operation_from_u8(op_u8) {
+        Option::Some(o) => o,
+        Option::None => policy::types::Operation::DelegateCall,
     }
 }
 
-#[cfg(target = "evm")]
-#[test(should_revert, selector = 0x9e87fac8)]
-fn test_paused_custom_error() uses (evm: mut Evm) {
-    revert_error(Paused {})
+pub msg LeashMsg {
+    #[selector = sol("execute(address,uint256,bytes,uint8)")]
+    Execute { to: Address, value: u256, data: Bytes, operation: u8 } -> bool,
+    #[selector = sol("tryExecute(address,uint256,bytes,uint8)")]
+    TryExecute { to: Address, value: u256, data: Bytes, operation: u8 } -> (bool, u8),
+    #[selector = sol("preview(address,address,uint256,bytes,uint8)")]
+    Preview { agent: Address, to: Address, value: u256, data: Bytes, operation: u8 } -> (
+        u8,
+        u256,
+        u256,
+    ),
+    #[selector = sol("state(address)")]
+    State { agent: Address } -> [u256; 52],
+    #[selector = sol("pause()")]
+    Pause,
+    #[selector = sol("unpause()")]
+    Unpause,
+    #[selector = sol("setAgent(address,uint256,uint256)")]
+    SetAgent { agent: Address, expiry: Timestamp, label: u256 },
+    #[selector = sol("revokeAgent(address)")]
+    RevokeAgent { agent: Address },
+    #[selector = sol("setGuardian(address)")]
+    SetGuardian { guardian_addr: Address },
+    #[selector = sol("fingerprint()")]
+    Fingerprint -> u256,
+}
+
+fn make_agent_state(_ paused: bool, _ expiry: Timestamp, _ ledger: ref AgentLedger) -> AgentState {
+    var st = AgentState::empty()
+    st.paused = paused
+    st.expiry = expiry
+    st.eth_window = ledger.eth_window
+    st
+}
+
+pub enum ExecOutcome {
+    Success,
+    Denied(policy::DenyReason),
+}
+
+fn evaluate_tx(
+    _ to: Address,
+    _ value: u256,
+    _ data: ref Bytes,
+    _ operation: u8,
+    _ paused: bool,
+    _ expiry: Timestamp,
+    _ ledger: ref AgentLedger,
+    _ now: Timestamp,
+) -> (Verdict, Calldata, u256, u256) {
+    let pol = policy::config::default_policy()
+    var st = make_agent_state(paused, expiry, ledger)
+    let op = resolve_op(operation)
+    let cd = calldata_from_bytes(data)
+    let tx = Tx { to, value: wei(value), data: cd, op, now }
+    let verdict = policy::rules::decide(tx, pol, st)
+    let spent_win = policy::ledger::spent_in_window(st.eth_window, now)
+    let max_win = pol.max_per_window.as_wei()
+    let rem_win = if max_win > spent_win {
+        max_win - spent_win
+    } else {
+        0
+    }
+    let max_tx = pol.max_per_tx.as_wei()
+    let rem_tx = if max_tx > value { max_tx - value } else { 0 }
+    (verdict, cd, rem_tx, rem_win)
+}
+
+fn execute_tx(
+    safe: Address,
+    agent: Address,
+    to: Address,
+    value: u256,
+    data: Bytes,
+    operation: u8,
+    paused: bool,
+    cfg: AgentConfig,
+    ledger: mut AgentLedger,
+    now: Timestamp,
+) -> ExecOutcome
+uses (call: mut Call, log: mut Log)
+{
+    let (verdict, cd, _rem_tx, _rem_win) = evaluate_tx(
+        to,
+        value,
+        data,
+        operation,
+        paused,
+        cfg.expiry,
+        ledger,
+        now,
+    )
+
+    match verdict {
+        Verdict::Deny(r) => ExecOutcome::Denied(r),
+        Verdict::Allow => {
+            if value > 0 {
+                policy::ledger::record_spend(mut ledger.eth_window, now, value)
+            }
+            let sel = match policy::decode::selector_of(cd) {
+                Option::Some(s) => s,
+                Option::None => 0,
+            }
+            log.emit(Allowed { agent, target: to, value, selector: sel })
+            let success: bool = call
+                .call(
+                    addr: safe,
+                    gas: 1000000,
+                    value: Wei::zero(),
+                    message: SafeMsg::ExecTransactionFromModule {
+                        to,
+                        value,
+                        data: data.clone(),
+                        operation,
+                    },
+                )
+            if !success {
+                revert_error(SafeCallFailed {})
+            }
+            ExecOutcome::Success
+        },
+    }
+}
+
+pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
+    safe: Address,
+    mut guardian: Address,
+    mut paused: bool,
+    mut locked: bool,
+    mut agents: StorageMap<Address, AgentConfig>,
+    mut ledgers: StorageMap<Address, AgentLedger>,
+
+    init(_safe: Address, _guardian: Address)
+    uses (mut safe, mut guardian, mut paused, mut locked)
+    {
+        if _safe == Address::zero() || _guardian == Address::zero() {
+            revert_error(ZeroAddress {})
+        }
+        safe = _safe
+        guardian = _guardian
+        paused = false
+        locked = false
+    }
+
+    recv LeashMsg {
+        Pause uses (ctx, safe, guardian, mut paused, mut log) {
+            let caller = ctx.caller()
+            if caller != safe && caller != guardian {
+                revert_error(NotGuardian {})
+            }
+            paused = true
+            log.emit(PausedEvent { by: caller })
+        }
+
+        Unpause uses (ctx, safe, mut paused, mut log) {
+            if ctx.caller() != safe {
+                revert_error(NotSafe {})
+            }
+            paused = false
+            log.emit(UnpausedEvent {})
+        }
+
+        SetAgent { agent, expiry, label } uses (ctx, safe, mut agents, mut log) {
+            if ctx.caller() != safe {
+                revert_error(NotSafe {})
+            }
+            if expiry <= ctx.timestamp() {
+                revert_error(InvalidExpiry {})
+            }
+            agents.set(
+                    key: agent,
+                    value: AgentConfig { active: true, expiry, label },
+                )
+            log.emit(AgentSet { agent, expiry })
+        }
+
+        RevokeAgent { agent } uses (ctx, safe, mut agents, mut log) {
+            if ctx.caller() != safe {
+                revert_error(NotSafe {})
+            }
+            let cfg = agents.get(key: agent)
+            agents
+                .set(
+                    key: agent,
+                    value: AgentConfig { active: false, expiry: cfg.expiry, label: cfg.label },
+                )
+            log.emit(AgentRevoked { agent })
+        }
+
+        SetGuardian { guardian_addr } uses (ctx, safe, mut guardian, mut log) {
+            if ctx.caller() != safe {
+                revert_error(NotSafe {})
+            }
+            if guardian_addr == Address::zero() {
+                revert_error(ZeroAddress {})
+            }
+            guardian = guardian_addr
+            log.emit(GuardianSet { guardian: guardian_addr })
+        }
+
+        Fingerprint -> u256 {
+            0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee
+        }
+
+        State { agent } -> [u256; 52] uses (agents, ledgers, paused) {
+            let cfg = agents.get(key: agent)
+            let ledger = ledgers.get(key: agent)
+            var st = make_agent_state(paused, cfg.expiry, ledger)
+            policy::encoding::encode_state(st)
+        }
+
+        Preview { agent, to, value, data, operation } -> (u8, u256, u256)
+        uses (ctx, paused, agents, ledgers)
+        {
+            let now = ctx.timestamp()
+            let cfg = agents.get(key: agent)
+            if !cfg.active {
+                return (policy::reason_code(policy::DenyReason::SessionExpired), 0, 0)
+            }
+            let ledger = ledgers.get(key: agent)
+            let (verdict, _cd, rem_tx, rem_win) = evaluate_tx(
+                to,
+                value,
+                data,
+                operation,
+                paused,
+                cfg.expiry,
+                ledger,
+                now,
+            )
+            match verdict {
+                Verdict::Allow => (0, rem_tx, rem_win),
+                Verdict::Deny(r) => (policy::reason_code(r), rem_tx, rem_win),
+            }
+        }
+
+        Execute { to, value, data, operation } -> bool
+        uses (ctx, safe, mut call, mut log, paused, mut locked, agents, mut ledgers)
+        {
+            if locked {
+                revert_error(Reentrant {})
+            }
+            locked = true
+
+            let agent = ctx.caller()
+            let cfg = agents.get(key: agent)
+            if !cfg.active {
+                locked = false
+                revert_error(NotAgent {})
+            }
+
+            let now = ctx.timestamp()
+            var ledger = ledgers.get(key: agent)
+            let outcome = execute_tx(
+                safe,
+                agent,
+                to,
+                value,
+                data,
+                operation,
+                paused,
+                cfg,
+                mut ledger,
+                now,
+            )
+
+            locked = false
+            match outcome {
+                ExecOutcome::Denied(r) => {
+                    revert_for(r)
+                },
+                ExecOutcome::Success => {
+                    ledgers.set(key: agent, value: ledger)
+                    true
+                },
+            }
+        }
+
+        TryExecute { to, value, data, operation } -> (bool, u8)
+        uses (ctx, safe, mut call, mut log, paused, mut locked, agents, mut ledgers)
+        {
+            if locked {
+                revert_error(Reentrant {})
+            }
+            locked = true
+
+            let agent = ctx.caller()
+            let cfg = agents.get(key: agent)
+            if !cfg.active {
+                locked = false
+                revert_error(NotAgent {})
+            }
+
+            let now = ctx.timestamp()
+            var ledger = ledgers.get(key: agent)
+            let outcome = execute_tx(
+                safe,
+                agent,
+                to,
+                value,
+                data,
+                operation,
+                paused,
+                cfg,
+                mut ledger,
+                now,
+            )
+
+            locked = false
+            match outcome {
+                ExecOutcome::Denied(r) => {
+                    let code = policy::reason_code(r)
+                    log.emit(Denied { agent, target: to, code })
+                    (false, code)
+                },
+                ExecOutcome::Success => {
+                    ledgers.set(key: agent, value: ledger)
+                    (true, 0)
+                },
+            }
+        }
+    }
 }

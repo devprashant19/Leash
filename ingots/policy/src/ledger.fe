@@ -14,11 +14,7 @@ use ingot::types::{
 pub const U256_MAX: u256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 
 pub fn checked_add_saturate(_ a: u256, _ b: u256) -> u256 {
-    if U256_MAX - a < b {
-        U256_MAX
-    } else {
-        a + b
-    }
+    if U256_MAX - a < b { U256_MAX } else { a + b }
 }
 
 pub fn bucket_index_of(_ now: Timestamp) -> u64 {

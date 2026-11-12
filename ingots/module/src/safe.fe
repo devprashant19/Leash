@@ -1,0 +1,7 @@
+use std::abi::Bytes
+use std::evm::Address
+
+pub msg SafeMsg {
+    #[selector = sol("execTransactionFromModule(address,uint256,bytes,uint8)")]
+    ExecTransactionFromModule { to: Address, value: u256, data: Bytes, operation: u8 } -> bool,
+}
