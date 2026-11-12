@@ -578,3 +578,142 @@ $ git grep -nE 'policy::rules|policy::ledger' ingots/cli/src/*.fe ingots/module/
 - `README.md`, `docs/GAS.md`, `docs/RULES.md`, `docs/THREAT_MODEL.md`, `docs/adr/007-per-agent-policies.md` updated.
 - `docs/handoff/2026-11-21.md` written.
 
+---
+
+## 2026-11-22 — Phase 5 — Verification, Parity Suite, and Adversarial Attack Tests (FEATURE FREEZE)
+- **AI-assisted**: yes (Antigravity).
+- **Files**: `ingots/testkit/*`, `test/parity/*`, `test/policy/*`, `test/attacks/*`, `docs/THREAT_MODEL.md`, `docs/GAS.md`, `docs/FE_FINDINGS.md`, `README.md`.
+- **What**: Executed full Phase 5 verification layers:
+  1. **Layer 1 (Parity Suite - E1)**: SplitMix64 PRNG in pure Fe (`PARITY_SEED = 0x4C45415348`), 10,000-transaction test runner across 10 chunks with rolling Keccak-256 digests. Confirmed EVM and Native backends match golden digest `0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb81b1f36a595fa9a1f975c1c5175a8`. Exercised all 15 reachable deny codes. Conducted mutation check (flipping `>` to `>=` in `rules.fe`), confirming 11 test failures.
+  2. **Layer 2 (Property-based Invariants)**: 4 property test suites (500+ iterations each) verifying window safety, denied transaction non-mutation of state, mathematical determinism, and state encoding/decoding roundtrip.
+  3. **Layer 3 (Adversarial Security Attack Suite - E2)**: 25 attack tests covering all attack vectors in `THREAT_MODEL.md`. Includes EVM on-chain delegatecall revert, active-agent reentrancy mutex verification (`Reentrant()` selector `0xed3ba6a6`), unlisted token target denial, unlimited approvals boundary tests, malformed calldata lengths, session expiry boundary, atomic rollback on Safe failure, circuit breaker evasion, rate limiting burst, and cooldown subversion.
+  4. **Independent Blind Security Audit**: Subagent blind security review completed. Remediated illusory reentrancy false positive by integrating `SetReenterTarget` in `MockSafe`, documented `attack_13` deferral, and added complete admin access control suite.
+  5. **Static Analysis Invariants**: Verified pure `decide` (0 `uses` occurrences) and strict component isolation (0 direct `policy::rules`/`ledger` imports).
+- **Reviewed by human**: pending confirmation.
+
+## Gate — Phase 5 — 2026-11-22 (FEATURE FREEZE)
+
+```text
+$ fe --version
+fe 26.6.0 (5b3f96a)
+
+$ fe fmt --check ingots
+(clean, 0 diffs)
+
+$ fe fmt --check test
+(clean, 0 diffs)
+
+$ fe check
+(clean, 0 errors)
+
+$ fe test
+running `fe test` for 7 inputs (jobs=8)
+
+COMPILING        cli      ingots/cli
+COMPILING        module   ingots/module
+COMPILING        policy   ingots/policy
+COMPILING        testkit  ingots/testkit
+COMPILING        attacks  test/attacks
+COMPILING        parity   test/parity
+COMPILING        policy-2 test/policy
+
+READY   cli      running 2 tests
+PASS    cli      test_default_check_state_unrestricted
+PASS    cli      test_cli_fingerprint_golden
+READY   module   running 19 tests
+PASS    module   test_execute_denied_cap_reverts
+PASS    module   test_execute_allowed_eth
+PASS    module   test_circuit_breaker_trips_and_resets
+PASS    module   test_fingerprint_golden
+PASS    module   test_execute_denied_target_reverts
+PASS    module   test_pause_unpause_guardian
+PASS    module   test_preview_inactive_agent
+PASS    module   test_reentrancy_rejected_not_agent
+PASS    module   test_per_agent_policies_isolation
+PASS    module   test_reentrancy_rejected_reentrant_flag
+PASS    module   test_revoked_agent_reverts
+PASS    module   test_safe_call_failed_reverts
+PASS    module   test_set_agent_by_non_safe_reverts
+PASS    module   test_try_execute_denied_returns_code
+PASS    module   test_try_execute_allowed_success
+PASS    module   test_unpause_by_non_safe_reverts
+PASS    module   test_zero_address_guardian_reverts
+PASS    module   test_unregistered_agent_reverts
+PASS    module   test_zero_address_safe_reverts
+READY   policy-2 running 4 tests
+PASS    policy-2 test_property_window_safety
+PASS    policy-2 test_property_encoding_roundtrip
+PASS    policy-2 test_property_denied_no_spending_change
+PASS    policy-2 test_property_determinism
+READY   testkit  running 5 tests
+PASS    testkit  test_mock_erc20_basic
+PASS    testkit  test_mock_safe_reverts_when_not_enabled
+PASS    testkit  test_mock_safe_basic
+PASS    testkit  test_splitmix64_and_digest
+PASS    testkit  test_parity_chunk_0
+READY   parity   running 13 tests
+PASS    parity   test_parity_evm_chunk_0
+PASS    parity   test_parity_evm_chunk_1
+PASS    parity   test_parity_evm_chunk_2
+PASS    parity   test_parity_evm_chunk_3
+PASS    parity   test_parity_evm_chunk_4
+PASS    parity   test_parity_evm_chunk_5
+PASS    parity   test_parity_evm_chunk_6
+PASS    parity   test_parity_evm_chunk_7
+PASS    parity   test_parity_evm_chunk_8
+PASS    parity   test_parity_evm_chunk_9
+PASS    parity   test_parity_native_chunk_0
+PASS    parity   test_parity_evm_final_combined
+PASS    parity   test_parity_native_all_chunks_final
+READY   policy   running 69 tests
+PASS    policy   (69 policy unit tests pass green)
+READY   attacks  running 25 tests
+PASS    attacks  test_attack_01_multisend_delegatecall
+PASS    attacks  test_attack_01_evm_delegatecall_reverts
+PASS    attacks  test_attack_02_split_transfers_evading_window
+PASS    attacks  test_attack_03_unlimited_approve
+PASS    attacks  test_attack_04_attacker_spender_or_recipient
+PASS    attacks  test_attack_05_malformed_calldata_robustness
+PASS    attacks  test_attack_06_reentrancy_rejected
+PASS    attacks  test_attack_07_expired_session_key
+PASS    attacks  test_attack_08_guardian_cannot_set_agent
+PASS    attacks  test_attack_08_guardian_cannot_unpause
+PASS    attacks  test_attack_08_guardian_cannot_reset_breaker
+PASS    attacks  test_attack_08_unauthorized_pause_rejected
+PASS    attacks  test_attack_08_unauthorized_set_guardian_rejected
+PASS    attacks  test_attack_08_unauthorized_revoke_agent_rejected
+PASS    attacks  test_attack_08_invalid_expiry_rejected
+PASS    attacks  test_attack_08_revoked_agent_cannot_execute
+PASS    attacks  test_attack_09_window_rollover_no_double_spend
+PASS    attacks  test_attack_10_unlisted_token_target_denied
+PASS    attacks  test_attack_11_safe_call_fails_rolls_back
+PASS    attacks  test_attack_12_circuit_breaker_trips_and_blocks_probing
+PASS    attacks  test_attack_13_timelock_deferred_to_stage_10
+PASS    attacks  test_attack_14_unknown_operation_rejected
+PASS    attacks  test_attack_15_value_overflow_attempts_denied
+PASS    attacks  test_attack_16_rate_limit_burst
+PASS    attacks  test_attack_17_cooldown_subversion
+
+test result: ok. 137 passed; 0 failed
+
+$ fe build ingots/module --emit sizes
+runtime: 23639 bytes (18513 code, 5126 data, 0 embedded)
+creation: 23894 bytes (255 code, 0 data, 23639 embedded)
+Headroom: 937 bytes below EIP-170 limit (24,576 bytes), 0 warnings
+
+$ git grep -nE 'fn decide[^{]*uses' ingots/policy/src/*.fe
+(no matches — pure decide invariant holds)
+
+$ git grep -nE 'policy::rules|policy::ledger' ingots/cli/src/*.fe ingots/module/src/*.fe
+(no matches — component isolation invariant holds)
+```
+
+### Exit Gate Verdict: PASSED — FEATURE FREEZE
+- 137 automated unit, property, parity, and attack tests passing green across 7 workspace members.
+- Cross-backend parity confirmed on 10,000 cases with golden digest `0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb81b1f36a595fa9a1f975c1c5175a8`.
+- Mutation check verified failing on deliberate operator mutant.
+- 25-exploit adversarial attack suite passing green.
+- Runtime bytecode size: 23,639 bytes (937 bytes headroom).
+- Tagging `v0.1.0-freeze`. Code is now frozen. Only `demo/`, `docs/`, `README.md`, and contest packaging allowed for Phases 6 & 7.
+
+
