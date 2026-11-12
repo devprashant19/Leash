@@ -1,0 +1,91 @@
+use std::evm::{Address, Ctx, StorageMap, revert_error}
+
+const U256_MAX: u256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+
+#[error]
+pub struct InsufficientBalance {}
+
+#[error]
+pub struct InsufficientAllowance {}
+
+pub msg Erc20Msg {
+    #[selector = sol("transfer(address,uint256)")]
+    Transfer { to: Address, amount: u256 } -> bool,
+    #[selector = sol("transferFrom(address,address,uint256)")]
+    TransferFrom { from: Address, to: Address, amount: u256 } -> bool,
+    #[selector = sol("approve(address,uint256)")]
+    Approve { spender: Address, amount: u256 } -> bool,
+    #[selector = sol("balanceOf(address)")]
+    BalanceOf { owner: Address } -> u256,
+    #[selector = sol("allowance(address,address)")]
+    Allowance { owner: Address, spender: Address } -> u256,
+    #[selector = sol("mint(address,uint256)")]
+    Mint { to: Address, amount: u256 },
+    #[selector = sol("totalSupply()")]
+    TotalSupply -> u256,
+}
+
+pub contract MockErc20 uses (ctx: Ctx) {
+    mut balances: StorageMap<Address, u256>
+    mut allowances: StorageMap<(Address, Address), u256>
+    mut total_supply: u256
+
+    init() {}
+
+    recv Erc20Msg {
+        Mint { to, amount } uses (mut balances, mut total_supply) {
+            let bal = balances.get(key: to)
+            balances.set(key: to, value: bal + amount)
+            total_supply = total_supply + amount
+        }
+
+        Transfer { to, amount } -> bool uses (ctx, mut balances) {
+            let sender = ctx.caller()
+            let bal = balances.get(key: sender)
+            if bal < amount {
+                revert_error(InsufficientBalance {})
+            }
+            balances.set(key: sender, value: bal - amount)
+            let to_bal = balances.get(key: to)
+            balances.set(key: to, value: to_bal + amount)
+            true
+        }
+
+        TransferFrom { from, to, amount } -> bool uses (ctx, mut balances, mut allowances) {
+            let spender = ctx.caller()
+            let allowed = allowances.get(key: (from, spender))
+            if allowed < amount {
+                revert_error(InsufficientAllowance {})
+            }
+            let bal = balances.get(key: from)
+            if bal < amount {
+                revert_error(InsufficientBalance {})
+            }
+            if allowed != U256_MAX {
+                allowances.set(key: (from, spender), value: allowed - amount)
+            }
+            balances.set(key: from, value: bal - amount)
+            let to_bal = balances.get(key: to)
+            balances.set(key: to, value: to_bal + amount)
+            true
+        }
+
+        Approve { spender, amount } -> bool uses (ctx, mut allowances) {
+            let owner = ctx.caller()
+            allowances.set(key: (owner, spender), value: amount)
+            true
+        }
+
+        BalanceOf { owner } -> u256 uses (balances) {
+            balances.get(key: owner)
+        }
+
+        Allowance { owner, spender } -> u256 uses (allowances) {
+            allowances.get(key: (owner, spender))
+        }
+
+        TotalSupply -> u256 uses (total_supply) {
+            total_supply
+        }
+    }
+}

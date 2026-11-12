@@ -1,5 +1,6 @@
 use policy
 pub use fixtures::*
+pub use erc20::*
 use std::abi::{Bytes, bytes_from_words}
 use std::evm::{Address, Call, Create, Ctx, Evm, StorageMap, Wei, revert_error, wei}
 
@@ -205,3 +206,67 @@ fn test_mock_safe_reverts_when_not_enabled() uses (evm: mut Evm) {
         },
     )
 }
+
+#[cfg(target = "evm")]
+#[test]
+fn test_mock_erc20_basic() uses (evm: mut Evm) {
+    let token = evm.create<MockErc20>(value: Wei::zero(), args: ())
+    let owner = evm.address()
+    let receiver = Address::new(0xbeef)
+
+    // Mint tokens
+    evm.call(
+        addr: token,
+        gas: 100000,
+        value: Wei::zero(),
+        message: Erc20Msg::Mint { to: owner, amount: 1000 },
+    )
+    let bal: u256 = evm.call(
+        addr: token,
+        gas: 100000,
+        value: Wei::zero(),
+        message: Erc20Msg::BalanceOf { owner },
+    )
+    assert(bal == 1000)
+
+    // Transfer
+    let ok: bool = evm.call(
+        addr: token,
+        gas: 100000,
+        value: Wei::zero(),
+        message: Erc20Msg::Transfer { to: receiver, amount: 300 },
+    )
+    assert(ok)
+    let owner_bal: u256 = evm.call(
+        addr: token,
+        gas: 100000,
+        value: Wei::zero(),
+        message: Erc20Msg::BalanceOf { owner },
+    )
+    assert(owner_bal == 700)
+    let rec_bal: u256 = evm.call(
+        addr: token,
+        gas: 100000,
+        value: Wei::zero(),
+        message: Erc20Msg::BalanceOf { owner: receiver },
+    )
+    assert(rec_bal == 300)
+
+    // Approve
+    let spender = Address::new(0xcafe)
+    let ok_app: bool = evm.call(
+        addr: token,
+        gas: 100000,
+        value: Wei::zero(),
+        message: Erc20Msg::Approve { spender, amount: 500 },
+    )
+    assert(ok_app)
+    let allowed: u256 = evm.call(
+        addr: token,
+        gas: 100000,
+        value: Wei::zero(),
+        message: Erc20Msg::Allowance { owner, spender },
+    )
+    assert(allowed == 500)
+}
+
