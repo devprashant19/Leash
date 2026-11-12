@@ -1,0 +1,140 @@
+use ingot::config::default_policy
+use ingot::encoding::{decode_state, encode_state}
+use ingot::fingerprint::{explain_reason, fingerprint}
+use ingot::types::{AgentState, DenyReason, Timestamp}
+use std::evm::units::{ether, hours, seconds, wei}
+
+pub const GOLDEN_DEFAULT_FINGERPRINT: u256 = 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee
+
+#[test]
+fn test_fingerprint_deterministic_and_sensitivity() {
+    let p1 = default_policy()
+    let fp1 = fingerprint(p1)
+    let fp2 = fingerprint(p1)
+    assert(fp1 == fp2)
+    assert(fp1 == GOLDEN_DEFAULT_FINGERPRINT)
+
+    // Sensitivity 1: version change
+    var p_v2 = p1
+    p_v2.version = 2
+    assert(fingerprint(p_v2) != fp1)
+
+    // Sensitivity 2: max_per_tx change
+    var p_tx = p1
+    p_tx.max_per_tx = ether(1)
+    assert(fingerprint(p_tx) != fp1)
+
+    // Sensitivity 3: window change
+    var p_win = p1
+    p_win.window = hours(12)
+    assert(fingerprint(p_win) != fp1)
+}
+
+#[test]
+fn test_state_encode_decode_roundtrip() {
+    var s = AgentState::empty()
+    s.paused = true
+    s.tripped = false
+    s.expiry = Timestamp::from_seconds(12345678)
+    s.last_action = Timestamp::from_seconds(12340000)
+
+    s.eth_window.buckets[0].index = 5
+    s.eth_window.buckets[0].amount = 999
+    s.eth_window.buckets[23].index = 28
+    s.eth_window.buckets[23].amount = 888
+
+    s.token_windows[0].buckets[1].index = 10
+    s.token_windows[0].buckets[1].amount = 777
+
+    s.action_window.buckets[2].index = 15
+    s.action_window.buckets[2].amount = 3
+
+    s.denials.buckets[3].index = 20
+    s.denials.buckets[3].amount = 1
+
+    let words = encode_state(s)
+    let restored = decode_state(words)
+
+    assert(restored.paused == s.paused)
+    assert(restored.tripped == s.tripped)
+    assert(restored.expiry == s.expiry)
+    assert(restored.last_action == s.last_action)
+
+    assert(restored.eth_window.buckets[0].index == 5)
+    assert(restored.eth_window.buckets[0].amount == 999)
+    assert(restored.eth_window.buckets[23].index == 28)
+    assert(restored.eth_window.buckets[23].amount == 888)
+
+    assert(restored.token_windows[0].buckets[1].index == 10)
+    assert(restored.token_windows[0].buckets[1].amount == 777)
+
+    assert(restored.action_window.buckets[2].index == 15)
+    assert(restored.action_window.buckets[2].amount == 3)
+
+    assert(restored.denials.buckets[3].index == 20)
+    assert(restored.denials.buckets[3].amount == 1)
+}
+
+#[test]
+fn test_explain_reason_all_variants() {
+    assert(
+        explain_reason(DenyReason::Paused) == "Safe module is paused",
+    )
+    assert(
+        explain_reason(DenyReason::SessionExpired) == "Agent session expired",
+    )
+    assert(
+        explain_reason(DenyReason::DelegateCallBlocked) == "DelegateCall not allowed",
+    )
+    assert(
+        explain_reason(DenyReason::TargetNotAllowed) == "Target not allowlisted",
+    )
+    assert(
+        explain_reason(DenyReason::SelectorNotAllowed) == "Selector not allowlisted",
+    )
+    assert(
+        explain_reason(DenyReason::MalformedCalldata) == "Calldata malformed",
+    )
+    assert(
+        explain_reason(DenyReason::PerTxCapExceeded) == "ETH per-tx cap exceeded",
+    )
+    assert(
+        explain_reason(DenyReason::WindowCapExceeded) == "ETH window cap exceeded",
+    )
+    assert(
+        explain_reason(DenyReason::TokenCapExceeded) == "Token cap exceeded",
+    )
+    assert(
+        explain_reason(DenyReason::UnlimitedApproval) == "Unlimited approval blocked",
+    )
+    assert(
+        explain_reason(DenyReason::RecipientNotAllowed) == "Recipient not allowed",
+    )
+    assert(
+        explain_reason(DenyReason::RateLimited) == "Rate limit exceeded",
+    )
+    assert(
+        explain_reason(DenyReason::CooldownActive) == "Cooldown active",
+    )
+    assert(
+        explain_reason(DenyReason::OutsideTradingHours) == "Outside trading hours",
+    )
+    assert(
+        explain_reason(DenyReason::CircuitTripped) == "Circuit breaker tripped",
+    )
+    assert(
+        explain_reason(DenyReason::SwapNotAllowed) == "Swap not allowed",
+    )
+    assert(
+        explain_reason(DenyReason::LendingNotAllowed) == "Lending not allowed",
+    )
+    assert(
+        explain_reason(DenyReason::PriceUnavailable) == "Price unavailable",
+    )
+    assert(
+        explain_reason(DenyReason::UsdCapExceeded) == "USD cap exceeded",
+    )
+    assert(
+        explain_reason(DenyReason::EscalationRequired) == "Escalation required",
+    )
+}

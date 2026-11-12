@@ -1,0 +1,43 @@
+use core::hash::Keccak256
+use ingot::encoding::{POLICY_WORDS, encode_policy}
+use ingot::types::{DenyReason, Policy}
+
+pub fn fingerprint(_ policy: Policy) -> u256 {
+    var k = Keccak256::new()
+    let prefix: [u8; 15] = [76, 69, 65, 83, 72, 95, 80, 79, 76, 73, 67, 89, 95, 86, 49]
+    k.update(prefix, offset: 0, len: 15)
+
+    let words = encode_policy(policy)
+    var i: usize = 0
+    while i < POLICY_WORDS {
+        k.update_word(words[i], len: 32)
+        i += 1
+    }
+
+    k.finish_word()
+}
+
+pub fn explain_reason(_ reason: DenyReason) -> String<31> {
+    match reason {
+        DenyReason::Paused => "Safe module is paused",
+        DenyReason::SessionExpired => "Agent session expired",
+        DenyReason::DelegateCallBlocked => "DelegateCall not allowed",
+        DenyReason::TargetNotAllowed => "Target not allowlisted",
+        DenyReason::SelectorNotAllowed => "Selector not allowlisted",
+        DenyReason::MalformedCalldata => "Calldata malformed",
+        DenyReason::PerTxCapExceeded => "ETH per-tx cap exceeded",
+        DenyReason::WindowCapExceeded => "ETH window cap exceeded",
+        DenyReason::TokenCapExceeded => "Token cap exceeded",
+        DenyReason::UnlimitedApproval => "Unlimited approval blocked",
+        DenyReason::RecipientNotAllowed => "Recipient not allowed",
+        DenyReason::RateLimited => "Rate limit exceeded",
+        DenyReason::CooldownActive => "Cooldown active",
+        DenyReason::OutsideTradingHours => "Outside trading hours",
+        DenyReason::CircuitTripped => "Circuit breaker tripped",
+        DenyReason::SwapNotAllowed => "Swap not allowed",
+        DenyReason::LendingNotAllowed => "Lending not allowed",
+        DenyReason::PriceUnavailable => "Price unavailable",
+        DenyReason::UsdCapExceeded => "USD cap exceeded",
+        DenyReason::EscalationRequired => "Escalation required",
+    }
+}

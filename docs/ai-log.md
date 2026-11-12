@@ -95,6 +95,13 @@ Wrote out/cli.native.sona
 - **What**: Verified that arbitrary malformed inputs (0 bytes to token, 3 bytes, unknown 4-byte selector, 35-byte transfer, 100-byte transfer, dirty address high word, u256::MAX amounts and values) return appropriate Deny verdicts without panicking or reverting.
 - **Reviewed by human**: pending confirmation.
 
+## 2026-11-13 — Phase 1 — Canonical Encoding & Cryptographic Fingerprint (T12)
+- **AI-assisted**: yes (Antigravity).
+- **Files**: `ingots/policy/src/encoding.fe`, `ingots/policy/src/fingerprint.fe`, `ingots/policy/src/test_fingerprint.fe`, `ingots/policy/src/lib.fe`, `docs/adr/005-policy-representation.md`, `docs/RULES.md`.
+- **What**: Implemented canonical 138-word serialization for Policy, 340-word round-trip serialization for AgentState, Keccak-256 streaming hashing with 15-byte prefix `"LEASH_POLICY_V1"`, and pinned golden fingerprint for default_policy (`0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee`). Added plain-English `explain_reason` for all 20 deny reasons.
+- **Reviewed by human**: pending confirmation.
+
+
 
 
 

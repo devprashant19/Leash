@@ -1,0 +1,247 @@
+use ingot::types::{
+    AgentState,
+    BUCKETS,
+    Bucket,
+    MAX_RECIPIENTS,
+    MAX_SELECTORS,
+    MAX_TARGETS,
+    MAX_TOKENS,
+    Policy,
+    TargetKind,
+    TargetRule,
+    Timestamp,
+    TokenAmount,
+    TokenRule,
+    Window24,
+}
+
+pub const POLICY_WORDS: usize = 138
+pub const STATE_WORDS: usize = 340
+
+fn kind_to_u256(_ kind: TargetKind) -> u256 {
+    match kind {
+        TargetKind::Generic => 0,
+        TargetKind::Erc20 => 1,
+        TargetKind::UniswapRouter => 2,
+        TargetKind::AavePool => 3,
+    }
+}
+
+pub fn encode_policy(_ policy: Policy) -> [u256; POLICY_WORDS] {
+    var words: [u256; POLICY_WORDS] = [0; POLICY_WORDS]
+    var idx: usize = 0
+
+    // 1. Version
+    words[idx] = policy.version as u256
+    idx += 1
+
+    // 2. Targets
+    words[idx] = policy.n_targets as u256
+    idx += 1
+
+    var t: usize = 0
+    while t < MAX_TARGETS {
+        let tgt = policy.targets[t]
+        words[idx] = tgt.target.word()
+        idx += 1
+        words[idx] = kind_to_u256(tgt.kind)
+        idx += 1
+        words[idx] = if tgt.allow_eth_transfer { 1 } else { 0 }
+        idx += 1
+        words[idx] = if tgt.delegate_ok { 1 } else { 0 }
+        idx += 1
+        words[idx] = tgt.n_selectors as u256
+        idx += 1
+
+        var s: usize = 0
+        while s < MAX_SELECTORS {
+            words[idx] = tgt.selectors[s] as u256
+            idx += 1
+            s += 1
+        }
+        t += 1
+    }
+
+    // 3. ETH Caps
+    words[idx] = policy.max_per_tx.as_wei()
+    idx += 1
+    words[idx] = policy.max_per_window.as_wei()
+    idx += 1
+    words[idx] = policy.window.as_seconds()
+    idx += 1
+
+    // 4. Tokens
+    words[idx] = policy.n_tokens as u256
+    idx += 1
+
+    var tok: usize = 0
+    while tok < MAX_TOKENS {
+        let tk = policy.tokens[tok]
+        words[idx] = tk.token.word()
+        idx += 1
+        words[idx] = tk.max_per_tx.as_u256()
+        idx += 1
+        words[idx] = tk.max_per_window.as_u256()
+        idx += 1
+        words[idx] = tk.max_approve.as_u256()
+        idx += 1
+        tok += 1
+    }
+
+    // 5. Phase 4 fields
+    words[idx] = policy.n_recipients as u256
+    idx += 1
+
+    var r: usize = 0
+    while r < MAX_RECIPIENTS {
+        words[idx] = policy.recipients[r].word()
+        idx += 1
+        r += 1
+    }
+
+    words[idx] = policy.max_actions_per_window as u256
+    idx += 1
+    words[idx] = policy.cooldown.as_seconds()
+    idx += 1
+    words[idx] = policy.breaker_threshold as u256
+    idx += 1
+
+    words
+}
+
+pub fn encode_state(_ state: AgentState) -> [u256; STATE_WORDS] {
+    var words: [u256; STATE_WORDS] = [0; STATE_WORDS]
+    var idx: usize = 0
+
+    words[idx] = if state.paused { 1 } else { 0 }
+    idx += 1
+    words[idx] = if state.tripped { 1 } else { 0 }
+    idx += 1
+    words[idx] = state.expiry.as_seconds()
+    idx += 1
+
+    // eth_window
+    var b: usize = 0
+    while b < BUCKETS {
+        words[idx] = state.eth_window.buckets[b].index as u256
+        idx += 1
+        words[idx] = state.eth_window.buckets[b].amount
+        idx += 1
+        b += 1
+    }
+
+    // token_windows
+    var t: usize = 0
+    while t < MAX_TOKENS {
+        b = 0
+        while b < BUCKETS {
+            words[idx] = state.token_windows[t].buckets[b].index as u256
+            idx += 1
+            words[idx] = state.token_windows[t].buckets[b].amount
+            idx += 1
+            b += 1
+        }
+        t += 1
+    }
+
+    // action_window
+    b = 0
+    while b < BUCKETS {
+        words[idx] = state.action_window.buckets[b].index as u256
+        idx += 1
+        words[idx] = state.action_window.buckets[b].amount
+        idx += 1
+        b += 1
+    }
+
+    words[idx] = state.last_action.as_seconds()
+    idx += 1
+
+    // denials
+    b = 0
+    while b < BUCKETS {
+        words[idx] = state.denials.buckets[b].index as u256
+        idx += 1
+        words[idx] = state.denials.buckets[b].amount
+        idx += 1
+        b += 1
+    }
+
+    words
+}
+
+pub fn decode_state(_ words: [u256; STATE_WORDS]) -> AgentState {
+    var idx: usize = 0
+    let paused = words[idx] != 0
+    idx += 1
+    let tripped = words[idx] != 0
+    idx += 1
+    let expiry = Timestamp::from_seconds(words[idx])
+    idx += 1
+
+    // eth_window
+    var eth_win = Window24::empty()
+    var b: usize = 0
+    while b < BUCKETS {
+        eth_win.buckets[b] = Bucket {
+            index: words[idx].downcast_truncate(),
+            amount: words[idx + 1],
+        }
+        idx += 2
+        b += 1
+    }
+
+    // token_windows
+    var token_windows = [Window24::empty(); MAX_TOKENS]
+    var t: usize = 0
+    while t < MAX_TOKENS {
+        b = 0
+        while b < BUCKETS {
+            token_windows[t].buckets[b] = Bucket {
+                index: words[idx].downcast_truncate(),
+                amount: words[idx + 1],
+            }
+            idx += 2
+            b += 1
+        }
+        t += 1
+    }
+
+    // action_window
+    var action_win = Window24::empty()
+    b = 0
+    while b < BUCKETS {
+        action_win.buckets[b] = Bucket {
+            index: words[idx].downcast_truncate(),
+            amount: words[idx + 1],
+        }
+        idx += 2
+        b += 1
+    }
+
+    let last_action = Timestamp::from_seconds(words[idx])
+    idx += 1
+
+    // denials
+    var denials = Window24::empty()
+    b = 0
+    while b < BUCKETS {
+        denials.buckets[b] = Bucket {
+            index: words[idx].downcast_truncate(),
+            amount: words[idx + 1],
+        }
+        idx += 2
+        b += 1
+    }
+
+    AgentState {
+        paused,
+        tripped,
+        expiry,
+        eth_window: eth_win,
+        token_windows,
+        action_window: action_win,
+        last_action,
+        denials,
+    }
+}

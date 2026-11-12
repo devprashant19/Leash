@@ -6,6 +6,8 @@ pub use config::*
 pub use decode::*
 pub use ledger::*
 pub use rules::decide
+pub use encoding::{POLICY_WORDS, STATE_WORDS, decode_state, encode_policy, encode_state}
+pub use fingerprint::{explain_reason, fingerprint}
 
 use test_types::*
 use test_decode::*
@@ -14,6 +16,7 @@ use test_rules_basic::*
 use test_rules_erc20::*
 use test_rule_order::*
 use test_malformed::*
+use test_fingerprint::*
 
 pub fn version() -> u32 {
     1
