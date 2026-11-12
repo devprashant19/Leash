@@ -101,6 +101,109 @@ Wrote out/cli.native.sona
 - **What**: Implemented canonical 138-word serialization for Policy, 340-word round-trip serialization for AgentState, Keccak-256 streaming hashing with 15-byte prefix `"LEASH_POLICY_V1"`, and pinned golden fingerprint for default_policy (`0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee`). Added plain-English `explain_reason` for all 20 deny reasons.
 - **Reviewed by human**: pending confirmation.
 
+## Gate — Phase 1 — 2026-11-16
+```
+$ fe --version
+fe 26.6.0 (5b3f96a)
+
+$ fe fmt --check ingots
+(clean, exit 0)
+
+$ fe check
+(clean, exit 0)
+
+$ fe test
+running `fe test` for 4 inputs (jobs=8)
+
+COMPILING        cli     ingots/cli
+COMPILING        module  ingots/module
+COMPILING        policy  ingots/policy
+COMPILING        testkit ingots/testkit
+READY [0.8764s]  cli     running 0 tests
+READY [0.9645s]  module  running 1 test
+PASS  [0.0004s]  module  test_paused_custom_error
+READY [1.7388s]  testkit running 1 test
+PASS  [0.0001s]  testkit test_mock_safe_call
+READY [8.6908s]  policy  running 44 tests
+PASS  [0.0000s]  policy  test_bucket_index_calculation
+PASS  [0.0001s]  policy  test_25h_gap_full_reset
+PASS  [0.0001s]  policy  test_allow_valid_eth_transfer
+PASS  [0.0001s]  policy  test_deny_delegatecall
+PASS  [0.0000s]  policy  test_deny_empty_policy_denies_all
+PASS  [0.0004s]  policy  test_decode_dirty_address
+PASS  [0.0000s]  policy  test_deny_paused
+PASS  [0.0000s]  policy  test_deny_session_expired
+PASS  [0.0001s]  policy  test_deny_unlisted_target
+PASS  [0.0000s]  policy  test_deny_zero_address_target
+PASS  [0.0005s]  policy  test_decode_approve_success
+PASS  [0.0005s]  policy  test_decode_transfer_success
+PASS  [0.0006s]  policy  test_decode_transfer_from_success
+PASS  [0.0001s]  policy  test_explain_reason_all_variants
+PASS  [0.0000s]  policy  test_operation_conversion
+PASS  [0.0000s]  policy  test_order_delegatecall_beats_unlisted_target_and_cap
+PASS  [0.0000s]  policy  test_order_paused_beats_delegatecall_and_unlisted
+PASS  [0.0008s]  policy  test_allow_erc20_transfer
+PASS  [0.0000s]  policy  test_order_unlisted_target_beats_per_tx_cap
+PASS  [0.0001s]  policy  test_reason_codes_exhaustive
+PASS  [0.0001s]  policy  test_reason_names_exhaustive
+PASS  [0.0000s]  policy  test_record_denial_counter
+PASS  [0.0008s]  policy  test_deny_erc20_transfer_over_cap
+PASS  [0.0001s]  policy  test_record_eth_spend
+PASS  [0.0007s]  policy  test_record_token_spend
+PASS  [0.0018s]  policy  test_decode_malformed_lengths
+PASS  [0.0001s]  policy  test_robustness_empty_data_token_target
+PASS  [0.0001s]  policy  test_robustness_three_byte_data
+PASS  [0.0018s]  policy  test_deny_calldata_shape_and_selector
+PASS  [0.0009s]  policy  test_robustness_amount_u256_max
+PASS  [0.0003s]  policy  test_robustness_transfer_thirty_five_bytes
+PASS  [0.0001s]  policy  test_robustness_value_u256_max_no_overflow_panic
+PASS  [0.0001s]  policy  test_rolling_window_24h_rollover_exact
+PASS  [0.0003s]  policy  test_robustness_unknown_selector_four_bytes
+PASS  [0.0000s]  policy  test_selectors_match
+PASS  [0.0001s]  policy  test_single_and_multiple_spends_same_bucket
+PASS  [0.0007s]  policy  test_robustness_dirty_address_word
+PASS  [0.0006s]  policy  test_robustness_transfer_one_hundred_bytes
+PASS  [0.0003s]  policy  test_selector_of_cases
+PASS  [0.0021s]  policy  test_erc20_malformed_calldata_denied
+PASS  [0.0020s]  policy  test_per_tx_and_window_eth_caps
+PASS  [0.0006s]  policy  test_state_encode_decode_roundtrip
+PASS  [0.0027s]  policy  test_erc20_approval_hygiene
+PASS  [0.0413s]  policy  test_fingerprint_deterministic_and_sensitivity
+
+test result: ok. 46 passed; 0 failed
+
+$ bash scripts/compile-fail.sh
+Running compile-fail tests...
+PASS (correctly failed to compile): test/compile_fail/units_mixing.fe
+compile-fail suite passed: 1 file(s) correctly rejected
+
+$ bash scripts/count-tests.sh
+Running tests on EVM backend...
+test result: ok. 46 passed; 0 failed
+EVM passed count: 46
+Windows host detected: Native executable test runner requires Linux/macOS linking.
+EVM tests verified: 46 passed.
+
+$ fe build
+Wrote out/LeashModule.bin
+Wrote out/LeashModule.runtime.bin
+Wrote out/LeashModule.abi.json
+Wrote out/MockSafe.bin
+Wrote out/MockSafe.runtime.bin
+Wrote out/MockSafe.abi.json
+
+$ fe build -i cli --backend native --emit ir
+Wrote out/cli.native.sona
+
+$ fe build --emit sizes
+runtime: 45 bytes (45 code, 0 data, 0 embedded)
+creation: 64 bytes (19 code, 0 data, 45 embedded)
+
+$ git grep -nE 'fn decide[^{]*uses' ingots/policy/src/*.fe
+(no matches — decide has zero side-effects and no uses clause)
+```
+
+
 
 
 

@@ -32,6 +32,8 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/argotorg/fe/master/feup/feup.sh | bash -s -- --version "$FE_VERSION" --no-modify-path
           echo "$HOME/.fe/bin" >> "$GITHUB_PATH"
       - run: fe check
+      - name: Compile fail tests
+        run: bash scripts/compile-fail.sh
 
   test-evm:
     runs-on: ubuntu-latest
@@ -42,6 +44,8 @@ jobs:
           curl -fsSL https://raw.githubusercontent.com/argotorg/fe/master/feup/feup.sh | bash -s -- --version "$FE_VERSION" --no-modify-path
           echo "$HOME/.fe/bin" >> "$GITHUB_PATH"
       - run: fe test
+      - name: Test count parity check
+        run: bash scripts/count-tests.sh
 
   test-native:
     runs-on: ubuntu-latest
