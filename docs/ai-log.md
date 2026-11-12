@@ -77,4 +77,11 @@ Wrote out/cli.native.sona
 - **What**: Implemented safe calldata decoding (selector_of, is_address_word with high-12 zero byte validation, read_word, read_address, and decode_erc20 for transfer, approve, and transferFrom with exact length enforcement rejecting truncated or oversized calldata).
 - **Reviewed by human**: pending confirmation.
 
+## 2026-11-13 — Phase 1 — Rolling Window Ledger and Record (T6, T10)
+- **AI-assisted**: yes (Antigravity).
+- **Files**: `ingots/policy/src/ledger.fe`, `ingots/policy/src/test_ledger.fe`, `ingots/policy/src/lib.fe`.
+- **What**: Implemented Window24 hourly bucket calculations (bucket_index_of, spent_in_window with saturation on overflow, record_spend with slot rollover and stale bucket overwrite, pure record updating ETH/token/action windows, and record_denial). Verified exact 24h rollover boundary, 25h full reset, and spend recording.
+- **Reviewed by human**: pending confirmation.
+
+
 

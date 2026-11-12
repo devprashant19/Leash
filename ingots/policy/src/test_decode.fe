@@ -2,7 +2,7 @@ use ingot::config::{ADDR_TOKEN, ADDR_TREASURY}
 use ingot::decode::{Erc20Call, decode_erc20, selector_of}
 use ingot::types::{Address, Calldata, MAX_CALLDATA, SEL_APPROVE, SEL_TRANSFER, SEL_TRANSFER_FROM}
 
-fn make_transfer_calldata(to: Address, amt: u256) -> Calldata {
+pub fn make_transfer_calldata(to: Address, amt: u256) -> Calldata {
     var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
     buf[0] = ((SEL_TRANSFER >> 24) & 0xff).downcast_truncate()
     buf[1] = ((SEL_TRANSFER >> 16) & 0xff).downcast_truncate()
@@ -19,7 +19,7 @@ fn make_transfer_calldata(to: Address, amt: u256) -> Calldata {
     Calldata { len: 68, bytes: buf }
 }
 
-fn make_approve_calldata(spender: Address, amt: u256) -> Calldata {
+pub fn make_approve_calldata(spender: Address, amt: u256) -> Calldata {
     var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
     buf[0] = ((SEL_APPROVE >> 24) & 0xff).downcast_truncate()
     buf[1] = ((SEL_APPROVE >> 16) & 0xff).downcast_truncate()
@@ -36,7 +36,7 @@ fn make_approve_calldata(spender: Address, amt: u256) -> Calldata {
     Calldata { len: 68, bytes: buf }
 }
 
-fn make_transfer_from_calldata(from: Address, to: Address, amt: u256) -> Calldata {
+pub fn make_transfer_from_calldata(from: Address, to: Address, amt: u256) -> Calldata {
     var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
     buf[0] = ((SEL_TRANSFER_FROM >> 24) & 0xff).downcast_truncate()
     buf[1] = ((SEL_TRANSFER_FROM >> 16) & 0xff).downcast_truncate()

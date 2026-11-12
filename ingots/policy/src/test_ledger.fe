@@ -1,0 +1,125 @@
+use ingot::config::{ADDR_TOKEN, ADDR_TREASURY, default_policy}
+use ingot::decode::{Erc20Call, decode_erc20}
+use ingot::ledger::{bucket_index_of, record, record_denial, record_spend, spent_in_window}
+use ingot::test_decode::{make_approve_calldata, make_transfer_calldata}
+use ingot::types::{
+    AgentState,
+    BUCKET_LEN,
+    BUCKETS,
+    Bucket,
+    Calldata,
+    Operation,
+    Timestamp,
+    Tx,
+    Window24,
+}
+use std::evm::units::{ether, wei}
+
+#[test]
+fn test_bucket_index_calculation() {
+    let t0 = Timestamp::from_seconds(0)
+    assert(bucket_index_of(t0) == 0)
+
+    let t1 = Timestamp::from_seconds(3599)
+    assert(bucket_index_of(t1) == 0)
+
+    let t2 = Timestamp::from_seconds(3600)
+    assert(bucket_index_of(t2) == 1)
+
+    let t24 = Timestamp::from_seconds(24 * 3600)
+    assert(bucket_index_of(t24) == 24)
+}
+
+#[test]
+fn test_single_and_multiple_spends_same_bucket() {
+    var win = Window24::empty()
+    let now = Timestamp::from_seconds(100)
+
+    assert(spent_in_window(win, now) == 0)
+
+    win = record_spend(win, now, 500)
+    assert(spent_in_window(win, now) == 500)
+
+    win = record_spend(win, now, 250)
+    assert(spent_in_window(win, now) == 750)
+}
+
+#[test]
+fn test_rolling_window_24h_rollover_exact() {
+    var win = Window24::empty()
+    let t_hour0 = Timestamp::from_seconds(10)
+    let cap: u256 = 1_000_000
+
+    // Spend cap at hour 0
+    win = record_spend(win, t_hour0, cap)
+    assert(spent_in_window(win, t_hour0) == cap)
+
+    // At last second of bucket 23 (23 * 3600 + 3599 = 86399)
+    let t_hour23_end = Timestamp::from_seconds(86399)
+    assert(spent_in_window(win, t_hour23_end) == cap)
+
+    // At first second of bucket 24 (24 * 3600 = 86400)
+    let t_hour24_start = Timestamp::from_seconds(86400)
+    assert(spent_in_window(win, t_hour24_start) == 0)
+}
+
+#[test]
+fn test_25h_gap_full_reset() {
+    var win = Window24::empty()
+    let t0 = Timestamp::from_seconds(1000)
+    win = record_spend(win, t0, 50_000)
+
+    // 25 hours later (25 * 3600 = 90000)
+    let t_25h = Timestamp::from_seconds(1000 + 90000)
+    assert(spent_in_window(win, t_25h) == 0)
+}
+
+#[test]
+fn test_record_eth_spend() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(500)
+    let tx = Tx {
+        to: ADDR_TREASURY,
+        value: ether(1) / 100,
+        // 0.01 ETH
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+
+    let next_state = record(tx, policy, state)
+    assert(
+        spent_in_window(next_state.eth_window, now) == (ether(1) / 100).as_wei(),
+    )
+    assert(spent_in_window(next_state.action_window, now) == 1)
+    assert(next_state.last_action == now)
+}
+
+#[test]
+fn test_record_token_spend() {
+    let policy = default_policy()
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(700)
+    let tx = Tx {
+        to: ADDR_TOKEN,
+        value: wei(0),
+        data: make_transfer_calldata(to: ADDR_TREASURY, amt: 42_000_000),
+        op: Operation::Call,
+        now,
+    }
+
+    let next_state = record(tx, policy, state)
+    assert(
+        spent_in_window(next_state.token_windows[0], now) == 42_000_000,
+    )
+    assert(spent_in_window(next_state.action_window, now) == 1)
+}
+
+#[test]
+fn test_record_denial_counter() {
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(800)
+    let next_state = record_denial(now, state)
+    assert(spent_in_window(next_state.denials, now) == 1)
+}
