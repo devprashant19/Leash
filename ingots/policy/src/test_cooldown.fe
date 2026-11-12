@@ -1,0 +1,184 @@
+use ingot::config::default_policy
+use ingot::ledger::record
+use ingot::rules::decide
+use ingot::types::{AgentState, Calldata, DenyReason, Operation, Timestamp, Tx, Verdict, Window24}
+use std::evm::units::{seconds, wei}
+
+#[test]
+fn test_cooldown_off_by_default() {
+    let pol = default_policy()
+    let now = Timestamp::from_seconds(1000)
+    var st = AgentState {
+        paused: false,
+        tripped: false,
+        expiry: Timestamp::from_seconds(u256::max()),
+        eth_window: Window24::empty(),
+        last_action: now,
+        action_window: Window24::empty(),
+    }
+
+    let tx = Tx {
+        to: ingot::config::ADDR_TREASURY,
+        value: wei(1000),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+
+    match decide(tx, pol, st) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_cooldown_first_action_allowed() {
+    var pol = default_policy()
+    pol.cooldown = seconds(60)
+
+    let now = Timestamp::from_seconds(1000)
+    var st = AgentState {
+        paused: false,
+        tripped: false,
+        expiry: Timestamp::from_seconds(u256::max()),
+        eth_window: Window24::empty(),
+        last_action: Timestamp::from_seconds(0),
+        action_window: Window24::empty(),
+    }
+
+    let tx = Tx {
+        to: ingot::config::ADDR_TREASURY,
+        value: wei(1000),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+
+    match decide(tx, pol, st) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_cooldown_denied_at_cooldown_minus_1() {
+    var pol = default_policy()
+    pol.cooldown = seconds(60)
+
+    let last = Timestamp::from_seconds(1000)
+    var st = AgentState {
+        paused: false,
+        tripped: false,
+        expiry: Timestamp::from_seconds(u256::max()),
+        eth_window: Window24::empty(),
+        last_action: last,
+        action_window: Window24::empty(),
+    }
+
+    // Attempt at last + cooldown - 1 = 1059
+    let tx = Tx {
+        to: ingot::config::ADDR_TREASURY,
+        value: wei(1000),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1059),
+    }
+
+    match decide(tx, pol, st) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::CooldownActive => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_cooldown_allowed_exactly_at_cooldown_boundary() {
+    var pol = default_policy()
+    pol.cooldown = seconds(60)
+
+    let last = Timestamp::from_seconds(1000)
+    var st = AgentState {
+        paused: false,
+        tripped: false,
+        expiry: Timestamp::from_seconds(u256::max()),
+        eth_window: Window24::empty(),
+        last_action: last,
+        action_window: Window24::empty(),
+    }
+
+    // Attempt at exact boundary: 1000 + 60 = 1060
+    let tx = Tx {
+        to: ingot::config::ADDR_TREASURY,
+        value: wei(1000),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1060),
+    }
+
+    match decide(tx, pol, st) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_cooldown_with_record_lifecycle() {
+    var pol = default_policy()
+    pol.cooldown = seconds(30)
+
+    let now1 = Timestamp::from_seconds(500)
+    var st = AgentState {
+        paused: false,
+        tripped: false,
+        expiry: Timestamp::from_seconds(u256::max()),
+        eth_window: Window24::empty(),
+        last_action: Timestamp::from_seconds(0),
+        action_window: Window24::empty(),
+    }
+
+    let tx1 = Tx {
+        to: ingot::config::ADDR_TREASURY,
+        value: wei(1000),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: now1,
+    }
+
+    match decide(tx1, pol, st) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+    record(tx1, pol, mut st)
+    assert(st.last_action == now1)
+
+    // Immediate attempt at 510 -> Denied CooldownActive
+    let tx2 = Tx {
+        to: ingot::config::ADDR_TREASURY,
+        value: wei(1000),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(510),
+    }
+    match decide(tx2, pol, st) {
+        Verdict::Deny(reason) => match reason {
+            DenyReason::CooldownActive => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
+
+    // Attempt at 530 (500 + 30) -> Allowed
+    let tx3 = Tx {
+        to: ingot::config::ADDR_TREASURY,
+        value: wei(1000),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(530),
+    }
+    match decide(tx3, pol, st) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+}

@@ -29,6 +29,7 @@ use test_fingerprint::*
 use test_validate::*
 use test_recipient_rate::*
 use test_budget::*
+use test_cooldown::*
 
 pub fn version() -> u32 {
     1
