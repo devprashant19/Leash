@@ -180,6 +180,13 @@ pub enum Verdict {
 impl Copy for Verdict {}
 impl Snapshot for Verdict {}
 
+pub fn verdict_code(_ v: Verdict) -> u8 {
+    match v {
+        Verdict::Allow => 0,
+        Verdict::Deny(r) => reason_code(r),
+    }
+}
+
 pub enum TargetKind {
     Generic,
     Erc20,

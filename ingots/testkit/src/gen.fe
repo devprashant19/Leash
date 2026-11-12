@@ -1,0 +1,242 @@
+use core::hash::Keccak256
+use policy::{
+    Address,
+    Calldata,
+    DenyReason,
+    MAX_CALLDATA,
+    Operation,
+    Policy,
+    TargetKind,
+    Timestamp,
+    Tx,
+    U256_MAX,
+    Verdict,
+    Wei,
+    verdict_code,
+    wei,
+}
+use ingot::fixtures::{
+    addr_attacker,
+    addr_token,
+    addr_treasury,
+    addr_user,
+    erc20_approve,
+    erc20_transfer,
+    erc20_transfer_from,
+}
+
+pub const PARITY_SEED: u256 = 0x4C45415348
+
+pub struct SplitMix64 {
+    pub state: u256,
+}
+
+impl SplitMix64 {
+    pub fn new(seed: u256) -> Self {
+        SplitMix64 { state: seed & 0xffffffffffffffff }
+    }
+}
+
+pub fn rng_next_u64(rng: mut SplitMix64) -> u64 {
+    rng.state = (rng.state + 0x9e3779b97f4a7c15) & 0xffffffffffffffff
+    var z: u256 = rng.state
+    z = ((z ^ (z >> 30)) * 0xbf58476d1ce4e5b9) & 0xffffffffffffffff
+    z = ((z ^ (z >> 27)) * 0x94d049bb133111eb) & 0xffffffffffffffff
+    z = (z ^ (z >> 31)) & 0xffffffffffffffff
+    z.downcast_truncate()
+}
+
+pub fn rng_next_range(rng: mut SplitMix64, min: u256, max: u256) -> u256 {
+    if min >= max {
+        return min
+    }
+    let span = max - min + 1
+    let r: u256 = rng_next_u64(rng: mut rng) as u256
+    min + (r % span)
+}
+
+pub fn rng_next_pct(rng: mut SplitMix64) -> u256 {
+    rng_next_range(rng: mut rng, min: 0, max: 99)
+}
+
+pub fn rolling_digest(prev_digest: u256, i: u32, code: u8) -> u256 {
+    var k = Keccak256::new()
+    k.update_word(prev_digest, len: 32)
+    var tail: [u8; 5] = [
+        (i >> 24).downcast_truncate(),
+        (i >> 16).downcast_truncate(),
+        (i >> 8).downcast_truncate(),
+        i.downcast_truncate(),
+        code,
+    ]
+    k.update(tail, offset: 0, len: 5)
+    k.finish_word()
+}
+
+pub fn gen_tx(rng: mut SplitMix64, pol: Policy, prev_now: u256) -> Tx {
+    // 1. Destination Address: 70% listed, 20% unlisted random, 10% zero address
+    let roll_to = rng_next_pct(rng: mut rng)
+    var to: Address = Address::zero()
+    var is_listed: bool = false
+    var is_erc20: bool = false
+
+    if roll_to < 70 {
+        if pol.n_targets > 0 {
+            let max_idx = (pol.n_targets as u256) - 1
+            let idx: usize = (rng_next_range(rng: mut rng, min: 0, max: max_idx)).downcast_truncate()
+            to = pol.targets[idx].target
+            is_listed = true
+            match pol.targets[idx].kind {
+                TargetKind::Erc20 => {
+                    is_erc20 = true
+                }
+                _ => {}
+            }
+        } else {
+            to = addr_treasury()
+            is_listed = true
+        }
+    } else if roll_to < 90 {
+        let rand_suffix = rng_next_range(rng: mut rng, min: 1, max: 9999)
+        to = Address::new(0x8888000000000000000000000000000000000000 + rand_suffix)
+    } else {
+        to = Address::zero()
+    }
+
+    // 2. Operation: 92% Call, 8% DelegateCall
+    let roll_op = rng_next_pct(rng: mut rng)
+    let op: Operation = if roll_op < 92 {
+        Operation::Call
+    } else {
+        Operation::DelegateCall
+    }
+
+    // 3. Timestamp progression:
+    // 15% +25h (full reset), 20% exact bucket boundary, 65% +0..2h
+    let roll_now = rng_next_pct(rng: mut rng)
+    var now_sec: u256 = prev_now
+    if roll_now < 15 {
+        now_sec = prev_now + (25 * 3600) + rng_next_range(rng: mut rng, min: 0, max: 100)
+    } else if roll_now < 35 {
+        let next_bucket = ((prev_now / 3600) + 1) * 3600
+        now_sec = if next_bucket > prev_now {
+            next_bucket
+        } else {
+            prev_now + 3600
+        }
+    } else {
+        now_sec = prev_now + rng_next_range(rng: mut rng, min: 0, max: 7200)
+    }
+
+    // 4. Value: around max_per_tx
+    let eth_cap = pol.max_per_tx.as_wei()
+    let roll_val = rng_next_pct(rng: mut rng)
+    var val: u256 = 0
+    if roll_val < 30 {
+        val = if eth_cap > 1 { eth_cap - 1 } else { 0 }
+    } else if roll_val < 55 {
+        val = eth_cap
+    } else if roll_val < 70 {
+        val = eth_cap + 1
+    } else if roll_val < 85 {
+        val = 0
+    } else {
+        val = rng_next_range(rng: mut rng, min: 1, max: (eth_cap / 2) + 1)
+    }
+
+    // 5. Calldata
+    var data: Calldata = Calldata::empty()
+    if is_erc20 {
+        let roll_data = rng_next_pct(rng: mut rng)
+        if roll_data < 60 {
+            // Pick recipient: 80% listed, 20% attacker
+            let roll_rec = rng_next_pct(rng: mut rng)
+            var rec: Address = addr_attacker()
+            if roll_rec < 80 {
+                if pol.n_recipients > 0 {
+                    let r_max = (pol.n_recipients as u256) - 1
+                    let r_idx: usize = (rng_next_range(rng: mut rng, min: 0, max: r_max)).downcast_truncate()
+                    rec = pol.recipients[r_idx]
+                } else {
+                    rec = addr_treasury()
+                }
+            }
+
+            // Pick amount: around cap
+            var tok_cap: u256 = 1000 * 1000000000000000000
+            var t_i: usize = 0
+            while t_i < pol.n_tokens.downcast_truncate() {
+                if pol.tokens[t_i].token == to {
+                    tok_cap = pol.tokens[t_i].max_per_tx.raw
+                }
+                t_i += 1
+            }
+
+            let roll_amt = rng_next_pct(rng: mut rng)
+            var amt: u256 = 0
+            if roll_amt < 20 {
+                amt = if tok_cap > 1 { tok_cap - 1 } else { 0 }
+            } else if roll_amt < 40 {
+                amt = tok_cap
+            } else if roll_amt < 60 {
+                amt = tok_cap + 1
+            } else if roll_amt < 75 {
+                amt = 0
+            } else if roll_amt < 85 {
+                amt = U256_MAX
+            } else {
+                amt = rng_next_range(rng: mut rng, min: 1, max: 100)
+            }
+
+            // Action: transfer, approve, or transferFrom
+            let roll_act = rng_next_range(rng: mut rng, min: 0, max: 2)
+            if roll_act == 0 {
+                data = erc20_transfer(to: rec, amt)
+            } else if roll_act == 1 {
+                data = erc20_approve(spender: rec, amt)
+            } else {
+                data = erc20_transfer_from(from: addr_user(), to: rec, amt)
+            }
+        } else if roll_data < 75 {
+            // Unlisted selector
+            var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+            buf[0] = 0xde
+            buf[1] = 0xad
+            buf[2] = 0xbe
+            buf[3] = 0xef
+            data = Calldata { len: 4, bytes: buf }
+        } else if roll_data < 85 {
+            // Truncated (35 bytes)
+            let base = erc20_transfer(to: addr_treasury(), amt: 100)
+            data = Calldata { len: 35, bytes: base.bytes }
+        } else if roll_data < 90 {
+            // Extra bytes (70 bytes)
+            let base = erc20_transfer(to: addr_treasury(), amt: 100)
+            data = Calldata { len: 70, bytes: base.bytes }
+        } else {
+            // Empty
+            data = Calldata::empty()
+        }
+    } else {
+        // Non-ERC20 target
+        let roll_data = rng_next_pct(rng: mut rng)
+        if roll_data < 60 {
+            data = Calldata::empty()
+        } else {
+            var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+            buf[0] = 0x12
+            buf[1] = 0x34
+            buf[2] = 0x56
+            buf[3] = 0x78
+            data = Calldata { len: 4, bytes: buf }
+        }
+    }
+
+    Tx {
+        to,
+        value: wei(val),
+        data,
+        op,
+        now: Timestamp::from_seconds(now_sec),
+    }
+}
