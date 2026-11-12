@@ -6,4 +6,5 @@ members = [
   "ingots/module",
   "ingots/cli",
   "ingots/testkit",
+  "test/parity",
 ]

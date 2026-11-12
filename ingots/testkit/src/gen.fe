@@ -1,9 +1,11 @@
 use core::hash::Keccak256
 use policy::{
     Address,
+    AgentState,
     Calldata,
     DenyReason,
     MAX_CALLDATA,
+    MAX_RECIPIENTS,
     Operation,
     Policy,
     TargetKind,
@@ -12,9 +14,12 @@ use policy::{
     U256_MAX,
     Verdict,
     Wei,
+    default_policy,
+    seconds,
     verdict_code,
     wei,
 }
+use ingot::golden::PARITY_SEED
 use ingot::fixtures::{
     addr_attacker,
     addr_token,
@@ -24,8 +29,6 @@ use ingot::fixtures::{
     erc20_transfer,
     erc20_transfer_from,
 }
-
-pub const PARITY_SEED: u256 = 0x4C45415348
 
 pub struct SplitMix64 {
     pub state: u256,
@@ -112,12 +115,14 @@ pub fn gen_tx(rng: mut SplitMix64, pol: Policy, prev_now: u256) -> Tx {
     }
 
     // 3. Timestamp progression:
-    // 15% +25h (full reset), 20% exact bucket boundary, 65% +0..2h
+    // 25% < 60s (tests cooldown), 3% +25h (full reset), 20% exact bucket boundary, 52% +61s..900s
     let roll_now = rng_next_pct(rng: mut rng)
     var now_sec: u256 = prev_now
-    if roll_now < 15 {
+    if roll_now < 25 {
+        now_sec = prev_now + rng_next_range(rng: mut rng, min: 0, max: 45)
+    } else if roll_now < 28 {
         now_sec = prev_now + (25 * 3600) + rng_next_range(rng: mut rng, min: 0, max: 100)
-    } else if roll_now < 35 {
+    } else if roll_now < 48 {
         let next_bucket = ((prev_now / 3600) + 1) * 3600
         now_sec = if next_bucket > prev_now {
             next_bucket
@@ -125,7 +130,7 @@ pub fn gen_tx(rng: mut SplitMix64, pol: Policy, prev_now: u256) -> Tx {
             prev_now + 3600
         }
     } else {
-        now_sec = prev_now + rng_next_range(rng: mut rng, min: 0, max: 7200)
+        now_sec = prev_now + rng_next_range(rng: mut rng, min: 61, max: 900)
     }
 
     // 4. Value: around max_per_tx
@@ -239,4 +244,154 @@ pub fn gen_tx(rng: mut SplitMix64, pol: Policy, prev_now: u256) -> Tx {
         op,
         now: Timestamp::from_seconds(now_sec),
     }
+}
+
+pub fn parity_policy() -> Policy {
+    var pol = default_policy()
+    pol.n_recipients = 1
+    pol.recipients[0] = addr_treasury()
+    pol.max_actions_per_window = 10
+    pol.cooldown = seconds(60)
+    pol.breaker_threshold = 3
+    pol
+}
+
+pub fn run_parity_chunk(chunk_idx: u32, chunk_size: u32) -> u256 {
+    let seed = PARITY_SEED + (chunk_idx as u256)
+    var rng = SplitMix64::new(seed)
+    let pol = parity_policy()
+    var state = AgentState::empty()
+    state.expiry = Timestamp::from_seconds(2_000_000_000)
+
+    var digest: u256 = 0
+    var prev_now: u256 = 1_763_000_000
+    var consecutive_denials: u32 = 0
+
+    var i: u32 = 1
+    while i <= chunk_size {
+        // Periodic Safe admin actions to test Paused, SessionExpiry, and Breaker reset
+        let p_mod = i % 250
+        if p_mod >= 246 {
+            if p_mod <= 248 {
+                state.paused = true
+            } else {
+                state.paused = false
+            }
+        } else {
+            state.paused = false
+        }
+
+        let e_mod = i % 200
+        if e_mod >= 196 {
+            if e_mod <= 198 {
+                state.expiry = Timestamp::from_seconds(prev_now - 10)
+            } else {
+                state.expiry = Timestamp::from_seconds(2_000_000_000)
+            }
+        } else {
+            state.expiry = Timestamp::from_seconds(2_000_000_000)
+        }
+
+        if state.tripped {
+            if i % 5 == 0 {
+                state.tripped = false
+                consecutive_denials = 0
+            }
+        }
+
+        let tx = gen_tx(rng: mut rng, pol, prev_now)
+        prev_now = tx.now.as_seconds()
+
+        let verdict = policy::decide(tx, pol, state)
+        let code = verdict_code(verdict)
+
+        if code == 0 {
+            policy::record(tx, pol, state: mut state)
+            consecutive_denials = 0
+        } else {
+            policy::record_denial(tx.now, state: mut state)
+            consecutive_denials += 1
+            if pol.breaker_threshold > 0 {
+                if consecutive_denials >= pol.breaker_threshold {
+                    state.tripped = true
+                }
+            }
+        }
+
+        digest = rolling_digest(prev_digest: digest, i, code)
+        i += 1
+    }
+
+    digest
+}
+
+pub fn run_parity_chunk_counts(chunk_idx: u32, chunk_size: u32) -> [u32; 21] {
+    let seed = PARITY_SEED + (chunk_idx as u256)
+    var rng = SplitMix64::new(seed)
+    let pol = parity_policy()
+    var state = AgentState::empty()
+    state.expiry = Timestamp::from_seconds(2_000_000_000)
+
+    var counts: [u32; 21] = [0; 21]
+    var prev_now: u256 = 1_763_000_000
+    var consecutive_denials: u32 = 0
+
+    var i: u32 = 1
+    while i <= chunk_size {
+        let p_mod = i % 250
+        if p_mod >= 246 {
+            if p_mod <= 248 {
+                state.paused = true
+            } else {
+                state.paused = false
+            }
+        } else {
+            state.paused = false
+        }
+
+        let e_mod = i % 200
+        if e_mod >= 196 {
+            if e_mod <= 198 {
+                state.expiry = Timestamp::from_seconds(prev_now - 10)
+            } else {
+                state.expiry = Timestamp::from_seconds(2_000_000_000)
+            }
+        } else {
+            state.expiry = Timestamp::from_seconds(2_000_000_000)
+        }
+
+        if state.tripped {
+            if i % 5 == 0 {
+                state.tripped = false
+                consecutive_denials = 0
+            }
+        }
+
+        let tx = gen_tx(rng: mut rng, pol, prev_now)
+        prev_now = tx.now.as_seconds()
+
+        let verdict = policy::decide(tx, pol, state)
+        let code = verdict_code(verdict)
+
+        if code == 0 {
+            policy::record(tx, pol, state: mut state)
+            consecutive_denials = 0
+        } else {
+            policy::record_denial(tx.now, state: mut state)
+            consecutive_denials += 1
+            if pol.breaker_threshold > 0 {
+                if consecutive_denials >= pol.breaker_threshold {
+                    state.tripped = true
+                }
+            }
+        }
+
+        let c_idx = code as usize
+        if c_idx < 21 {
+            counts[c_idx] += 1
+        }
+        i += 1
+    }
+
+    counts
 }

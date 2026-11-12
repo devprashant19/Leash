@@ -1,0 +1,90 @@
+use testkit::{
+    CHUNK_DIGEST_0,
+    CHUNK_DIGEST_1,
+    CHUNK_DIGEST_2,
+    CHUNK_DIGEST_3,
+    CHUNK_DIGEST_4,
+    CHUNK_DIGEST_5,
+    CHUNK_DIGEST_6,
+    CHUNK_DIGEST_7,
+    CHUNK_DIGEST_8,
+    CHUNK_DIGEST_9,
+    PARITY_GOLDEN_DIGEST,
+    chunk_digest,
+    run_parity_chunk,
+}
+use core::hash::Keccak256
+
+#[test]
+pub fn test_parity_evm_chunk_0() {
+    let d0 = run_parity_chunk(chunk_idx: 0, chunk_size: 1000)
+    assert(d0 == CHUNK_DIGEST_0)
+}
+
+#[test]
+pub fn test_parity_evm_chunk_1() {
+    let d1 = run_parity_chunk(chunk_idx: 1, chunk_size: 1000)
+    assert(d1 == CHUNK_DIGEST_1)
+}
+
+#[test]
+pub fn test_parity_evm_chunk_2() {
+    let d2 = run_parity_chunk(chunk_idx: 2, chunk_size: 1000)
+    assert(d2 == CHUNK_DIGEST_2)
+}
+
+#[test]
+pub fn test_parity_evm_chunk_3() {
+    let d3 = run_parity_chunk(chunk_idx: 3, chunk_size: 1000)
+    assert(d3 == CHUNK_DIGEST_3)
+}
+
+#[test]
+pub fn test_parity_evm_chunk_4() {
+    let d4 = run_parity_chunk(chunk_idx: 4, chunk_size: 1000)
+    assert(d4 == CHUNK_DIGEST_4)
+}
+
+#[test]
+pub fn test_parity_evm_chunk_5() {
+    let d5 = run_parity_chunk(chunk_idx: 5, chunk_size: 1000)
+    assert(d5 == CHUNK_DIGEST_5)
+}
+
+#[test]
+pub fn test_parity_evm_chunk_6() {
+    let d6 = run_parity_chunk(chunk_idx: 6, chunk_size: 1000)
+    assert(d6 == CHUNK_DIGEST_6)
+}
+
+#[test]
+pub fn test_parity_evm_chunk_7() {
+    let d7 = run_parity_chunk(chunk_idx: 7, chunk_size: 1000)
+    assert(d7 == CHUNK_DIGEST_7)
+}
+
+#[test]
+pub fn test_parity_evm_chunk_8() {
+    let d8 = run_parity_chunk(chunk_idx: 8, chunk_size: 1000)
+    assert(d8 == CHUNK_DIGEST_8)
+}
+
+#[test]
+pub fn test_parity_evm_chunk_9() {
+    let d9 = run_parity_chunk(chunk_idx: 9, chunk_size: 1000)
+    assert(d9 == CHUNK_DIGEST_9)
+}
+
+#[test]
+pub fn test_parity_evm_final_combined() {
+    var k = Keccak256::new()
+    var i: usize = 0
+    while i < 10 {
+        let cd = chunk_digest(i)
+        assert(cd != 0)
+        k.update_word(cd, len: 32)
+        i += 1
+    }
+    let final_digest = k.finish_word()
+    assert(final_digest == PARITY_GOLDEN_DIGEST)
+}

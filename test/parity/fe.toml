@@ -1,0 +1,7 @@
+[ingot]
+name = "parity_tests"
+version = "0.1.0"
+
+[dependencies]
+policy = { path = "../../ingots/policy" }
+testkit = { path = "../../ingots/testkit" }

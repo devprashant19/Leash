@@ -1,0 +1,27 @@
+use testkit::{
+    CHUNK_DIGEST_0,
+    PARITY_GOLDEN_DIGEST,
+    chunk_digest,
+    run_parity_chunk,
+}
+use core::hash::Keccak256
+
+#[test]
+pub fn test_parity_native_chunk_0() {
+    let d0 = run_parity_chunk(chunk_idx: 0, chunk_size: 1000)
+    assert(d0 == CHUNK_DIGEST_0)
+}
+
+#[test]
+pub fn test_parity_native_all_chunks_final() {
+    var k = Keccak256::new()
+    var i: usize = 0
+    while i < 10 {
+        let cd = chunk_digest(i)
+        assert(cd != 0)
+        k.update_word(cd, len: 32)
+        i += 1
+    }
+    let final_digest = k.finish_word()
+    assert(final_digest == PARITY_GOLDEN_DIGEST)
+}

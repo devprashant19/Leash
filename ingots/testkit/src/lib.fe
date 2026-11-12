@@ -3,6 +3,7 @@ pub use fixtures::*
 pub use erc20::*
 pub use reenterer::*
 pub use gen::*
+pub use golden::*
 use std::abi::{Bytes, bytes_from_words}
 use std::evm::{Address, Call, Create, Ctx, Evm, StorageMap, Wei, revert_error, wei}
 
@@ -408,4 +409,28 @@ pub fn test_splitmix64_and_digest() {
     // is 0xfa8ce0549471a4369b2ea1ed45180de2be3bb3666d02ce2ececc0beadff86c68
     let d1 = rolling_digest(prev_digest: 0, i: 1, code: 0)
     assert(d1 == 0xfa8ce0549471a4369b2ea1ed45180de2be3bb3666d02ce2ececc0beadff86c68)
+}
+
+#[test]
+pub fn test_parity_chunk_0() {
+    let d = run_parity_chunk(chunk_idx: 0, chunk_size: 1000)
+    assert(d != 0)
+}
+
+pub msg ParityHarnessMsg {
+    #[selector = sol("computeChunk(uint32,uint32)")]
+    ComputeChunk { chunk_idx: u32, chunk_size: u32 } -> u256,
+    #[selector = sol("computeCounts(uint32,uint32)")]
+    ComputeCounts { chunk_idx: u32, chunk_size: u32 } -> [u32; 21],
+}
+
+pub contract ParityHarness {
+    recv ParityHarnessMsg {
+        ComputeChunk { chunk_idx, chunk_size } -> u256 {
+            run_parity_chunk(chunk_idx, chunk_size)
+        }
+        ComputeCounts { chunk_idx, chunk_size } -> [u32; 21] {
+            run_parity_chunk_counts(chunk_idx, chunk_size)
+        }
+    }
 }

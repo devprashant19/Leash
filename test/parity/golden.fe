@@ -1,0 +1,40 @@
+pub const PARITY_SEED: u256 = 0x4C45415348
+
+pub const CHUNK_DIGEST_0: u256 = 0x95b069e1b7fa9a257aabc84cc44ea2a28082e09e1c8ba470db424b868f45c2b8
+pub const CHUNK_DIGEST_1: u256 = 0x6f4021ce2968c4fbee78e3cfcd7160f3890bc6e9835d53e9831422a66ca8d35b
+pub const CHUNK_DIGEST_2: u256 = 0x591bd2bc379930059aef116464e08169002d4681548c174f9b74d094ed6b8570
+pub const CHUNK_DIGEST_3: u256 = 0x6d09c66bc217f045c72849b0a822cd7ad85d882c88bdd126181ebb35221b9c2a
+pub const CHUNK_DIGEST_4: u256 = 0xe007261ca8f3bab2533f22ea9064405c19412512257ed969c6e9294783c04c7b
+pub const CHUNK_DIGEST_5: u256 = 0xa975d5d4e7162f1815e2e7020670d9b6baeb311bbdee58ca036fe1cccc4b48e9
+pub const CHUNK_DIGEST_6: u256 = 0x84785041ff0f73b446d01fd13c1e19c5c01138bcdb5657f763ea8e2a20d2e141
+pub const CHUNK_DIGEST_7: u256 = 0x3c32318eaa56c39552806a86cea410d7c956539b42cb642e9999158d6dc753ee
+pub const CHUNK_DIGEST_8: u256 = 0x737576be12353b7c64bb0da7f67d732edecc982011c39a405cb2348e2ccf3b9c
+pub const CHUNK_DIGEST_9: u256 = 0x4f267c2989c6e02829c1152ecf61db57b551ed2ac6d46ed2625de5bac6d63e40
+
+pub const PARITY_GOLDEN_DIGEST: u256 = 0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb81b1f36a595fa9a1f975c1c5175a8
+
+pub fn chunk_digest(_ idx: usize) -> u256 {
+    if idx == 0 {
+        CHUNK_DIGEST_0
+    } else if idx == 1 {
+        CHUNK_DIGEST_1
+    } else if idx == 2 {
+        CHUNK_DIGEST_2
+    } else if idx == 3 {
+        CHUNK_DIGEST_3
+    } else if idx == 4 {
+        CHUNK_DIGEST_4
+    } else if idx == 5 {
+        CHUNK_DIGEST_5
+    } else if idx == 6 {
+        CHUNK_DIGEST_6
+    } else if idx == 7 {
+        CHUNK_DIGEST_7
+    } else if idx == 8 {
+        CHUNK_DIGEST_8
+    } else if idx == 9 {
+        CHUNK_DIGEST_9
+    } else {
+        0
+    }
+}
