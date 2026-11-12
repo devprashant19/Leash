@@ -1,18 +1,95 @@
 use policy
 pub use fixtures::*
-use std::abi::Bytes
-use std::evm::{Address, Create, Evm, Wei}
+use std::abi::{Bytes, bytes_from_words}
+use std::evm::{Address, Call, Create, Ctx, Evm, StorageMap, Wei, revert_error, wei}
+
+#[error]
+pub struct ModuleNotEnabled {}
 
 pub msg SafeMsg {
+    #[selector = sol("enableModule(address)")]
+    EnableModule { module: Address },
+    #[selector = sol("isModuleEnabled(address)")]
+    IsModuleEnabled { module: Address } -> bool,
     #[selector = sol("execTransactionFromModule(address,uint256,bytes,uint8)")]
     ExecTransactionFromModule { to: Address, value: u256, data: Bytes, operation: u8 } -> bool,
+    #[selector = sol("setFail(bool)")]
+    SetFail { fail: bool },
+    #[selector = sol("setForwardCalls(bool)")]
+    SetForwardCalls { forward: bool },
+    #[selector = sol("callCount()")]
+    CallCount -> u256,
+    #[selector = sol("lastTo()")]
+    LastTo -> Address,
+    #[selector = sol("lastValue()")]
+    LastValue -> u256,
+    #[selector = sol("lastOp()")]
+    LastOp -> u8,
 }
 
-pub contract MockSafe {
+pub contract MockSafe uses (ctx: Ctx, call: mut Call) {
+    mut enabled: StorageMap<Address, bool>
+    mut call_count: u256
+    mut last_to: Address
+    mut last_value: u256
+    mut last_op: u8
+    mut should_fail: bool
+    mut forward_calls: bool
+
     init() {}
 
     recv SafeMsg {
-        ExecTransactionFromModule { to, value, data, operation } -> bool {
+        EnableModule { module } uses (mut enabled) {
+            enabled.set(key: module, value: true)
+        }
+
+        IsModuleEnabled { module } -> bool uses (enabled) {
+            enabled.get(key: module)
+        }
+
+        SetFail { fail } uses (mut should_fail) {
+            should_fail = fail
+        }
+
+        SetForwardCalls { forward } uses (mut forward_calls) {
+            forward_calls = forward
+        }
+
+        CallCount -> u256 uses (call_count) {
+            call_count
+        }
+
+        LastTo -> Address uses (last_to) {
+            last_to
+        }
+
+        LastValue -> u256 uses (last_value) {
+            last_value
+        }
+
+        LastOp -> u8 uses (last_op) {
+            last_op
+        }
+
+        ExecTransactionFromModule { to, value, data, operation } -> bool uses (ctx, mut call, enabled, mut call_count, mut last_to, mut last_value, mut last_op, should_fail, forward_calls) {
+            let caller = ctx.caller()
+            if !enabled.get(key: caller) {
+                revert_error(ModuleNotEnabled {})
+            }
+            if should_fail {
+                return false
+            }
+            call_count = call_count + 1
+            last_to = to
+            last_value = value
+            last_op = operation
+
+            if forward_calls && to != Address::zero() {
+                var ret = core::ptr::MemBuffer::empty()
+                let outcome = call.raw_call(addr: to, gas: 500000, value: wei(value), args: data.span(), ret: mut ret)
+                return outcome.success()
+            }
+
             true
         }
     }
@@ -24,19 +101,107 @@ pub fn testkit_version() -> u32 {
 
 #[cfg(target = "evm")]
 #[test]
-fn test_mock_safe_call() uses (evm: mut Evm) {
+fn test_mock_safe_basic() uses (evm: mut Evm) {
     let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
-    let success: bool = evm
-        .call(
-            addr: safe,
-            gas: 1000000,
-            value: Wei::zero(),
-            message: SafeMsg::ExecTransactionFromModule {
-                to: Address::zero(),
-                value: 100,
-                data: Bytes::empty(),
-                operation: 0,
-            },
-        )
+    let module_addr = evm.address()
+
+    // Initially not enabled
+    let is_en: bool = evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::IsModuleEnabled { module: module_addr },
+    )
+    assert(!is_en)
+
+    // Enable module
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::EnableModule { module: module_addr },
+    )
+    let is_en2: bool = evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::IsModuleEnabled { module: module_addr },
+    )
+    assert(is_en2)
+
+    // Execute tx
+    let success: bool = evm.call(
+        addr: safe,
+        gas: 1000000,
+        value: Wei::zero(),
+        message: SafeMsg::ExecTransactionFromModule {
+            to: Address::new(0x1234),
+            value: 42,
+            data: Bytes::empty(),
+            operation: 0,
+        },
+    )
     assert(success)
+
+    let count: u256 = evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::CallCount {},
+    )
+    assert(count == 1)
+
+    let last_to: Address = evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::LastTo {},
+    )
+    assert(last_to == Address::new(0x1234))
+
+    let last_val: u256 = evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::LastValue {},
+    )
+    assert(last_val == 42)
+
+    // Test set_fail
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetFail { fail: true },
+    )
+    let success_fail: bool = evm.call(
+        addr: safe,
+        gas: 1000000,
+        value: Wei::zero(),
+        message: SafeMsg::ExecTransactionFromModule {
+            to: Address::new(0x1234),
+            value: 42,
+            data: Bytes::empty(),
+            operation: 0,
+        },
+    )
+    assert(!success_fail)
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+fn test_mock_safe_reverts_when_not_enabled() uses (evm: mut Evm) {
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    // Not enabled, should revert
+    let _: bool = evm.call(
+        addr: safe,
+        gas: 1000000,
+        value: Wei::zero(),
+        message: SafeMsg::ExecTransactionFromModule {
+            to: Address::new(0x1234),
+            value: 42,
+            data: Bytes::empty(),
+            operation: 0,
+        },
+    )
 }
