@@ -1,0 +1,52 @@
+use ingot::args::{CheckArgs, ParseError, ParseResult, parse_check_args}
+use policy::{DenyReason, Tx, Verdict, decide, default_policy, explain_reason, reason_name}
+use std::env::Args
+use std::io::{Stdout, Stderr}
+
+fn print_error(_ err_code: ParseError) uses (err: mut Stderr) {
+    match err_code {
+        ParseError::MissingArgValue => eprintln!("error: missing value for flag"),
+        ParseError::InvalidTo => eprintln!(
+            "error: invalid --to address (expected 20-byte hex 0x...)",
+        ),
+        ParseError::InvalidValue => eprintln!("error: invalid --value decimal ETH"),
+        ParseError::InvalidValueWei => eprintln!("error: invalid --value-wei integer"),
+        ParseError::ConflictValue => eprintln!(
+            "error: cannot specify both --value and --value-wei",
+        ),
+        ParseError::InvalidData => eprintln!("error: invalid --data hex"),
+        ParseError::InvalidOp => eprintln!(
+            "error: invalid --op (expected 'call' or 'delegatecall')",
+        ),
+        ParseError::MissingNow => eprintln!("error: --now <unix> is required"),
+        ParseError::MissingTo => eprintln!("error: --to <address> is required"),
+        ParseError::InvalidState => eprintln!("error: invalid --state hex encoding"),
+        ParseError::UnknownFlag => eprintln!("error: unknown flag"),
+    }
+}
+
+pub fn run() -> i32 uses (args: Args, out: mut Stdout, err: mut Stderr) {
+    match parse_check_args() {
+        ParseResult::Err(e) => {
+            print_error(e)
+            1
+        },
+        ParseResult::Ok(a) => {
+            let tx = Tx { to: a.to, value: a.value, data: a.data, op: a.op, now: a.now }
+            let pol = default_policy()
+            let verdict = decide(tx, pol, a.state)
+            match verdict {
+                Verdict::Allow => {
+                    println!("ALLOW")
+                    0
+                },
+                Verdict::Deny(r) => {
+                    let name = reason_name(r)
+                    let reason_msg = explain_reason(r)
+                    println!("DENY ", name, ": ", reason_msg)
+                    2
+                },
+            }
+        },
+    }
+}

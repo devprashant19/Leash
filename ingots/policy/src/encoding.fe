@@ -162,3 +162,24 @@ pub fn decode_state(_ words: [u256; STATE_WORDS]) -> AgentState {
 
     AgentState { paused, tripped, expiry, eth_window: eth_win, last_action }
 }
+
+pub fn decode_state_bytes(_ b: ref core::Bytes) -> Option<AgentState> {
+    if b.len() != STATE_WORDS * 32 {
+        return Option::None
+    }
+    var words: [u256; STATE_WORDS] = [0; STATE_WORDS]
+    var w: usize = 0
+    let span = b.span()
+    while w < STATE_WORDS {
+        var val: u256 = 0
+        var byte_idx: usize = 0
+        let base = w * 32
+        while byte_idx < 32 {
+            val = (val << 8) | (span.byte_at(base + byte_idx) as u256)
+            byte_idx += 1
+        }
+        words[w] = val
+        w += 1
+    }
+    Option::Some(decode_state(words))
+}

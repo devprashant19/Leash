@@ -75,6 +75,45 @@ fe build --emit sizes
 
 ---
 
+## Native CLI (`leash`)
+
+The `leash` binary compiles natively from the same pure Fe policy code:
+
+```sh
+# Predict verdict before submitting a transaction
+leash check --to 0x2222222222222222222222222222222222222222 --value 0.05 --now 1700000000
+# Output: ALLOW (exit code 0)
+
+# Denied if limit exceeded
+leash check --to 0x2222222222222222222222222222222222222222 --value 0.20 --now 1700000000
+# Output: DENY PerTxCapExceeded: ETH per-tx cap exceeded (exit code 2)
+
+# Inspect policy rules in plain English
+leash explain
+
+# Print cryptographic policy fingerprint
+leash fingerprint
+# Output: 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee
+
+# Audit historical CSV logs
+leash replay agent_history.csv
+```
+
+### Policy Rules (`leash explain` verbatim)
+```
+Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee)
+- The agent may call 2 contracts:
+  - 0x1111111111111111111111111111111111111111 (ERC-20): transfer, approve, transferFrom
+  - 0x2222222222222222222222222222222222222222: plain ETH transfers
+- At most 0.1 ETH per transaction.
+- At most 0.5 ETH in any rolling 24 hours (hourly buckets).
+- Token 0x1111111111111111111111111111111111111111: at most 100 tokens per transfer; approvals up to 100 tokens; unlimited approvals are always refused.
+- Delegatecall is always refused.
+- Anything not listed above is refused.
+```
+
+---
+
 ## Project Status
-**Current Phase**: Phase 0 Complete — Workspace setup, 5 Fe compiler spikes verified, CI configured, documentation baselined.
+**Current Phase**: Phase 3 Complete — Native CLI (`leash check`, `explain`, `fingerprint`, `replay`) dual-compiled from pure Fe policy ingot, golden test suite and cross-target fixture parity verified.
 Building towards final submission deadline: **November 24, 2026, 23:59 UTC**.

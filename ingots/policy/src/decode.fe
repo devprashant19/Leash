@@ -99,3 +99,20 @@ pub fn decode_erc20(_ data: ref Calldata) -> Erc20Call {
         Erc20Call::Unknown
     }
 }
+
+pub fn calldata_from_bytes(_ b: ref core::Bytes) -> Calldata {
+    let span = b.span()
+    let len = span.len()
+    var bytes: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    let copy_len = if len > MAX_CALLDATA {
+        MAX_CALLDATA
+    } else {
+        len
+    }
+    var i: usize = 0
+    while i < copy_len {
+        bytes[i] = span.byte_at(i)
+        i = i + 1
+    }
+    Calldata { len, bytes }
+}

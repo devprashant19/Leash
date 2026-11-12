@@ -1,0 +1,19 @@
+use ingot::args::default_check_state
+use policy::{default_policy, fingerprint}
+
+#[test]
+fn test_default_check_state_unrestricted() {
+    let st = default_check_state()
+    assert(!st.paused)
+    assert(!st.tripped)
+    assert(st.expiry.as_seconds() == u256::max())
+}
+
+#[test]
+fn test_cli_fingerprint_golden() {
+    let pol = default_policy()
+    let fp = fingerprint(pol)
+    assert(
+        fp == 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee,
+    )
+}

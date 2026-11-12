@@ -1,0 +1,29 @@
+use core::MemBuffer
+use policy
+use std::io::Stdout
+
+pub fn print_hex_word(_ word: u256) uses (out: mut Stdout) {
+    var buf = MemBuffer::empty()
+    buf.push(b'0')
+    buf.push(b'x')
+    var shift: u256 = 252
+    while true {
+        let nibble: u8 = ((word >> shift) & 0x0f).downcast_truncate()
+        let ch: u8 = if nibble < 10 {
+            48 + nibble
+        } else {
+            87 + nibble
+        }
+        buf.push(ch)
+        if shift == 0 { break }
+        shift -= 4
+    }
+    println!(buf.span())
+}
+
+pub fn run() -> i32 uses (out: mut Stdout) {
+    let pol = policy::default_policy()
+    let fp = policy::fingerprint(pol)
+    print_hex_word(fp)
+    0
+}

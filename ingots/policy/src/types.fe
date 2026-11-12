@@ -101,6 +101,52 @@ pub fn reason_code(_ reason: DenyReason) -> u8 {
     }
 }
 
+pub fn reason_from_code(_ code: u8) -> Option<DenyReason> {
+    if code == 1 {
+        Option::Some(DenyReason::Paused)
+    } else if code == 2 {
+        Option::Some(DenyReason::SessionExpired)
+    } else if code == 3 {
+        Option::Some(DenyReason::DelegateCallBlocked)
+    } else if code == 4 {
+        Option::Some(DenyReason::TargetNotAllowed)
+    } else if code == 5 {
+        Option::Some(DenyReason::SelectorNotAllowed)
+    } else if code == 6 {
+        Option::Some(DenyReason::MalformedCalldata)
+    } else if code == 7 {
+        Option::Some(DenyReason::PerTxCapExceeded)
+    } else if code == 8 {
+        Option::Some(DenyReason::WindowCapExceeded)
+    } else if code == 9 {
+        Option::Some(DenyReason::TokenCapExceeded)
+    } else if code == 10 {
+        Option::Some(DenyReason::UnlimitedApproval)
+    } else if code == 11 {
+        Option::Some(DenyReason::RecipientNotAllowed)
+    } else if code == 12 {
+        Option::Some(DenyReason::RateLimited)
+    } else if code == 13 {
+        Option::Some(DenyReason::CooldownActive)
+    } else if code == 14 {
+        Option::Some(DenyReason::OutsideTradingHours)
+    } else if code == 15 {
+        Option::Some(DenyReason::CircuitTripped)
+    } else if code == 16 {
+        Option::Some(DenyReason::SwapNotAllowed)
+    } else if code == 17 {
+        Option::Some(DenyReason::LendingNotAllowed)
+    } else if code == 18 {
+        Option::Some(DenyReason::PriceUnavailable)
+    } else if code == 19 {
+        Option::Some(DenyReason::UsdCapExceeded)
+    } else if code == 20 {
+        Option::Some(DenyReason::EscalationRequired)
+    } else {
+        Option::None
+    }
+}
+
 pub fn reason_name(_ reason: DenyReason) -> String<24> {
     match reason {
         DenyReason::Paused => "Paused",

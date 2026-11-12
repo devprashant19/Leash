@@ -1,0 +1,6 @@
+1,1000,ALLOW
+2,2000,DENY,PerTxCapExceeded
+3,3000,DENY,TargetNotAllowed
+allowed=1 denied=2
+  TargetNotAllowed: 1
+  PerTxCapExceeded: 1

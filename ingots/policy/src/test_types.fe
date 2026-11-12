@@ -6,6 +6,7 @@ use ingot::types::{
     SEL_TRANSFER_FROM,
     operation_from_u8,
     reason_code,
+    reason_from_code,
     reason_name,
 }
 
@@ -58,6 +59,26 @@ fn test_reason_codes_exhaustive() {
     assert(reason_code(DenyReason::PriceUnavailable) == 18)
     assert(reason_code(DenyReason::UsdCapExceeded) == 19)
     assert(reason_code(DenyReason::EscalationRequired) == 20)
+}
+
+#[test]
+fn test_reason_from_code_roundtrip() {
+    var c: u8 = 1
+    while c <= 20 {
+        match reason_from_code(c) {
+            Option::Some(r) => assert(reason_code(r) == c),
+            Option::None => assert(false),
+        }
+        c += 1
+    }
+    match reason_from_code(0) {
+        Option::Some(_) => assert(false),
+        Option::None => (),
+    }
+    match reason_from_code(21) {
+        Option::Some(_) => assert(false),
+        Option::None => (),
+    }
 }
 
 #[test]

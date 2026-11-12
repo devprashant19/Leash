@@ -22,10 +22,10 @@ build:
 	fe build --emit sizes
 
 golden:
-	@echo "Golden tests: no-op until Phase 3"
+	bash scripts/golden.sh
 
 parity:
-	@echo "Parity tests: no-op until Phase 5"
+	bash scripts/fixtures-to-golden.sh
 
 demo:
 	@echo "Demo: no-op until Phase 6"

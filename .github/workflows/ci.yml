@@ -76,6 +76,10 @@ jobs:
             echo "Error: LeashModule size $size exceeds 24,576 bytes!"
             exit 1
           fi
+      - name: Run golden CLI tests
+        run: bash scripts/golden.sh
+      - name: Run fixture parity tests
+        run: bash scripts/fixtures-to-golden.sh
 
   rules:
     runs-on: ubuntu-latest

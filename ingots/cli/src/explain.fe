@@ -1,0 +1,24 @@
+use std::io::Stdout
+
+pub fn run() -> i32 uses (out: mut Stdout) {
+    println!(
+        "Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee)",
+    )
+    println!("- The agent may call 2 contracts:")
+    println!(
+        "  - 0x1111111111111111111111111111111111111111 (ERC-20): transfer, approve, transferFrom",
+    )
+    println!(
+        "  - 0x2222222222222222222222222222222222222222: plain ETH transfers",
+    )
+    println!("- At most 0.1 ETH per transaction.")
+    println!(
+        "- At most 0.5 ETH in any rolling 24 hours (hourly buckets).",
+    )
+    println!(
+        "- Token 0x1111111111111111111111111111111111111111: at most 100 tokens per transfer; approvals up to 100 tokens; unlimited approvals are always refused.",
+    )
+    println!("- Delegatecall is always refused.")
+    println!("- Anything not listed above is refused.")
+    0
+}

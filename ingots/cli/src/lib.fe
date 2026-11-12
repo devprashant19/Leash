@@ -1,20 +1,67 @@
-use core::text::decode_hex
-use policy
-use std::env::Args
-use std::io::Stdout
+use ingot::args
+use ingot::check
+use ingot::explain
+use ingot::fingerprint
+use ingot::replay
+use ingot::test_cli::*
 
 #[cfg(target = "native")]
-pub fn main() -> i32 uses (out: mut Stdout, args: Args) {
+use std::env::Args
+#[cfg(target = "native")]
+use std::io::{Stdout, Stderr}
+#[cfg(target_family = "unix")]
+use std::fs::Fs
+
+#[cfg(target = "native")]
+fn print_help() -> i32 uses (out: mut Stdout) {
+    println!("leash 0.1.0 (fe 26.6.0)")
+    println!("AI Agent Safe Wallet Spending Limit Enforcement")
+    println!("")
+    println!("USAGE:")
+    println!(
+        "  leash check --to <addr> --value <eth> [flags]   Predict verdict for proposed tx",
+    )
+    println!(
+        "  leash explain                                   Print active policy rules",
+    )
+    println!(
+        "  leash fingerprint                               Print policy Keccak-256 fingerprint",
+    )
+    println!(
+        "  leash replay <log.csv>                          Audit historical tx CSV log",
+    )
+    println!(
+        "  leash --help, -h                                Show this help",
+    )
+    println!(
+        "  leash --version, -v                             Show version",
+    )
+    0
+}
+
+#[cfg(target_family = "unix")]
+pub fn main() -> i32 uses (args: Args, out: mut Stdout, err: mut Stderr, fs: Fs) {
     if args.count() < 2 {
+        eprintln!("error: no subcommand specified")
         return 1
     }
-    let arg = args.get(1)
-    match decode_hex(arg.span()) {
-        Option::Some(bytes) => {
-            println!(bytes.len())
-            0
-        },
-        Option::None => 1,
+    let subcmd = args.get(1)
+    if subcmd == "check" {
+        check::run()
+    } else if subcmd == "explain" {
+        explain::run()
+    } else if subcmd == "fingerprint" {
+        fingerprint::run()
+    } else if subcmd == "replay" {
+        replay::run()
+    } else if subcmd == "--help" || subcmd == "-h" {
+        print_help()
+    } else if subcmd == "--version" || subcmd == "-v" {
+        println!("leash 0.1.0 (fe 26.6.0)")
+        0
+    } else {
+        eprintln!("error: unknown subcommand")
+        1
     }
 }
 

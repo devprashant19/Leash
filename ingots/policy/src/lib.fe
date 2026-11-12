@@ -6,7 +6,14 @@ pub use config::*
 pub use decode::*
 pub use ledger::*
 pub use rules::decide
-pub use encoding::{POLICY_WORDS, STATE_WORDS, decode_state, encode_policy, encode_state}
+pub use encoding::{
+    POLICY_WORDS,
+    STATE_WORDS,
+    decode_state,
+    decode_state_bytes,
+    encode_policy,
+    encode_state,
+}
 pub use fingerprint::{explain_reason, fingerprint}
 
 use test_types::*

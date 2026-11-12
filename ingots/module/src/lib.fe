@@ -16,27 +16,6 @@ pub struct AgentLedger { pub eth_window: Window24 }
 impl Copy for AgentLedger {}
 impl Snapshot for AgentLedger {}
 
-pub fn calldata_from_bytes(_ data: ref Bytes) -> Calldata {
-    let span = data.span()
-    let len = span.len()
-    var bytes: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
-    let copy_len = if len > MAX_CALLDATA {
-        MAX_CALLDATA
-    } else {
-        len
-    }
-    var i: usize = 0
-    while i < copy_len {
-        bytes[i] = span.byte_at(i)
-        i = i + 1
-    }
-    Calldata { len, bytes }
-}
-
-fn test_ref(_ tx: ref Tx) -> bool {
-    true
-}
-
 fn resolve_op(_ op_u8: u8) -> policy::types::Operation {
     match policy::types::operation_from_u8(op_u8) {
         Option::Some(o) => o,
@@ -97,7 +76,7 @@ fn evaluate_tx(
     let pol = policy::config::default_policy()
     var st = make_agent_state(paused, expiry, ledger)
     let op = resolve_op(operation)
-    let cd = calldata_from_bytes(data)
+    let cd = policy::calldata_from_bytes(data)
     let tx = Tx { to, value: wei(value), data: cd, op, now }
     let verdict = policy::decide(tx, pol, st)
     let spent_win = policy::spent_in_window(st.eth_window, now)

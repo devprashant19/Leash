@@ -1,0 +1,210 @@
+use core::text::{decode_hex, parse_hex_uint, parse_uint}
+use core::fixed::UFixed
+use policy::types::{Address, Calldata, Operation, Timestamp, Wei, AgentState, Window24}
+use policy::decode::calldata_from_bytes
+use policy::encoding::decode_state_bytes
+use policy::wei
+use std::env::Args
+
+pub enum ParseError {
+    MissingArgValue,
+    InvalidTo,
+    InvalidValue,
+    InvalidValueWei,
+    ConflictValue,
+    InvalidData,
+    InvalidOp,
+    MissingNow,
+    MissingTo,
+    InvalidState,
+    UnknownFlag,
+}
+
+pub struct CheckArgs {
+    pub to: Address,
+    pub value: Wei,
+    pub data: Calldata,
+    pub op: Operation,
+    pub now: Timestamp,
+    pub state: AgentState,
+}
+
+pub enum ParseResult {
+    Ok(CheckArgs),
+    Err(ParseError),
+}
+
+fn parse_to_address(_ s: std::env::Arg) -> Option<Address> {
+    let span = s.span()
+    if span.len() != 42 {
+        return Option::None
+    }
+    if span.byte_at(0) != 48 || span.byte_at(1) != 120 {
+        return Option::None
+    }
+    match parse_hex_uint(s) {
+        Option::Some(w) => {
+            if w >> 160 != 0 {
+                Option::None
+            } else {
+                Option::Some(Address::new(w))
+            }
+        },
+        Option::None => Option::None,
+    }
+}
+
+pub fn default_check_state() -> AgentState {
+    AgentState {
+        paused: false,
+        tripped: false,
+        expiry: Timestamp::from_seconds(u256::max()),
+        eth_window: Window24::empty(),
+        last_action: Timestamp::from_seconds(0),
+    }
+}
+
+pub fn parse_check_args() -> ParseResult uses (args: Args) {
+    var has_to = false
+    var to = Address::zero()
+    var has_now = false
+    var now = Timestamp::from_seconds(0)
+    var has_value = false
+    var has_value_wei = false
+    var val_wei = Wei::zero()
+    var data = Calldata::empty()
+    var op = Operation::Call
+    var state = default_check_state()
+
+    let count = args.count()
+    var i: usize = 2
+    while i < count {
+        let flag = args.get(i)
+        if flag == "--to" {
+            if i + 1 >= count {
+                return ParseResult::Err(ParseError::MissingArgValue)
+            }
+            i += 1
+            match parse_to_address(args.get(i)) {
+                Option::Some(addr) => {
+                    to = addr
+                    has_to = true
+                },
+                Option::None => {
+                    return ParseResult::Err(ParseError::InvalidTo)
+                },
+            }
+        } else if flag == "--value" {
+            if i + 1 >= count {
+                return ParseResult::Err(ParseError::MissingArgValue)
+            }
+            if has_value_wei {
+                return ParseResult::Err(ParseError::ConflictValue)
+            }
+            i += 1
+            let v_arg = args.get(i)
+            match UFixed<18>::parse(v_arg) {
+                Option::Some(uf) => {
+                    val_wei = wei(uf.raw())
+                    has_value = true
+                },
+                Option::None => {
+                    return ParseResult::Err(ParseError::InvalidValue)
+                },
+            }
+        } else if flag == "--value-wei" {
+            if i + 1 >= count {
+                return ParseResult::Err(ParseError::MissingArgValue)
+            }
+            if has_value {
+                return ParseResult::Err(ParseError::ConflictValue)
+            }
+            i += 1
+            let v_arg = args.get(i)
+            match parse_uint(v_arg) {
+                Option::Some(raw) => {
+                    val_wei = wei(raw)
+                    has_value_wei = true
+                },
+                Option::None => {
+                    return ParseResult::Err(ParseError::InvalidValueWei)
+                },
+            }
+        } else if flag == "--data" {
+            if i + 1 >= count {
+                return ParseResult::Err(ParseError::MissingArgValue)
+            }
+            i += 1
+            let d_arg = args.get(i)
+            match decode_hex(d_arg) {
+                Option::Some(b) => {
+                    data = calldata_from_bytes(b)
+                },
+                Option::None => {
+                    return ParseResult::Err(ParseError::InvalidData)
+                },
+            }
+        } else if flag == "--op" {
+            if i + 1 >= count {
+                return ParseResult::Err(ParseError::MissingArgValue)
+            }
+            i += 1
+            let o_arg = args.get(i)
+            if o_arg == "call" {
+                op = Operation::Call
+            } else if o_arg == "delegatecall" {
+                op = Operation::DelegateCall
+            } else {
+                return ParseResult::Err(ParseError::InvalidOp)
+            }
+        } else if flag == "--now" {
+            if i + 1 >= count {
+                return ParseResult::Err(ParseError::MissingArgValue)
+            }
+            i += 1
+            let n_arg = args.get(i)
+            match parse_uint(n_arg) {
+                Option::Some(ts) => {
+                    now = Timestamp::from_seconds(ts)
+                    has_now = true
+                },
+                Option::None => {
+                    return ParseResult::Err(ParseError::MissingNow)
+                },
+            }
+        } else if flag == "--state" {
+            if i + 1 >= count {
+                return ParseResult::Err(ParseError::MissingArgValue)
+            }
+            i += 1
+            let s_arg = args.get(i)
+            match decode_hex(s_arg) {
+                Option::Some(b) => {
+                    match decode_state_bytes(b) {
+                        Option::Some(st) => {
+                            state = st
+                        },
+                        Option::None => {
+                            return ParseResult::Err(ParseError::InvalidState)
+                        },
+                    }
+                },
+                Option::None => {
+                    return ParseResult::Err(ParseError::InvalidState)
+                },
+            }
+        } else {
+            return ParseResult::Err(ParseError::UnknownFlag)
+        }
+        i += 1
+    }
+
+    if !has_to {
+        return ParseResult::Err(ParseError::MissingTo)
+    }
+    if !has_now {
+        return ParseResult::Err(ParseError::MissingNow)
+    }
+
+    ParseResult::Ok(CheckArgs { to, value: val_wei, data, op, now, state })
+}

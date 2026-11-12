@@ -1,0 +1,10 @@
+leash 0.1.0 (fe 26.6.0)
+AI Agent Safe Wallet Spending Limit Enforcement
+
+USAGE:
+  leash check --to <addr> --value <eth> [flags]   Predict verdict for proposed tx
+  leash explain                                   Print active policy rules
+  leash fingerprint                               Print policy Keccak-256 fingerprint
+  leash replay <log.csv>                          Audit historical tx CSV log
+  leash --help, -h                                Show this help
+  leash --version, -v                             Show version

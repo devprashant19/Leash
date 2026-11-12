@@ -68,3 +68,14 @@ Fe's static effect system enforces minimal privilege for each message handler:
 2. **Default Deny**: Any action not explicitly allowed by policy rules is denied with an explicit `DenyReason`.
 3. **No Direct Spending**: Safe funds can only be moved through `Safe.execTransactionFromModule`, which is reachable only after `policy::decide` returns `Allow` and state is recorded.
 4. **Checks-Effects-Interactions (CEI)**: Internal ledger updates precede external calls to the Safe, backed by a reentrancy mutex.
+
+## 6. CLI Subcommand Effects & Static Least Privilege
+
+In `ingots/cli`, Fe's static effect system proves that subcommands possess strictly the minimal privileges required:
+
+| Subcommand | Effects Declared | Architectural Guarantee |
+|---|---|---|
+| `leash check` | `(args: Args, out: mut Stdout, err: mut Stderr)` | **Zero filesystem access.** Cannot read or write files; pure evaluation from CLI parameters into policy memory. |
+| `leash explain` | `(out: mut Stdout)` | **Stdout only.** Cannot touch args, stderr, or filesystem. |
+| `leash fingerprint` | `(out: mut Stdout)` | **Stdout only.** Computes Keccak-256 digest in-memory and writes 64 hex characters to stdout. |
+| `leash replay` | `(args: Args, out: mut Stdout, err: mut Stderr, fs: Fs)` | **Sole holder of `Fs`.** Only `replay` can access disk I/O to read historical CSV audit records. |

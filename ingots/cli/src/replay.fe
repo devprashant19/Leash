@@ -1,0 +1,284 @@
+use core::fixed::UFixed
+use core::text::{decode_hex, parse_hex_uint, parse_uint}
+use policy::{
+    Address,
+    Calldata,
+    DenyReason,
+    Operation,
+    Timestamp,
+    Tx,
+    Verdict,
+    calldata_from_bytes,
+    decide,
+    default_policy,
+    reason_code,
+    reason_from_code,
+    reason_name,
+    record_spend,
+    wei,
+}
+use ingot::args::default_check_state
+use std::env::Args
+use std::io::{Stdout, Stderr}
+
+#[cfg(target_family = "unix")]
+use std::fs::Fs
+
+fn is_line_end(_ b: u8) -> bool {
+    b == 10 || b == 13
+}
+
+fn span_eq(_ span: ref core::MemSpan, from: usize, to: usize, expected: String<31>) -> bool {
+    let len = to - from
+    if len != expected.len() {
+        return false
+    }
+    var i: usize = 0
+    while i < len {
+        if span.byte_at(from + i) != expected.byte_at(i) {
+            return false
+        }
+        i += 1
+    }
+    true
+}
+
+pub fn replay_csv(_ content: ref core::MemSpan) -> i32
+uses (out: mut Stdout, err: mut Stderr)
+{
+    let total_len = content.len()
+    if total_len == 0 {
+        eprintln!("line 1: empty file")
+        return 1
+    }
+
+    var pos: usize = 0
+    // Read header line
+    let header_start = pos
+    while pos < total_len && !is_line_end(content.byte_at(pos)) {
+        pos += 1
+    }
+    let header_end = pos
+    while pos < total_len && is_line_end(content.byte_at(pos)) {
+        pos += 1
+    }
+
+    let expected_header = "timestamp,to,value,data,op"
+    if !span_eq(
+        content,
+        from: header_start,
+        to: header_end,
+        expected: expected_header,
+    ) {
+        eprintln!(
+            "line 1: invalid header, expected timestamp,to,value,data,op",
+        )
+        return 1
+    }
+
+    var line_no: usize = 2
+    var row_idx: usize = 1
+    var prev_ts: u256 = 0
+    var allowed_count: usize = 0
+    var denied_count: usize = 0
+    var reason_counts: [usize; 21] = [0; 21]
+    var state = default_check_state()
+    let pol = default_policy()
+
+    while pos < total_len {
+        let line_start = pos
+        while pos < total_len && !is_line_end(content.byte_at(pos)) {
+            pos += 1
+        }
+        let line_end = pos
+        while pos < total_len && is_line_end(content.byte_at(pos)) {
+            pos += 1
+        }
+
+        if line_end == line_start {
+            continue
+        }
+
+        var col_starts: [usize; 5] = [0; 5]
+        var col_ends: [usize; 5] = [0; 5]
+        var col_idx: usize = 0
+        var cur = line_start
+        var col_start = line_start
+
+        while cur <= line_end {
+            if cur == line_end || content.byte_at(cur) == 44 {
+                if col_idx >= 5 {
+                    eprintln!("line ", line_no, ": invalid column count")
+                    return 1
+                }
+                col_starts[col_idx] = col_start
+                col_ends[col_idx] = cur
+                col_idx += 1
+                col_start = cur + 1
+            }
+            cur += 1
+        }
+
+        if col_idx != 5 {
+            eprintln!("line ", line_no, ": invalid column count")
+            return 1
+        }
+
+        // Col 0: timestamp
+        let ts_len = col_ends[0] - col_starts[0]
+        let ts_span = content.slice(offset: col_starts[0], len: ts_len)
+        let ts: u256 = match parse_uint(ts_span) {
+            Option::Some(t) => {
+                if row_idx > 1 && t < prev_ts {
+                    eprintln!("line ", line_no, ": decreasing timestamp")
+                    return 1
+                }
+                prev_ts = t
+                t
+            },
+            Option::None => {
+                eprintln!("line ", line_no, ": invalid timestamp")
+                return 1
+            },
+        }
+
+        // Col 1: to address
+        let to_len = col_ends[1] - col_starts[1]
+        let to_span = content.slice(offset: col_starts[1], len: to_len)
+        if to_span.len() != 42 || to_span.byte_at(0) != 48 || to_span.byte_at(1) != 120 {
+            eprintln!("line ", line_no, ": invalid to address")
+            return 1
+        }
+        let to_addr = match parse_hex_uint(to_span) {
+            Option::Some(w) => {
+                if w >> 160 != 0 {
+                    eprintln!("line ", line_no, ": invalid to address")
+                    return 1
+                }
+                Address::new(w)
+            },
+            Option::None => {
+                eprintln!("line ", line_no, ": invalid to address")
+                return 1
+            },
+        }
+
+        // Col 2: value
+        let val_len = col_ends[2] - col_starts[2]
+        let val_span = content.slice(offset: col_starts[2], len: val_len)
+        var val_raw: u256 = 0
+        match UFixed<18>::parse(val_span) {
+            Option::Some(uf) => {
+                val_raw = uf.raw()
+            },
+            Option::None => {
+                match parse_uint(val_span) {
+                    Option::Some(r) => {
+                        val_raw = r
+                    },
+                    Option::None => {
+                        eprintln!("line ", line_no, ": invalid value")
+                        return 1
+                    },
+                }
+            },
+        }
+
+        // Col 3: data
+        let data_len = col_ends[3] - col_starts[3]
+        let data_span = content.slice(offset: col_starts[3], len: data_len)
+        let cd = match decode_hex(data_span) {
+            Option::Some(b) => calldata_from_bytes(b),
+            Option::None => {
+                eprintln!("line ", line_no, ": invalid data hex")
+                return 1
+            },
+        }
+
+        // Col 4: op
+        var op = Operation::Call
+        if span_eq(
+            content,
+            from: col_starts[4],
+            to: col_ends[4],
+            expected: "call",
+        ) {
+            op = Operation::Call
+        } else if span_eq(
+            content,
+            from: col_starts[4],
+            to: col_ends[4],
+            expected: "delegatecall",
+        ) {
+            op = Operation::DelegateCall
+        } else {
+            eprintln!("line ", line_no, ": invalid op")
+            return 1
+        }
+
+        // Execute decide
+        let tx = Tx {
+            to: to_addr,
+            value: wei(val_raw),
+            data: cd,
+            op,
+            now: Timestamp::from_seconds(ts),
+        }
+        let verdict = decide(tx, pol, state)
+        match verdict {
+            Verdict::Allow => {
+                if val_raw > 0 {
+                    record_spend(mut state.eth_window, tx.now, val_raw)
+                }
+                allowed_count += 1
+                println!(row_idx, ",", ts, ",ALLOW")
+            },
+            Verdict::Deny(r) => {
+                denied_count += 1
+                let code: usize = reason_code(r) as usize
+                if code < 21 {
+                    reason_counts[code] += 1
+                }
+                let name = reason_name(r)
+                println!(row_idx, ",", ts, ",DENY,", name)
+            },
+        }
+
+        row_idx += 1
+        line_no += 1
+    }
+
+    println!("allowed=", allowed_count, " denied=", denied_count)
+    var c: u8 = 1
+    while c <= 20 {
+        let count_for_c = reason_counts[c as usize]
+        if count_for_c > 0 {
+            match reason_from_code(c) {
+                Option::Some(r) => {
+                    let rname = reason_name(r)
+                    println!("  ", rname, ": ", count_for_c)
+                },
+                Option::None => (),
+            }
+        }
+        c += 1
+    }
+
+    if denied_count > 0 { 2 } else { 0 }
+}
+
+#[cfg(target_family = "unix")]
+pub fn run() -> i32 uses (args: Args, out: mut Stdout, err: mut Stderr, fs: Fs) {
+    if args.count() < 3 {
+        eprintln!("error: missing CSV file path for replay")
+        return 1
+    }
+    let path = args.get(2)
+    match fs.read(path) {
+        Result::Ok(buf) => replay_csv(buf.span()),
+        Result::Err(_) => {
+            eprintln!("error: could not read CSV file")
+            1
+        },
+    }
+}
