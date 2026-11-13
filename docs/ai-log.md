@@ -1020,3 +1020,31 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - Headless Chrome: the page renders at 1280 px and at 375 px with no horizontal overflow (measured `scrollWidth` = viewport).
   - Amazon Linux 2023 + Node 22 container (`public.ecr.aws/lambda/nodejs:22`, glibc 2.34): the bundled binary runs; `VERCEL=1 LEASH_REQUIRE_NATIVE=1 npm run test:web` passes 10/10 with `fe-native` predictions; `build:web` produces `web/dist`.
 - **Reviewed by human**: pending confirmation.
+
+## 2026-11-14 — Full feature tour, state-aware fallback, separate guardian key
+- **AI-assisted**: yes (Claude Code).
+- **Added**: `api/_lib/tour.ts` + `api/tour.ts` (`GET|POST /api/tour`): 18 agent transactions in 5 chapters on one fresh chain, each predicted by the Fe CLI and then decided by LeashModule: allowed ETH, token transfer and bounded approval; deny codes 1–10 and 15 (per-tx cap, target allowlist, unlimited approval, circuit breaker, token cap, selector allowlist, malformed calldata, delegatecall, rolling 24 h window, guardian pause, session expiry); owner `resetBreaker`, guardian `pause`, owner `unpause`, a 60-second session and a clock jump between them.
+- **Changed**:
+  - The demo guardian now has its own key (Anvil account #2). Before, the guardian address was the agent's own account (#1), so the agent could have paused itself.
+  - The TypeScript fallback in `demo/lib/leash-cli.ts` reads the `--state` words (pause flag, breaker, session expiry, 24 hourly spending buckets) the way `policy/src/encoding.fe` encodes them. Before, it ignored state and mispredicted pause, breaker, expiry and window-cap cases (found by the tour: 14/18 matched).
+  - `test/web/web_test.ts`: three tour checks (18/18 matched, codes 0–10 and 15 as the policy demands, only allowed calls moved money).
+- **Verification**:
+  - Windows (TS fallback): `npm run test:web` 12/12; tour 18/18 matched.
+  - Amazon Linux 2023 + Node 22 container (`public.ecr.aws/lambda/nodejs:22`, glibc 2.34): `VERCEL=1 LEASH_REQUIRE_NATIVE=1` test passes 13/13 with predictions from the bundled Fe binary, including all 18 tour transactions.
+- **Reviewed by human**: pending confirmation.
+
+## 2026-11-14 — Vercel page redesign: motion-led React page with a step-by-step demo
+- **AI-assisted**: yes (Claude Code).
+- **Reference**: the motion grammar of a reference site, analysed frame by frame from a screen recording and its public CSS and scripts. No reference assets, copy, logo or images are used; every picture is generated in code.
+- **Changed**:
+  - `web/` is a Vite + React 18 + TypeScript app (`web/src`), built by `scripts/build-web.mjs` into `web/dist` (same output path, same `vercel.json`, same `/api` functions; `/dashboard/` and `run.json` unchanged).
+  - Motion: Framer Motion (`motion` 12.43.0), Lenis 1.3.27 smooth scroll, self-hosted fonts (Newsreader, Inter, Geist Mono). Character blur reveals, a fixed progressive-blur band, scroll-scrubbed text, odometers, a hover-driven rule list whose card quotes the real Fe source (file:line), a deny-code grid lit by live runs, timed diagrams, point clouds, a globe, pixelating dither art and a transaction console (inline and modal).
+  - Demo: a server-setup checklist while the run is in flight, then a walkthrough of every transaction in four stages (the agent asks, the Fe CLI predicts, LeashModule decides, the outcome and why) with play/pause, back/next and skip; quick demo and full feature tour modes; Run buttons scroll to the live output.
+  - Deep links: `/?run`, `/?tour`, `/?try=N`.
+  - `scripts/dev-web.ts` serves CSS and fonts with the right content types and the tour route. `npm run dev:web` (Vite with hot reload) waits for the local API before serving and answers with a JSON error if the API is down (before, a dead proxy surfaced as "The server answered 500 without JSON").
+  - `/dashboard/`: favicon (no more 404); local-run transaction hashes are plain text instead of links to `#`.
+- **Verification** (headless Chrome; viewports 320, 375, 390, 430 and 844×390 phones, 768/834/1024 tablets, 1280, 1440, 1920, 2560):
+  - No horizontal overflow, no element past the viewport, no overlapping or clipped text, no console errors, on the main page, the tour results, the console modal and `/dashboard/`. Touch targets are at least 40 px tall (short text links at least 24 px wide, WCAG 2.2 AA).
+  - Run buttons land the live output under the nav on desktop and phone; Skip to results brings the results into view.
+  - `npm run typecheck:web` clean; `npm run build:web` OK (JS ≈ 125 KB gzip).
+- **Reviewed by human**: pending confirmation.

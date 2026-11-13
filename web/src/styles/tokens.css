@@ -1,0 +1,59 @@
+/* Fluid em: the body font-size scales with the container, and every component is sized in em,
+   so the whole layout scales with the window (16px at 1440 wide). */
+:root {
+  --size-unit: 16;
+  --size-container-ideal: 1440;
+  --size-container-min: 992px;
+  --size-container-max: 1920px;
+  --size-container: clamp(var(--size-container-min), 100vw, var(--size-container-max));
+  --size-font: calc(var(--size-container) / (var(--size-container-ideal) / var(--size-unit)));
+
+  --bg: #100d11;
+  --bg-2: #161317;
+  --bg-hover: #1a181b;
+  --track: #242126;
+  --line: #2b282d;
+  --line-2: #3b383d;
+  --text: #efedf0;
+  --text-2: #b6b2b8;
+  --text-dim: #827f83;
+  --text-mute: #635f65;
+  --text-faint: #3e3b3f;
+
+  --violet: #7f0fd5;
+  --violet-2: #9b4dff;
+  --violet-dot: #8827dd;
+  --violet-deep: #4e0a83;
+  --coral: #ea5d56;
+  --coral-2: #f96d57;
+  --coral-3: #f7472b;
+  --mint: #6ee7b7;
+
+  --allow: var(--violet-2);
+  --deny: var(--coral);
+
+  --font-head: 'Newsreader Variable', 'Newsreader', Georgia, 'Times New Roman', serif;
+  --font-body: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --ease-house: cubic-bezier(.625, .05, 0, 1);
+  --ease-row: cubic-bezier(.38, .005, .215, 1);
+  --ease-pop: cubic-bezier(.34, 1.56, .64, 1);
+  --ease-p1out: cubic-bezier(.25, .46, .45, .94);
+  --ease-p2out: cubic-bezier(.5, 1, .89, 1);
+  --ease-p3out: cubic-bezier(.33, 1, .68, 1);
+
+  --gutter: 7.5em;
+  --cell: 4.6em;
+  --cut: 1.05em;
+}
+
+@media (max-width: 991px) {
+  :root { --size-container-ideal: 834; --size-container-min: 768px; --size-container-max: 991px; --gutter: 2.5em; }
+}
+@media (max-width: 767px) {
+  :root { --size-container-ideal: 660; --size-container-min: 480px; --size-container-max: 767px; --gutter: 1.5em; }
+}
+@media (max-width: 479px) {
+  :root { --size-container-ideal: 402; --size-container-min: 320px; --size-container-max: 479px; --gutter: 1em; --cell: 3.6em; }
+}

@@ -23,11 +23,11 @@ Deploy:
 2. Deploy. Or from a terminal: `npx vercel login`, then `npx vercel --prod` from the repo root.
 3. Open `<your-domain>/api/health`. It should report `"predictionSource":"fe-native"` and `"cliVersion":"leash 0.1.0 (fe 26.6.0)"`.
 
-Shareable links: `/?run` runs the demo on load, and `/?try=N` runs example N (0 = 0.05 ETH to the treasury, 1 = 0.2 ETH over the cap, 2 = transfer 50 tokens, 3 = transfer 101 tokens, 4 = unlimited approve, 5 = unlisted contract, 6 = delegatecall).
+Shareable links: `/?run` runs the demo on load, `/?tour` runs the full feature tour, and `/?try=N` runs example N (0 = 0.05 ETH to the treasury, 1 = 0.2 ETH over the cap, 2 = transfer 50 tokens, 3 = transfer 101 tokens, 4 = unlimited approve, 5 = unlisted contract, 6 = delegatecall).
 
 Keep it in sync: after a Fe change, run `fe build && npm run sync:web` and commit `api/_assets/artifacts/`. To refresh the binary, run `gh release download <tag> -p leash-linux-x86_64 -D api/_assets --clobber`. The CI `web` job fails if either is stale.
 
-Run it locally: `npm ci && npm run build:web && npx tsx scripts/dev-web.ts`, then open `http://localhost:3000`. Run `npm run test:web` to check the functions without a server.
+Run it locally: `npm ci && npm run build:web && npx tsx scripts/dev-web.ts`, then open `http://localhost:3000`. For live editing of the page, `npm run dev:web` serves it with hot reload on `http://localhost:5173`. Run `npm run test:web` to check the functions without a server.
 
 ## 1. Local (Anvil)
 

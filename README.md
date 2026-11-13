@@ -15,13 +15,14 @@
 
 ### Run it in the browser (Vercel)
 
-The Vercel page ([`web/index.html`](web/index.html) + [`api/`](api/)) lets anyone run Leash without installing anything:
+The Vercel page ([`web/`](web/), a React + Framer Motion app, plus [`api/`](api/)) lets anyone run Leash without installing anything:
 
-- **Run the 5-transaction demo**: each run deploys the Fe-compiled `MockSafe`, `LeashModule` and demo token into a fresh in-memory EVM, and the Fe-built `leash` binary predicts every verdict from the agent's on-chain state before the contract decides. The page shows the predictions next to the on-chain results, both policy fingerprints, and the balances before and after.
+- **Run the 5-transaction demo**: each run deploys the Fe-compiled `MockSafe`, `LeashModule` and demo token into a fresh in-memory EVM, and the Fe-built `leash` binary predicts every verdict from the agent's on-chain state before the contract decides. The page then walks through each transaction step by step (the agent asks, the CLI predicts, the module decides, the outcome and why), followed by both policy fingerprints and the balances before and after.
+- **Run the full feature tour**: 18 transactions in 5 chapters on one chain: allowed spending, every deny path (codes 1–10), the circuit breaker tripping and the owner resetting it, the rolling 24 h budget, a guardian pause and an expired session. Every prediction must match the on-chain decision.
 - **Try your own transaction**: any target, value, calldata and operation; the Fe CLI's prediction and the contract's decision side by side.
-- **Links that run on open**: `/?run` (the demo), `/?try=1` (an over-cap transfer). API: `GET /api/demo`, `POST /api/check`, `GET /api/health`.
+- **Links that run on open**: `/?run` (the demo), `/?tour` (the feature tour), `/?try=1` (an over-cap transfer). API: `GET /api/demo`, `GET /api/tour`, `POST /api/check`, `GET /api/health`.
 
-Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run test:web` with `LEASH_REQUIRE_NATIVE=1` passes 10/10, with predictions from the bundled Fe binary. The CI `web` job repeats this on every push. Deploy steps: [`docs/deployment.md`](docs/deployment.md#0-vercel-the-page-judges-open).
+Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run test:web` with `LEASH_REQUIRE_NATIVE=1` passes 13/13, with predictions from the bundled Fe binary (including all 18 tour transactions). The CI `web` job repeats this on every push. Deploy steps: [`docs/deployment.md`](docs/deployment.md#0-vercel-the-page-judges-open).
 
 
 - **Video script**: scene-by-scene script and timings in [`docs/video-script.md`](docs/video-script.md).

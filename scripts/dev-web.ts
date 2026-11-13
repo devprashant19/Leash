@@ -8,14 +8,25 @@ import * as path from 'path';
 import demo from '../api/demo';
 import check from '../api/check';
 import healthFn from '../api/health';
+import tour from '../api/tour';
 
 const root = path.resolve(__dirname, '..', 'web', 'dist');
 const routes: Record<string, (req: any, res: any) => Promise<void>> = {
   '/api/demo': demo,
   '/api/check': check,
   '/api/health': healthFn,
+  '/api/tour': tour,
 };
-const types: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.js': 'text/javascript' };
+const types: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.json': 'application/json',
+  '.js': 'text/javascript',
+  '.css': 'text/css; charset=utf-8',
+  '.woff2': 'font/woff2',
+  '.woff': 'font/woff',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+};
 
 const port = Number(process.env.PORT || 3000);
 http
