@@ -33,7 +33,8 @@ const ASSETS = path.join(process.cwd(), 'api', '_assets');
 // Anvil's well-known development keys (public test keys, never used on a real network).
 const OWNER_PK: Hex = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 const AGENT_PK: Hex = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d';
-const GUARDIAN: Hex = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+// The guardian has its own key (Anvil account #2), separate from the agent, so a pause comes from a different party.
+const GUARDIAN_PK: Hex = '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a';
 
 export const REASONS = [
   'None', 'Paused', 'SessionExpired', 'DelegateCallBlocked', 'TargetNotAllowed', 'SelectorNotAllowed',
@@ -81,17 +82,19 @@ function artifact(name: string): { abi: Abi; bytecode: Hex } {
   };
 }
 
-interface Env {
+export interface Env {
   chain: Chain;
   owner: Signer;
   agent: Signer;
+  guardian: Signer;
   safe: Hex;
   module: Hex;
+  safeAbi: Abi;
   moduleAbi: Abi;
   tokenAbi: Abi;
 }
 
-async function mustSend(chain: Chain, from: Signer, to: Hex | undefined, data: Hex, what: string) {
+export async function mustSend(chain: Chain, from: Signer, to: Hex | undefined, data: Hex, what: string) {
   const r = await chain.send(from, to, data);
   if (!r.success) throw new Error(`setup step failed (${what}): ${r.error}`);
   return r;
@@ -103,6 +106,7 @@ export async function setupEnvironment(): Promise<Env> {
   const chain = await Chain.create(BigInt(Math.floor(Date.now() / 1000)));
   const owner = await chain.signer(OWNER_PK, 100n * 10n ** 18n);
   const agent = await chain.signer(AGENT_PK, 10n * 10n ** 18n);
+  const guardian = await chain.signer(GUARDIAN_PK, 1n * 10n ** 18n);
 
   const safeArt = artifact('MockSafe');
   const moduleArt = artifact('LeashModule');
@@ -114,7 +118,7 @@ export async function setupEnvironment(): Promise<Env> {
       chain,
       owner,
       undefined,
-      encodeDeployData({ abi: moduleArt.abi, bytecode: moduleArt.bytecode, args: [safe, GUARDIAN] }),
+      encodeDeployData({ abi: moduleArt.abi, bytecode: moduleArt.bytecode, args: [safe, guardian.address] }),
       'deploy LeashModule'
     )
   ).createdAddress!;
@@ -132,7 +136,7 @@ export async function setupEnvironment(): Promise<Env> {
   await chain.setBalance(safe, 10n * 10n ** 18n);
   await mustSend(chain, owner, ADDR_TOKEN as Hex, fn(tokenArt.abi, 'mint', [safe, 1000n * 10n ** 18n]), 'mint');
 
-  return { chain, owner, agent, safe, module, moduleAbi: moduleArt.abi, tokenAbi: tokenArt.abi };
+  return { chain, owner, agent, guardian, safe, module, safeAbi: safeArt.abi, moduleAbi: moduleArt.abi, tokenAbi: tokenArt.abi };
 }
 
 // Read-only calls use their own caller: ethereumjs bumps the caller's nonce on runCall,
@@ -157,7 +161,7 @@ export interface Balances {
   treasuryTokens: string;
 }
 
-async function balances(env: Env): Promise<Balances> {
+export async function balances(env: Env): Promise<Balances> {
   const tok = async (who: Hex) =>
     formatEther((await read(env, ADDR_TOKEN as Hex, env.tokenAbi, 'balanceOf', [who])) as bigint);
   return {
@@ -182,7 +186,7 @@ export interface StepResult {
 }
 
 /** One agent transaction: the Fe CLI predicts first (with the real on-chain state), then the module decides on-chain. */
-async function runStep(env: Env, s: ScenarioTx): Promise<StepResult> {
+export async function runStep(env: Env, s: ScenarioTx): Promise<StepResult> {
   const op = s.operation === 1 ? 'delegatecall' : 'call';
   const prediction = predictVerdict({
     to: s.to,
@@ -248,9 +252,9 @@ export interface DemoResult {
   elapsedMs: number;
 }
 
-const ENGINE = 'In-memory EVM (ethereumjs, Prague rules) running the Fe-compiled contracts';
+export const ENGINE = 'In-memory EVM (ethereumjs, Prague rules) running the Fe-compiled contracts';
 
-async function chainFingerprint(env: Env): Promise<string> {
+export async function chainFingerprint(env: Env): Promise<string> {
   const fp = (await read(env, env.module, env.moduleAbi, 'fingerprint')) as bigint;
   return '0x' + fp.toString(16).padStart(64, '0');
 }

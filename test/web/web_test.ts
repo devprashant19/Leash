@@ -5,6 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { parseCheckInput, runCheck, runDemo } from '../../api/_lib/leash';
+import { runTour } from '../../api/_lib/tour';
 
 const TREASURY = '0x2000000000000000000000000000000000000002';
 const TOKEN = '0x1000000000000000000000000000000000000001';
@@ -71,6 +72,22 @@ async function main() {
   await step('check: a 101-token transfer is denied with TokenCapExceeded', () => {
     assert.equal(transfer.step.onchain.reason, 'TokenCapExceeded');
     assert.ok(transfer.step.matched);
+  });
+
+  const tour = await runTour();
+  const tourTx = tour.chapters.flatMap((c) => c.items).filter((x) => x.kind === 'tx');
+  await step('tour: 18 agent transactions, every prediction matched the on-chain decision', () => {
+    assert.equal(tour.txCount, 18);
+    assert.equal(tour.matchedCount, 18, tourTx.filter((t) => !t.matched).map((t) => `#${t.i} ${t.description}: predicted ${t.predicted.code}, chain ${t.onchain.code}`).join('; '));
+  });
+  await step('tour: every step got the verdict the policy demands (codes 0-10 and 15)', () => {
+    assert.equal(tour.expectedCount, 18);
+    assert.deepEqual(tour.codesCovered, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15]);
+    assert.ok(tour.fingerprintsMatch);
+  });
+  await step('tour: only allowed calls moved money (0.05 + 4 x 0.1 ETH, 50 tokens)', () => {
+    assert.equal(tour.balancesAfter.treasuryEth, '0.45');
+    assert.equal(tour.balancesAfter.treasuryTokens, '50');
   });
 
   await step('input validation rejects bad addresses, values and calldata', () => {

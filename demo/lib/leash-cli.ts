@@ -128,6 +128,14 @@ export function predictVerdict(opts: CheckOptions): LeashCheckResult {
   const op = opts.op || 'call';
   const now = opts.now ?? Math.floor(Date.now() / 1000);
 
+  // 0. Agent state (the module's state(agent) words, same layout as policy/src/encoding.fe):
+  //    paused, tripped and session expiry are checked first, in decide()'s order.
+  const st = opts.stateHex ? decodeStateHex(opts.stateHex) : null;
+  const spent = st ? spentInWindow(st.buckets, now) : 0n;
+  if (st?.paused) return makeResult('DENY', 1, 'Paused', 'Agent is paused by the guardian or owner', now, spent);
+  if (st?.tripped) return makeResult('DENY', 15, 'CircuitTripped', 'Circuit breaker tripped after repeated denials', now, spent);
+  if (st && st.expiry > 0n && BigInt(now) >= st.expiry) return makeResult('DENY', 2, 'SessionExpired', 'Agent session has expired', now, spent);
+
   // 1. DelegateCall check
   if (op === 'delegatecall') {
     return makeResult('DENY', 3, 'DelegateCallBlocked', 'DelegateCall is permanently blocked', now);
@@ -242,12 +250,33 @@ export function predictVerdict(opts: CheckOptions): LeashCheckResult {
     return makeResult('DENY', 7, 'PerTxCapExceeded', 'ETH value exceeds per-transaction cap', now);
   }
 
-  // 5. Window ETH cap check
-  if (value > MAX_PER_WINDOW_WEI) {
-    return makeResult('DENY', 8, 'WindowCapExceeded', 'ETH spend exceeds 24h window limit', now);
+  // 5. Window ETH cap check (rolling 24 h: already spent + this call)
+  if (spent + value > MAX_PER_WINDOW_WEI) {
+    return makeResult('DENY', 8, 'WindowCapExceeded', 'ETH spend exceeds 24h window limit', now, spent);
   }
 
-  return makeResult('ALLOW', 0, 'None', 'Transaction allowed by policy', now, value);
+  return makeResult('ALLOW', 0, 'None', 'Transaction allowed by policy', now, spent);
+}
+
+const BUCKETS = 24;
+const BUCKET_LEN = 3600n;
+
+/** Decodes `leash check --state` hex (52 words): paused, tripped, expiry, 24 (index, amount) buckets, last_action. */
+function decodeStateHex(hex: string): { paused: boolean; tripped: boolean; expiry: bigint; buckets: Array<[bigint, bigint]> } | null {
+  const h = hex.replace(/^0x/, '');
+  if (h.length !== 52 * 64) return null;
+  const w = (i: number) => BigInt('0x' + h.slice(i * 64, (i + 1) * 64));
+  const buckets: Array<[bigint, bigint]> = [];
+  for (let b = 0; b < BUCKETS; b++) buckets.push([w(3 + b * 2), w(4 + b * 2)]);
+  return { paused: w(0) !== 0n, tripped: w(1) !== 0n, expiry: w(2), buckets };
+}
+
+/** Same as ledger.fe spent_in_window: sum of buckets from the last 24 hourly slots. */
+function spentInWindow(buckets: Array<[bigint, bigint]>, now: number): bigint {
+  const cur = BigInt(now) / BUCKET_LEN;
+  let total = 0n;
+  for (const [index, amount] of buckets) if (index <= cur && cur - index < BigInt(BUCKETS)) total += amount;
+  return total;
 }
 
 function makeResult(
