@@ -854,6 +854,20 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 - All commits within contest window (Nov 3–24, 2026).
 - Repository ready for final tagging: `v1.0.0-submission`.
 
+---
+
+## 2026-11-24 — Post-Phase 7 — Whole-Project Comprehensive Audit & Quality Polish
+- **AI-assisted**: yes (Antigravity).
+- **Files**: `Makefile`, `.github/workflows/ci.yml`, `demo/tsconfig.json`, `demo/package.json`, `demo/lib/safe.ts`, `demo/lib/scenario.ts`, `examples/c/main.c`, `scripts/golden.sh`, `scripts/fixtures-to-golden.sh`.
+- **What**: Executed full project audit and resolved portability, typechecking, and compilation warnings:
+  1. `Makefile`: Fixed `fmt` target syntax (`fe fmt ingots` and `fe fmt test` sequentially) to adhere to Fe 26.6.0 CLI single-path argument requirement.
+  2. `demo/`: Authored `tsconfig.json`, bound `chain: foundry` to Viem public and wallet clients in `safe.ts` and `scenario.ts` to satisfy strict TypeScript type checks; added `npm run typecheck` script.
+  3. `examples/c/main.c`: Silenced unused variable warnings with `(void)` casts; verified zero-warning build under `gcc -Wall -Wextra -Werror`.
+  4. `scripts/golden.sh` & `scripts/fixtures-to-golden.sh`: Added Windows host detection so scripts gracefully report platform native requirements and exit 0 instead of crashing.
+  5. `.github/workflows/ci.yml`: Added `fe fmt --check test` to the CI formatting job.
+- **Reviewed by human**: pending confirmation.
+
+
 
 
 

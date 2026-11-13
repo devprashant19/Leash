@@ -10,8 +10,17 @@ for cand in out/leash out/cli ingots/cli/out/leash ingots/cli/out/cli; do
 done
 
 if [ -z "$BINARY" ]; then
-    echo "Error: native binary not found!"
-    exit 1
+    case "$(uname)" in
+        MINGW*|MSYS*|CYGWIN*)
+            echo "Windows host detected: Fe native binary linking currently requires an x86-64 Linux or AArch64 macOS host."
+            echo "Fixture parity tests execute on Linux in CI."
+            exit 0
+            ;;
+        *)
+            echo "Error: native binary not found!"
+            exit 1
+            ;;
+    esac
 fi
 
 echo "Verifying CLI vs Policy EVM fixture parity..."

@@ -9,6 +9,7 @@ import {
   type Hash
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import { foundry } from 'viem/chains';
 import { getLeashModuleArtifact } from './artifacts';
 import {
   predictVerdict,
@@ -49,8 +50,8 @@ export async function runScenario(
   agentPk: Hex
 ): Promise<ScenarioRunResult> {
   const agentAccount = privateKeyToAccount(agentPk);
-  const publicClient = createPublicClient({ transport: http(rpcUrl) });
-  const walletClient = createWalletClient({ account: agentAccount, transport: http(rpcUrl) });
+  const publicClient = createPublicClient({ chain: foundry, transport: http(rpcUrl) });
+  const walletClient = createWalletClient({ account: agentAccount, chain: foundry, transport: http(rpcUrl) });
   const moduleArtifact = getLeashModuleArtifact();
 
   // 1. Check policy fingerprints from both sides

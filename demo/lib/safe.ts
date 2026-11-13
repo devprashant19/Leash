@@ -10,6 +10,7 @@ import {
   type Hash
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import { foundry } from 'viem/chains';
 import { getLeashModuleArtifact, getMockSafeArtifact, getMockErc20Artifact } from './artifacts';
 
 export interface DeployedEnvironment {
@@ -31,16 +32,19 @@ export async function setupLocalEnvironment(
   const agentAccount = privateKeyToAccount(agentPk);
 
   const publicClient = createPublicClient({
+    chain: foundry,
     transport: http(rpcUrl)
   });
 
   const walletClient = createWalletClient({
     account: ownerAccount,
+    chain: foundry,
     transport: http(rpcUrl)
   });
 
   const agentWallet = createWalletClient({
     account: agentAccount,
+    chain: foundry,
     transport: http(rpcUrl)
   });
 

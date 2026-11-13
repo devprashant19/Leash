@@ -14,6 +14,9 @@ int main(void) {
     val[24] = 0x00; val[25] = 0xb1; val[26] = 0xa2; val[27] = 0xbc;
     val[28] = 0x2e; val[29] = 0xc5; val[30] = 0x00; val[31] = 0x00;
 
+    (void)treasury;
+    (void)val;
+
     printf("Header and interface definitions verified.\n");
     return 0;
 }

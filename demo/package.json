@@ -4,6 +4,7 @@
   "description": "Leash Safe Module & CLI verification demo",
   "scripts": {
     "demo": "tsx local.ts",
+    "typecheck": "tsc --noEmit",
     "deploy:sepolia": "tsx deploy.ts",
     "agent:sepolia": "tsx agent.ts",
     "wizard": "tsx wizard.ts"

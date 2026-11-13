@@ -5,7 +5,8 @@ setup:
 	@echo "Fe 26.6.0 verified"
 
 fmt:
-	fe fmt ingots test
+	fe fmt ingots
+	fe fmt test
 
 check:
 	fe fmt --check ingots
