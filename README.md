@@ -13,6 +13,17 @@
 
 ## 1. Demo & Verification
 
+### Run it in the browser (Vercel)
+
+The Vercel page ([`web/index.html`](web/index.html) + [`api/`](api/)) lets anyone run Leash without installing anything:
+
+- **Run the 5-transaction demo**: each run deploys the Fe-compiled `MockSafe`, `LeashModule` and demo token into a fresh in-memory EVM, and the Fe-built `leash` binary predicts every verdict from the agent's on-chain state before the contract decides. The page shows the predictions next to the on-chain results, both policy fingerprints, and the balances before and after.
+- **Try your own transaction**: any target, value, calldata and operation; the Fe CLI's prediction and the contract's decision side by side.
+- **Links that run on open**: `/?run` (the demo), `/?try=1` (an over-cap transfer). API: `GET /api/demo`, `POST /api/check`, `GET /api/health`.
+
+Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run test:web` with `LEASH_REQUIRE_NATIVE=1` passes 10/10, with predictions from the bundled Fe binary. The CI `web` job repeats this on every push. Deploy steps: [`docs/deployment.md`](docs/deployment.md#0-vercel-the-page-judges-open).
+
+
 - **Video script**: scene-by-scene script and timings in [`docs/video-script.md`](docs/video-script.md).
 - **Interactive Visual Dashboard**: run `npx serve demo` and open `/dashboard/` (it reads `demo/run.json`), or open [`demo/dashboard/index.html`](demo/dashboard/index.html) directly to see the bundled run.
 - **Contract build metadata**: [`demo/deployments/LeashModule.metadata.json`](demo/deployments/LeashModule.metadata.json) (from `fe build --emit metadata`).

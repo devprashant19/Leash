@@ -1,13 +1,33 @@
 # Deployment Guide
 
-Leash runs in four places, and each one is free: a local Anvil chain, the Sepolia testnet, a static host for the dashboard, and GitHub Releases for the `leash` CLI binary.
+Leash runs in four places, and each one is free: a Vercel site where anyone can run the demo in the browser, a local Anvil chain, the Sepolia testnet, and GitHub Releases for the `leash` CLI binary.
 
 | Where | What runs there | Cost |
 | :--- | :--- | :--- |
+| Vercel (Hobby) | The interactive page: the full 5-transaction demo and "try your own transaction", on the Fe-compiled contracts and the Fe-built `leash` binary | Free; visitors need no account |
 | Local Anvil | Mock Safe, `LeashModule`, demo token, the 5-transaction scenario | Free |
 | Sepolia | The same contracts, driven by the scripted agent | Free (faucet test ETH) |
-| GitHub Pages, Cloudflare Pages, Netlify or Vercel | `demo/dashboard/` reading `demo/run.json` | Free tier |
 | GitHub Releases | Native `leash` binaries for Linux x86-64 and macOS arm64 | Free for public repos |
+
+## 0. Vercel (the page judges open)
+
+What it is:
+
+- `web/index.html`: the page, plus the recorded-run dashboard at `/dashboard/`.
+- `api/demo.ts`, `api/check.ts`, `api/health.ts`: Node functions. Each request deploys the Fe-compiled `MockSafe`, `LeashModule` and `MockErc20` (from `api/_assets/artifacts/`) into a fresh in-memory EVM (`@ethereumjs/vm`, Prague rules). Before each agent transaction, the bundled Fe-built binary (`api/_assets/leash-linux-x86_64`, from the `cli-v0.1.0` release) predicts the verdict from the agent's on-chain state. On Vercel the TypeScript mirror is switched off: if the binary cannot run, the request fails rather than fall back.
+- Nothing touches a real network, and no keys or environment variables are needed.
+
+Deploy:
+
+1. Import the GitHub repository at vercel.com/new. Framework preset: **Other**. `vercel.json` supplies the install command, build command, output directory and function settings, so leave those fields empty.
+2. Deploy. Or from a terminal: `npx vercel login`, then `npx vercel --prod` from the repo root.
+3. Open `<your-domain>/api/health`. It should report `"predictionSource":"fe-native"` and `"cliVersion":"leash 0.1.0 (fe 26.6.0)"`.
+
+Shareable links: `/?run` runs the demo on load, and `/?try=N` runs example N (0 = 0.05 ETH to the treasury, 1 = 0.2 ETH over the cap, 2 = transfer 50 tokens, 3 = transfer 101 tokens, 4 = unlimited approve, 5 = unlisted contract, 6 = delegatecall).
+
+Keep it in sync: after a Fe change, run `fe build && npm run sync:web` and commit `api/_assets/artifacts/`. To refresh the binary, run `gh release download <tag> -p leash-linux-x86_64 -D api/_assets --clobber`. The CI `web` job fails if either is stale.
+
+Run it locally: `npm ci && npm run build:web && npx tsx scripts/dev-web.ts`, then open `http://localhost:3000`. Run `npm run test:web` to check the functions without a server.
 
 ## 1. Local (Anvil)
 
@@ -54,9 +74,9 @@ The run prints `Prediction source: fe-native` when the predictions came from the
 2. Put its address in `demo/.env` as `SAFE_ADDRESS`, and deploy `LeashModule` with that Safe as its `_safe` constructor argument.
 3. In the Safe's Transaction Builder, send two transactions: `enableModule(<LeashModule address>)` to the Safe itself, then `setAgent(<agent>, <expiry>, <label>)` to `LeashModule`. Admin calls must come from the Safe, which `deploy.ts` cannot sign for a canonical Safe.
 
-## 3. Dashboard (static hosting)
+## 3. Dashboard only (static hosting)
 
-The dashboard is one static file, and it loads `../run.json`. Publish the whole `demo/` folder (without `node_modules`), and open `/dashboard/`.
+The Vercel site above already serves the dashboard at `/dashboard/`. To host only the dashboard elsewhere: it is one static file, and it loads `../run.json`. Publish the whole `demo/` folder (without `node_modules`), and open `/dashboard/`.
 
 - **GitHub Pages:** in the repo, go to Settings → Pages, deploy from a branch, and choose a branch whose root contains `dashboard/` and `run.json`. Copying `demo/dashboard` and `demo/run.json` into a `gh-pages` branch is the simplest way.
 - **Cloudflare Pages, Netlify or Vercel:** set the output directory to `demo`, with no build command.

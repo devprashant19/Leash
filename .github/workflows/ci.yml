@@ -137,3 +137,37 @@ jobs:
           name: demo-run-fe-native
           path: demo/run.local.json
 
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Fe
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/argotorg/fe/master/feup/feup.sh | bash -s -- --version "$FE_VERSION" --no-modify-path
+          echo "$HOME/.fe/bin" >> "$GITHUB_PATH"
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Fresh Fe build
+        run: |
+          fe build ingots/module
+          fe build ingots/testkit
+          fe build --backend native
+      - name: Web artifacts match the fresh Fe build
+        run: node scripts/sync-web-assets.mjs --check
+      - name: Bundled leash binary matches the fresh build
+        run: |
+          chmod +x api/_assets/leash-linux-x86_64
+          test "$(api/_assets/leash-linux-x86_64 fingerprint)" = "$(out/cli fingerprint)"
+          test "$(api/_assets/leash-linux-x86_64 --version)" = "$(out/cli --version)"
+      - name: Install, typecheck and build the Vercel site
+        run: |
+          npm ci
+          npm run typecheck:web
+          npm run build:web
+      - name: Web functions test (predictions from the bundled Fe binary)
+        env:
+          LEASH_REQUIRE_NATIVE: "1"
+        run: npm run test:web

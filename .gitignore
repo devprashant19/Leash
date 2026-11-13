@@ -10,3 +10,11 @@ demo/.env.*.local
 .env
 .env.*
 !.env.example
+node_modules
+
+# Vercel site
+node_modules/
+web/dist/
+.vercel
+
+.vercel

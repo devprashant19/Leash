@@ -1003,3 +1003,20 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
     - Found by this run and fixed: `scripts/compile-fail.sh` failed on CRLF endings from a Windows checkout (added `.gitattributes`: `*.sh text eol=lf`). The demo needed per-ingot `out/` folders; `demo/lib/artifacts.ts` now also reads the workspace `out/`.
     - The strict real-CLI demo is run by the CI `demo` job on every push.
 - **Reviewed by human**: pending confirmation.
+
+## 2026-11-13 — Vercel page: browser demo on the Fe-compiled contracts and the Fe-built CLI
+- **AI-assisted**: yes (Claude Code).
+- **Added**:
+  - `web/index.html`: the page.
+  - `api/{demo,check,health}.ts` with `api/_lib/{evm,leash,http}.ts`: Node functions running the Fe-compiled MockSafe, LeashModule and MockErc20 in a fresh in-memory EVM (`@ethereumjs/vm` 10.1.3, Prague rules) per request. Predictions come from the bundled `cli-v0.1.0` binary, given the agent's real on-chain state (`state()` → `--state`); on Vercel the TypeScript mirror is disabled.
+  - `vercel.json`, `.vercelignore`, a root `package.json` with pinned deps, `scripts/{sync-web-assets.mjs,build-web.mjs,dev-web.ts}`, `test/web/web_test.ts`, and a CI `web` job (artifact freshness, bundled-binary fingerprint and version, typecheck, build, strict web test).
+  - `demo/lib/scenario.ts` now exports `canonicalScenarios()`, shared by the Anvil and web demos.
+- **Found while building**:
+  - ethereumjs `runCall` increments the caller's nonce, so read-only calls use a dedicated reader address.
+  - `tryExecute` returns `(false, 15)` without an event once the breaker has tripped, so the verdict is read from the return data.
+- **Verification**:
+  - Windows: `npm run typecheck:web` clean; `npm run test:web` 9/9 (TS mirror, labelled).
+  - Local HTTP server: every route returns 200/400/405 as expected.
+  - Headless Chrome: the page renders at 1280 px and at 375 px with no horizontal overflow (measured `scrollWidth` = viewport).
+  - Amazon Linux 2023 + Node 22 container (`public.ecr.aws/lambda/nodejs:22`, glibc 2.34): the bundled binary runs; `VERCEL=1 LEASH_REQUIRE_NATIVE=1 npm run test:web` passes 10/10 with `fe-native` predictions; `build:web` produces `web/dist`.
+- **Reviewed by human**: pending confirmation.

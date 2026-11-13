@@ -34,49 +34,20 @@ export interface StepRecord {
   remainingEthWindowWei: string;
 }
 
-export interface ScenarioRunResult {
-  network: string;
-  moduleAddress: Address;
-  safeAddress: Address;
-  feVersion: string;
-  /** 'fe-native' = predictions came from the real Fe-built `leash` binary. */
-  predictionSource: PredictionSource;
-  fingerprintCli: string;
-  fingerprintChain: string;
-  fingerprintsMatch: boolean;
-  allStepsMatched: boolean;
-  steps: StepRecord[];
+export interface ScenarioTx {
+  i: number;
+  description: string;
+  to: Address;
+  value: bigint;
+  data: Hex;
+  operation: number;
 }
 
-export async function runScenario(
-  rpcUrl: string,
-  moduleAddress: Address,
-  safeAddress: Address,
-  agentPk: Hex,
-  chain: Chain = foundry
-): Promise<ScenarioRunResult> {
-  const agentAccount = privateKeyToAccount(agentPk);
-  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
-  const walletClient = createWalletClient({ account: agentAccount, chain, transport: http(rpcUrl) });
-  const source = predictionSource();
-  const fingerprintCli = cliFingerprint();
-  const moduleArtifact = getLeashModuleArtifact();
+const U256_MAX = 2n ** 256n - 1n;
 
-  // 1. Check policy fingerprints from both sides
-  const chainFingerprintBigInt = (await publicClient.readContract({
-    address: moduleAddress,
-    abi: moduleArtifact.abi,
-    functionName: 'fingerprint'
-  })) as bigint;
-
-  const hexFp = '0x' + chainFingerprintBigInt.toString(16).padStart(64, '0');
-  const fingerprintsMatch = hexFp.toLowerCase() === fingerprintCli.toLowerCase();
-
-  const steps: StepRecord[] = [];
-  const U256_MAX = 2n ** 256n - 1n;
-
-  // The 5 Canonical Scenario Transactions:
-  const scenarios = [
+/** The 5 canonical scenario transactions, shared by the Anvil demo and the web demo. */
+export function canonicalScenarios(): ScenarioTx[] {
+  return [
     {
       i: 1,
       description: 'Agent sends 0.05 ETH to authorized treasury',
@@ -124,6 +95,48 @@ export async function runScenario(
       operation: 0
     }
   ];
+}
+
+export interface ScenarioRunResult {
+  network: string;
+  moduleAddress: Address;
+  safeAddress: Address;
+  feVersion: string;
+  /** 'fe-native' = predictions came from the real Fe-built `leash` binary. */
+  predictionSource: PredictionSource;
+  fingerprintCli: string;
+  fingerprintChain: string;
+  fingerprintsMatch: boolean;
+  allStepsMatched: boolean;
+  steps: StepRecord[];
+}
+
+export async function runScenario(
+  rpcUrl: string,
+  moduleAddress: Address,
+  safeAddress: Address,
+  agentPk: Hex,
+  chain: Chain = foundry
+): Promise<ScenarioRunResult> {
+  const agentAccount = privateKeyToAccount(agentPk);
+  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+  const walletClient = createWalletClient({ account: agentAccount, chain, transport: http(rpcUrl) });
+  const source = predictionSource();
+  const fingerprintCli = cliFingerprint();
+  const moduleArtifact = getLeashModuleArtifact();
+
+  // 1. Check policy fingerprints from both sides
+  const chainFingerprintBigInt = (await publicClient.readContract({
+    address: moduleAddress,
+    abi: moduleArtifact.abi,
+    functionName: 'fingerprint'
+  })) as bigint;
+
+  const hexFp = '0x' + chainFingerprintBigInt.toString(16).padStart(64, '0');
+  const fingerprintsMatch = hexFp.toLowerCase() === fingerprintCli.toLowerCase();
+
+  const steps: StepRecord[] = [];
+  const scenarios = canonicalScenarios();
 
   let currentSpentWei = 0n;
 

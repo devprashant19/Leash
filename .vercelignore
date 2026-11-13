@@ -1,0 +1,8 @@
+# Not needed by the Vercel site (static page + api/ functions)
+node_modules
+demo/node_modules
+out
+ingots/*/out
+examples/rust/target
+spikes
+*.docx
