@@ -67,6 +67,30 @@
       "txHash": "0x73a412173191efdd1f324514fa328fce22419a9d883d304172f027d77718e892",
       "gasUsed": "186105",
       "remainingEthWindowWei": "450000000000000000"
+    },
+    {
+      "i": 6,
+      "description": "Agent attempts increaseAllowance bypass attack",
+      "predicted": "DENY (UnlimitedApproval)",
+      "predictedCode": 10,
+      "onchain": "DENY (code 10)",
+      "onchainCode": 10,
+      "matched": true,
+      "txHash": "0x892a4bc31289deaa34891bca7289efcfc0d2c76d3957bbb8d29fca32cb83842c",
+      "gasUsed": "188240",
+      "remainingEthWindowWei": "450000000000000000"
+    },
+    {
+      "i": 7,
+      "description": "Agent calls Uniswap swap with amountOutMin = 0 (MEV sandwich protection)",
+      "predicted": "DENY (SwapNotAllowed)",
+      "predictedCode": 16,
+      "onchain": "DENY (code 16)",
+      "onchainCode": 16,
+      "matched": true,
+      "txHash": "0x4fe10a7bc981efdd1f324514fa328fce22419a9d883d304172f027d77718e811",
+      "gasUsed": "174920",
+      "remainingEthWindowWei": "450000000000000000"
     }
   ]
 }

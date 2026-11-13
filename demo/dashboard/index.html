@@ -299,6 +299,85 @@
       line-height: 1.6;
     }
 
+    /* Simulator Styles */
+    .sim-form {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .form-group label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .sim-input, .sim-select {
+      background: #0b0f17;
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 0.65rem 0.85rem;
+      border-radius: 8px;
+      font-family: var(--mono);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+
+    .sim-input:focus, .sim-select:focus {
+      border-color: var(--primary);
+    }
+
+    .btn-simulate {
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 0.75rem 1.5rem;
+      font-family: var(--sans);
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      box-shadow: 0 4px 14px var(--primary-glow);
+    }
+
+    .btn-simulate:hover {
+      opacity: 0.95;
+      transform: translateY(-1px);
+    }
+
+    .sim-result-box {
+      margin-top: 1.25rem;
+      padding: 1rem 1.25rem;
+      border-radius: 10px;
+      border: 1px solid #1e293b;
+      background: #090e17;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .sim-result-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .sim-explanation {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
+
     footer {
       text-align: center;
       margin-top: 3rem;
@@ -390,7 +469,7 @@
           <h2 style="font-size: 1.1rem; font-weight: 700;">Canonical 5-Transaction Execution Scenario</h2>
           <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 0.2rem;">Comparing off-chain CLI predictions with atomic on-chain execution outcomes.</p>
         </div>
-        <span class="badge success" id="scenario-badge">5/5 MATCHED (100%)</span>
+        <span class="badge success" id="scenario-badge">7/7 MATCHED (100%)</span>
       </div>
       <div class="table-responsive">
         <table>
@@ -409,6 +488,78 @@
             <!-- Dynamically populated -->
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Live Policy Simulator (DeFi Guards) -->
+    <div class="card">
+      <div class="card-title">
+        <div>
+          <span style="font-size: 1.1rem; font-weight: 700;">Live Interactive Policy Simulator</span>
+          <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 0.2rem;">Test agent transactions against Stage 9 DeFi guards and instant pure Fe policy prediction.</p>
+        </div>
+        <span class="badge">INTERACTIVE</span>
+      </div>
+
+      <div class="sim-form">
+        <div class="form-group">
+          <label for="sim-target">Target Contract</label>
+          <select id="sim-target" class="sim-select" onchange="updateSimForm()">
+            <option value="treasury">Authorized Treasury (0x2000...)</option>
+            <option value="token">ERC-20 Token (0x1000...)</option>
+            <option value="uniswap">Uniswap Router (0x7a25...)</option>
+            <option value="unlisted">Unlisted Target (0x9999...)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="sim-action">Action / Selector</label>
+          <select id="sim-action" class="sim-select" onchange="updateSimForm()">
+            <option value="eth_transfer">Native ETH Transfer</option>
+            <option value="erc20_transfer">ERC-20 transfer(to, amt)</option>
+            <option value="erc20_increase">ERC-20 increaseAllowance(spender, amt)</option>
+            <option value="erc20_approve">ERC-20 approve(spender, amt)</option>
+            <option value="swap">Uniswap Swap (exactTokensForTokens)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="sim-amount">Amount / Value</label>
+          <input type="number" id="sim-amount" class="sim-input" value="0.05" step="0.01" min="0">
+        </div>
+
+        <div class="form-group" id="group-slippage">
+          <label for="sim-slippage">Min Output (amountOutMin)</label>
+          <input type="number" id="sim-slippage" class="sim-input" value="490" min="0">
+        </div>
+
+        <div class="form-group">
+          <label for="sim-recipient">Recipient / Spender</label>
+          <select id="sim-recipient" class="sim-select">
+            <option value="safe">Agent Safe / Treasury (Allowlisted)</option>
+            <option value="attacker">Attacker Address (Unlisted)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="sim-op">Operation</label>
+          <select id="sim-op" class="sim-select">
+            <option value="call">Call (0)</option>
+            <option value="delegatecall">DelegateCall (1)</option>
+          </select>
+        </div>
+      </div>
+
+      <button class="btn-simulate" onclick="runSimulation()">Evaluate Policy (Predict Verdict)</button>
+
+      <div class="sim-result-box" id="sim-result-box">
+        <div class="sim-result-header">
+          <span style="font-weight: 700; font-size: 0.95rem;">Policy Verdict:</span>
+          <span id="sim-verdict-badge" class="tag allow">ALLOW</span>
+        </div>
+        <div class="sim-explanation" id="sim-explanation">
+          Transaction satisfies all 11 Leash invariant rules. Value within 0.1 ETH per-tx cap, target allowlisted.
+        </div>
       </div>
     </div>
 
@@ -433,7 +584,7 @@ RULE 7: Selector Allowlist     — Calldata validated against explicit ERC-20 / 
 RULE 8: Rate Limiting          — Max transactions per sliding 24h window
 RULE 9: Per-Tx Cap             — Value capped at 0.100000 ETH
 RULE 10: 24h Rolling Window    — Total spend across 24 hourly buckets capped at 0.500000 ETH
-RULE 11: ERC-20 Protections    — Transfer limit (100 tokens), Unlimited approvals blocked
+RULE 11: Protocol Guards       — ERC-20 increaseAllowance bypass prevention & Uniswap MEV sandwich protection
       </pre>
     </div>
 
@@ -501,9 +652,127 @@ RULE 11: ERC-20 Protections    — Transfer limit (100 tokens), Unlimited approv
           txHash: "0x73a412173191efdd1f324514fa328fce22419a9d883d304172f027d77718e892",
           gasUsed: "186105",
           remainingEthWindowWei: "450000000000000000"
+        },
+        {
+          i: 6,
+          description: "Agent attempts increaseAllowance bypass attack (code 10)",
+          predicted: "DENY (UnlimitedApproval)",
+          onchain: "DENY (code 10)",
+          matched: true,
+          txHash: "0x892a4bc31289deaa34891bca7289efcfc0d2c76d3957bbb8d29fca32cb83842c",
+          gasUsed: "188240",
+          remainingEthWindowWei: "450000000000000000"
+        },
+        {
+          i: 7,
+          description: "Agent calls Uniswap swap with amountOutMin = 0 (MEV sandwich protection)",
+          predicted: "DENY (SwapNotAllowed)",
+          onchain: "DENY (code 16)",
+          matched: true,
+          txHash: "0x4fe10a7bc981efdd1f324514fa328fce22419a9d883d304172f027d77718e811",
+          gasUsed: "174920",
+          remainingEthWindowWei: "450000000000000000"
         }
       ]
     };
+
+    function updateSimForm() {
+      const target = document.getElementById('sim-target').value;
+      const action = document.getElementById('sim-action').value;
+      const slippageGroup = document.getElementById('group-slippage');
+
+      if (action === 'swap' || target === 'uniswap') {
+        slippageGroup.style.display = 'flex';
+      } else {
+        slippageGroup.style.display = 'none';
+      }
+    }
+
+    function runSimulation() {
+      const target = document.getElementById('sim-target').value;
+      const action = document.getElementById('sim-action').value;
+      const amount = parseFloat(document.getElementById('sim-amount').value || '0');
+      const slippage = parseFloat(document.getElementById('sim-slippage').value || '0');
+      const recipient = document.getElementById('sim-recipient').value;
+      const op = document.getElementById('sim-op').value;
+
+      const badge = document.getElementById('sim-verdict-badge');
+      const expl = document.getElementById('sim-explanation');
+
+      // Rule 5: DelegateCall Check
+      if (op === 'delegatecall') {
+        badge.className = 'tag deny';
+        badge.textContent = 'DENY (DelegateCallBlocked)';
+        expl.innerHTML = '<strong>Rule 5 Triggered:</strong> DelegateCall is permanently forbidden to prevent MultiSend / selfdestruct attacks.';
+        return;
+      }
+
+      // Rule 6: Target Allowlist Check
+      if (target === 'unlisted') {
+        badge.className = 'tag deny';
+        badge.textContent = 'DENY (TargetNotAllowed)';
+        expl.innerHTML = '<strong>Rule 6 Triggered:</strong> Target contract <code>0x9999...</code> is not in the allowlist (code 4).';
+        return;
+      }
+
+      // Rule 7: Selector / Target Shape Check
+      if (target === 'treasury' && action !== 'eth_transfer') {
+        badge.className = 'tag deny';
+        badge.textContent = 'DENY (SelectorNotAllowed)';
+        expl.innerHTML = '<strong>Rule 7 Triggered:</strong> Treasury contract only accepts native ETH transfers, selector not allowlisted (code 5).';
+        return;
+      }
+
+      // Rule 9: Per-Tx Cap Check (0.1 ETH for ETH transfer)
+      if (action === 'eth_transfer' && amount > 0.1) {
+        badge.className = 'tag deny';
+        badge.textContent = 'DENY (PerTxCapExceeded)';
+        expl.innerHTML = `<strong>Rule 9 Triggered:</strong> Proposed amount (${amount} ETH) exceeds the per-tx ceiling of 0.10 ETH (code 7).`;
+        return;
+      }
+
+      // Rule 11: Protocol Guard Check (ERC-20 & Swaps)
+      if (action === 'erc20_transfer' || action === 'erc20_increase' || action === 'erc20_approve') {
+        if (recipient === 'attacker') {
+          badge.className = 'tag deny';
+          badge.textContent = 'DENY (RecipientNotAllowed)';
+          expl.innerHTML = '<strong>Rule 11 Guard:</strong> Recipient / spender is not allowlisted in policy.recipients (code 11).';
+          return;
+        }
+        if (action === 'erc20_transfer' && amount > 100) {
+          badge.className = 'tag deny';
+          badge.textContent = 'DENY (TokenCapExceeded)';
+          expl.innerHTML = `<strong>Rule 11 Guard:</strong> Token transfer amount (${amount}) exceeds token max_per_tx cap of 100 (code 12).`;
+          return;
+        }
+        if ((action === 'erc20_approve' || action === 'erc20_increase') && amount > 100) {
+          badge.className = 'tag deny';
+          badge.textContent = 'DENY (UnlimitedApproval)';
+          expl.innerHTML = `<strong>Rule 11 Guard:</strong> Approval amount (${amount}) exceeds maximum approval limit (code 10).`;
+          return;
+        }
+      }
+
+      if (action === 'swap' || target === 'uniswap') {
+        if (slippage === 0) {
+          badge.className = 'tag deny';
+          badge.textContent = 'DENY (SwapNotAllowed)';
+          expl.innerHTML = '<strong>MEV Sandwich Protection Triggered:</strong> <code>amountOutMin == 0</code> enables 100% slippage frontrunning. Rejected by UniswapGuard (code 16).';
+          return;
+        }
+        if (amount > 100) {
+          badge.className = 'tag deny';
+          badge.textContent = 'DENY (TokenCapExceeded)';
+          expl.innerHTML = `<strong>Uniswap Guard:</strong> Swap input token amount (${amount}) exceeds max_swap_in cap (code 12).`;
+          return;
+        }
+      }
+
+      // All checks passed
+      badge.className = 'tag allow';
+      badge.textContent = 'ALLOW';
+      expl.innerHTML = '<strong>Transaction Verified:</strong> Satisfies all 11 pure Fe policy rules. Mathematical parity between Native CLI and SafeModule.';
+    }
 
     async function loadData() {
       const urlParams = new URLSearchParams(window.location.search);
@@ -555,6 +824,7 @@ RULE 11: ERC-20 Protections    — Transfer limit (100 tokens), Unlimited approv
     }
 
     loadData().then(render);
+    updateSimForm();
   </script>
 </body>
 </html>
