@@ -285,7 +285,7 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             let ledger = ledgers.get(key: agent)
             let st = AgentState {
                 paused,
-                tripped: false,
+                tripped: cfg.tripped,
                 expiry: cfg.expiry,
                 eth_window: ledger.eth_window,
                 last_action: Timestamp::from_seconds(0),
@@ -304,15 +304,22 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             }
             let ledger = ledgers.get(key: agent)
             let verdict = evaluate_tx(to, value, data, operation, paused, cfg, ledger, now)
-            let pol = policy::config::default_policy()
             let spent_win = policy::spent_in_window(ledger.eth_window, now)
-            let max_win = pol.max_per_window.as_wei()
+            let max_win = if cfg.max_per_window.as_wei() > 0 {
+                cfg.max_per_window.as_wei()
+            } else {
+                500_000_000_000_000_000
+            }
             let rem_win = if max_win > spent_win {
                 max_win - spent_win
             } else {
                 0
             }
-            let max_tx = pol.max_per_tx.as_wei()
+            let max_tx = if cfg.max_per_tx.as_wei() > 0 {
+                cfg.max_per_tx.as_wei()
+            } else {
+                100_000_000_000_000_000
+            }
             let rem_tx = if max_tx > value { max_tx - value } else { 0 }
             let code = match verdict {
                 Verdict::Allow => 0,

@@ -1,0 +1,81 @@
+use policy::{
+    Address,
+    AgentState,
+    DenyReason,
+    Operation,
+    SEL_UNISWAP_V2_SWAP_TOKENS,
+    SEL_UNISWAP_V3_EXACT_INPUT_SINGLE,
+    TargetKind,
+    TargetRule,
+    Timestamp,
+    Tx,
+    Verdict,
+    Wei,
+    decide,
+    default_policy,
+}
+use testkit::{
+    addr_attacker,
+    addr_treasury,
+    addr_uniswap_router,
+    uniswap_v2_swap,
+    uniswap_v3_exact_input_single,
+}
+
+#[test]
+pub fn test_attack_20_swap_recipient_diversion() {
+    var pol = default_policy()
+    let router = addr_uniswap_router()
+
+    var selectors: [u32; 8] = [0; 8]
+    selectors[0] = SEL_UNISWAP_V2_SWAP_TOKENS
+    selectors[1] = SEL_UNISWAP_V3_EXACT_INPUT_SINGLE
+
+    pol.targets[1] = TargetRule {
+        target: router,
+        kind: TargetKind::UniswapRouter,
+        allow_eth_transfer: false,
+        delegate_ok: false,
+        n_selectors: 2,
+        selectors,
+    }
+    pol.n_targets = 2
+
+    var state = AgentState::empty()
+    state.expiry = Timestamp::from_seconds(2_000_000_000)
+
+    // 1. Attacker calls an unapproved method or zero slippage on Uniswap Router -> SwapNotAllowed
+    let bad_swap = uniswap_v2_swap(amount_in: 500, amount_out_min: 0)
+    let tx_bad = Tx {
+        to: router,
+        value: Wei::zero(),
+        data: bad_swap,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx_bad, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::SwapNotAllowed => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // 2. Legitimate swap with proper slippage tolerance (> 0) -> Allowed
+    let legit_swap = uniswap_v3_exact_input_single(amount_in: 500, amount_out_min: 495)
+    let tx_ok = Tx {
+        to: router,
+        value: Wei::zero(),
+        data: legit_swap,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx_ok, pol, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+}

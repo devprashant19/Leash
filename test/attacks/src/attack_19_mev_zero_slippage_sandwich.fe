@@ -1,0 +1,117 @@
+use policy::{
+    Address,
+    AgentState,
+    DenyReason,
+    Operation,
+    SEL_UNISWAP_V2_SWAP_TOKENS,
+    SEL_UNISWAP_V3_EXACT_INPUT_SINGLE,
+    TargetKind,
+    TargetRule,
+    Timestamp,
+    Tx,
+    Verdict,
+    Wei,
+    decide,
+    default_policy,
+}
+use testkit::{addr_uniswap_router, uniswap_v2_swap, uniswap_v3_exact_input_single}
+
+#[test]
+pub fn test_attack_19_mev_zero_slippage_sandwich() {
+    var pol = default_policy()
+    let router = addr_uniswap_router()
+
+    // Configure Uniswap Router target
+    var selectors: [u32; 8] = [0; 8]
+    selectors[0] = SEL_UNISWAP_V2_SWAP_TOKENS
+    selectors[1] = SEL_UNISWAP_V3_EXACT_INPUT_SINGLE
+
+    pol.targets[1] = TargetRule {
+        target: router,
+        kind: TargetKind::UniswapRouter,
+        allow_eth_transfer: false,
+        delegate_ok: false,
+        n_selectors: 2,
+        selectors,
+    }
+    pol.n_targets = 2
+
+    var state = AgentState::empty()
+    state.expiry = Timestamp::from_seconds(2_000_000_000)
+
+    // 1. Attacker attempts V2 swap with zero minimum output (sandwich vulnerability)
+    let bad_v2_data = uniswap_v2_swap(amount_in: 1000, amount_out_min: 0)
+    let tx_v2_zero = Tx {
+        to: router,
+        value: Wei::zero(),
+        data: bad_v2_data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx_v2_zero, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::SwapNotAllowed => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // 2. Attacker attempts V3 swap with zero minimum output
+    let bad_v3_data = uniswap_v3_exact_input_single(amount_in: 1000, amount_out_min: 0)
+    let tx_v3_zero = Tx {
+        to: router,
+        value: Wei::zero(),
+        data: bad_v3_data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx_v3_zero, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::SwapNotAllowed => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // 3. Swap with valid minimum output -> Allowed
+    let ok_v2_data = uniswap_v2_swap(amount_in: 500, amount_out_min: 490)
+    let tx_v2_ok = Tx {
+        to: router,
+        value: Wei::zero(),
+        data: ok_v2_data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx_v2_ok, pol, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+
+    // 4. Swap with amount exceeding token cap -> Denied with TokenCapExceeded
+    let max_token = pol.tokens[0].max_per_tx.as_u256()
+    let over_cap_swap = uniswap_v2_swap(amount_in: max_token + 1, amount_out_min: max_token)
+    let tx_over = Tx {
+        to: router,
+        value: Wei::zero(),
+        data: over_cap_swap,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx_over, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::TokenCapExceeded => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+}
