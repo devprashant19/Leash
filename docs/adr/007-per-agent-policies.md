@@ -21,3 +21,6 @@ Storing a full 138-word `Policy` struct per agent in EVM contract storage would 
 - **Security**: Strict isolation prevents compromised low-trust agents from exhausting higher-trust agent budgets.
 - **Gas & Size**: Minimal storage footprint (<2 storage slots per agent configuration), keeping `LeashModule` well under the EIP-170 bytecode threshold.
 - **Parity**: Identical fingerprint generation guarantees that `leash check` and `LeashModule` produce the exact same verdicts.
+
+## Status
+Accepted.

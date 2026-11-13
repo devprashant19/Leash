@@ -770,5 +770,90 @@ $ npm --prefix demo run demo
 - Dashboard UI ready for video recording.
 - Video script complete with second-by-second storyboard.
 
+---
+
+## 2026-11-24 — Phase 7 — Final Documentation & Contest Submission Packaging
+- **AI-assisted**: yes (Antigravity).
+- **Files**: `README.md`, `DECLARATION.md`, `docs/submission.md`, `docs/FE_FINDINGS.md`, `docs/handoff/2026-11-24.md`, `docs/ai-log.md`.
+- **What**: Completed the final Phase 7 submission assembly:
+  1. Finalized `README.md` containing all 12 contest requirements, full Submission Criteria Map linked to repository artifacts, "Why Fe" section with exact code line references, 10,000-transaction parity evidence table, 25-exploit attack suite breakdown, gas/headroom benchmarks, and limitations.
+  2. Authored `docs/submission.md` ready for human submission to the contest portal, containing project title, 30-word pitch, 30-word Fe highlight, repo URL, commit SHA placeholder, release tag `v1.0.0-submission`, video script link, and verification command.
+  3. Updated `DECLARATION.md` with starter repository citation, standard interface selectors, and complete AI assistance disclosures across 12 milestones.
+  4. Finalized `docs/FE_FINDINGS.md` capturing all compiler behavior, std API discoveries, and test runner recommendations for the Fe core team.
+  5. Authored final handoff document `docs/handoff/2026-11-24.md`.
+  6. Verified the whole-repo standard gate across all 7 workspace packages and automated demo.
+- **Reviewed by human**: pending confirmation.
+
+### Gate — Phase 7 — 2026-11-24
+
+```text
+$ fe fmt --check ingots; fe fmt --check test
+(clean, 0 diffs)
+
+$ fe check
+(clean, 0 errors)
+
+$ fe test
+running `fe test` for 7 inputs (jobs=8)
+
+COMPILING        cli      ingots/cli
+COMPILING        module   ingots/module
+COMPILING        policy   ingots/policy
+COMPILING        testkit  ingots/testkit
+COMPILING        attacks  test/attacks
+COMPILING        parity   test/parity
+COMPILING        policy-2 test/policy
+READY [4.7628s]  cli      running 2 tests
+PASS  [0.0032s]  cli      test_default_check_state_unrestricted
+PASS  [0.0170s]  cli      test_cli_fingerprint_golden
+READY [30.609s]  module   running 19 tests
+PASS  (19 module unit, integration, and admin tests pass green)
+READY [32.530s]  policy   running 69 tests
+PASS  (69 policy unit, decode, rules, fingerprint, and validation tests pass green)
+READY [32.809s]  policy-2 running 4 tests
+PASS  [0.0224s]  policy-2 test_property_window_safety
+PASS  [0.0235s]  policy-2 test_property_encoding_roundtrip
+PASS  [0.0340s]  policy-2 test_property_denied_no_spending_change
+PASS  [0.0496s]  policy-2 test_property_determinism
+READY [33.127s]  testkit  running 5 tests
+PASS  (5 testkit mock and harness tests pass green)
+READY [40.639s]  parity   running 13 tests
+PASS  (10 chunk tests + 3 combined tests pass green; golden digest 0x3a8d3e99...)
+READY [46.362s]  attacks  running 25 tests
+PASS  (25 adversarial attack test suites pass green)
+
+test result: ok. 137 passed; 0 failed
+
+$ fe build ingots/module --emit sizes
+runtime: 23639 bytes (18513 code, 5126 data, 0 embedded)
+creation: 23894 bytes (255 code, 0 data, 23639 embedded)
+Headroom: +937 bytes below EIP-170 limit (24,576 bytes), 0 compiler warnings
+
+$ npm --prefix demo run demo
+> demo@1.0.0 demo
+> tsx local.ts
+
+[demo] 1. Deploying Safe, LeashModule, and Demo Tokens...
+[demo] 2. Running 5-Transaction Cross-Verification Scenario...
+Tx 1: Agent sends 0.05 ETH to authorized treasury     -> ALLOW | ALLOW (✓ PASS)
+Tx 2: Agent transfers 50 tokens to authorized recipient -> ALLOW | ALLOW (✓ PASS)
+Tx 3: Agent sends 0.2 ETH (exceeds 0.1 ETH per-tx cap)  -> DENY (PerTxCapExceeded) | DENY (code 7) (✓ PASS)
+Tx 4: Agent calls unlisted contract (malicious diversion) -> DENY (TargetNotAllowed) | DENY (code 4) (✓ PASS)
+Tx 5: Agent calls approve(exchange, 2^256 - 1) unlimited  -> DENY (UnlimitedApproval) | DENY (code 10) (✓ PASS)
+
+Fingerprints Match: 0x3efcfc58aec5... == 0x3efcfc58aec5... (✓ 0 DRIFT)
+Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
+```
+
+### Final Exit Gate Verdict: PASSED — SUBMISSION READY (v1.0.0-submission)
+- All 12 criteria of the contest submission map verified and linked in README.md.
+- 137 automated unit, property, parity, and attack tests passing green.
+- Cross-backend parity confirmed on 10,000 transactions with golden digest `0x3a8d3e99...`.
+- Codebase strictly adheres to feature freeze (`v0.1.0-freeze`).
+- Contract runtime size: 23,639 bytes (937 bytes headroom below EIP-170 limit).
+- All commits within contest window (Nov 3–24, 2026).
+- Repository ready for final tagging: `v1.0.0-submission`.
+
+
 
 

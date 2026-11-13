@@ -68,4 +68,12 @@
 5. **EVM Gas Limits in Off-chain Test Harnesses**:
    - Running 10,000 complex cryptographic transactions in a single EVM contract execution exceeds standard gas limits (30M gas).
    - Solution: Sharding the parity suite into 10 deterministic chunks of 1,000 transactions with rolling seeds (`PARITY_SEED + chunk_idx`) allows instant verification across both EVM and native backends (~0.35s per chunk) with rolling Keccak-256 state continuity.
+6. **Zero-Field Message Variant Syntax**:
+   - Calling or matching a zero-field message variant requires empty braces syntax `ReenterMsg::Ping {}` rather than bare identifier `ReenterMsg::Ping`. Omitting braces causes compiler error `expected unit variant ... Consider using Ping { } instead`.
+7. **Explicit Error Selectors in Tests**:
+   - Using bare `#[test(should_revert)]` without a selector accepts any revert, including unrelated errors like `TargetNotAllowed` or out-of-gas.
+   - Pinned selector verification `#[test(should_revert, selector = 0x...)]` ensures the revert is caused by the exact expected custom error (e.g. `0xed3ba6a6` for `Reentrant()`).
+8. **Duration and Time Helpers**:
+   - In Fe std, `Duration` creation helper functions are defined as `seconds(u64)` rather than associated methods like `Duration::from_seconds(u64)`.
+
 
