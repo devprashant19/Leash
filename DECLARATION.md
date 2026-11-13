@@ -11,9 +11,14 @@
 - **ERC-20 Interface**: Standard selectors for:
   - `transfer(address,uint256)` (`0xa9059cbb`)
   - `approve(address,uint256)` (`0x095ea7b3`)
-  - `transferFrom(address,address,uint256)` (`0x23b872dd`)
+  - `transferFrom(address,address,uint256)` (`0x23b87266`)
+  - `increaseAllowance(address,uint256)` (`0x39509351`)
+  - `decreaseAllowance(address,uint256)` (`0xa457c2d7`)
   - `balanceOf(address)` (`0x70a08231`)
   - `allowance(address,address)` (`0xdd62ed3e`)
+- **DeFi & Router Interfaces**: Standard selectors for:
+  - Uniswap V2 `swapExactTokensForTokens(uint256,uint256,address[],address,uint256)` (`0x38ed1739`)
+  - Uniswap V3 `exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))` (`0x04e45aaf`)
 - **Standard Library**: Fe standard library modules (`core`, `std`) from `argotorg/fe` tag `v26.6.0`.
 - **Foundry Tools**: Anvil local testnet and Cast CLI from Foundry v1.9.0.
 

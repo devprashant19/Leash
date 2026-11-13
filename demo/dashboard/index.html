@@ -469,7 +469,7 @@
           <h2 style="font-size: 1.1rem; font-weight: 700;">Canonical 5-Transaction Execution Scenario</h2>
           <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 0.2rem;">Comparing off-chain CLI predictions with atomic on-chain execution outcomes.</p>
         </div>
-        <span class="badge success" id="scenario-badge">7/7 MATCHED (100%)</span>
+        <span class="badge success" id="scenario-badge">5/5 MATCHED (100%)</span>
       </div>
       <div class="table-responsive">
         <table>
@@ -652,26 +652,6 @@ RULE 11: Protocol Guards       — ERC-20 increaseAllowance bypass prevention & 
           txHash: "0x73a412173191efdd1f324514fa328fce22419a9d883d304172f027d77718e892",
           gasUsed: "186105",
           remainingEthWindowWei: "450000000000000000"
-        },
-        {
-          i: 6,
-          description: "Agent attempts increaseAllowance bypass attack (code 10)",
-          predicted: "DENY (UnlimitedApproval)",
-          onchain: "DENY (code 10)",
-          matched: true,
-          txHash: "0x892a4bc31289deaa34891bca7289efcfc0d2c76d3957bbb8d29fca32cb83842c",
-          gasUsed: "188240",
-          remainingEthWindowWei: "450000000000000000"
-        },
-        {
-          i: 7,
-          description: "Agent calls Uniswap swap with amountOutMin = 0 (MEV sandwich protection)",
-          predicted: "DENY (SwapNotAllowed)",
-          onchain: "DENY (code 16)",
-          matched: true,
-          txHash: "0x4fe10a7bc981efdd1f324514fa328fce22419a9d883d304172f027d77718e811",
-          gasUsed: "174920",
-          remainingEthWindowWei: "450000000000000000"
         }
       ]
     };
@@ -792,6 +772,9 @@ RULE 11: Protocol Guards       — ERC-20 increaseAllowance bypass prevention & 
       document.getElementById('network-badge').textContent = (data.network || 'LOCAL').toUpperCase();
       document.getElementById('fp-cli').textContent = data.fingerprintCli || '0x3efcfc58...';
       document.getElementById('fp-chain').textContent = data.fingerprintChain || '0x3efcfc58...';
+
+      const matchedCount = data.steps.filter(s => s.matched).length;
+      document.getElementById('scenario-badge').textContent = `${matchedCount}/${data.steps.length} MATCHED (${Math.round((matchedCount / data.steps.length) * 100)}%)`;
 
       const tbody = document.getElementById('scenario-tbody');
       tbody.innerHTML = '';

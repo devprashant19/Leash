@@ -16,8 +16,8 @@
       "onchain": "ALLOW",
       "onchainCode": 0,
       "matched": true,
-      "txHash": "0x51fd6bdb51da41bfc6efc9587cb7e8ff1e898d93bc9efa2f9b0dd35972d4b5fb",
-      "gasUsed": "281928",
+      "txHash": "0xc8e3e74ceb0b8df37d4f20268061737b4072679fc6cf50713f5c68207bbd694e",
+      "gasUsed": "280202",
       "remainingEthWindowWei": "450000000000000000"
     },
     {
@@ -28,8 +28,8 @@
       "onchain": "ALLOW",
       "onchainCode": 0,
       "matched": true,
-      "txHash": "0xa36fc47b1089005b65edce6369b1ea1121a8e4490cabb4670b51777280f1b7e8",
-      "gasUsed": "206414",
+      "txHash": "0x1fa58098f541dcdd1cdc04f09a61c3cdccf5ce6e8dfc8c5df1a882be02c07f89",
+      "gasUsed": "204813",
       "remainingEthWindowWei": "450000000000000000"
     },
     {
@@ -40,8 +40,8 @@
       "onchain": "DENY (code 7)",
       "onchainCode": 7,
       "matched": true,
-      "txHash": "0xb212782dc1554e777f9be3fc7f78299a3d1ebcd94321f5d9cbb2ba99d7b3edec",
-      "gasUsed": "177148",
+      "txHash": "0xade21934880a96735e639e9f379fba1e671643d678f8d0da570c10ad6d5050d1",
+      "gasUsed": "175401",
       "remainingEthWindowWei": "450000000000000000"
     },
     {
@@ -52,8 +52,8 @@
       "onchain": "DENY (code 4)",
       "onchainCode": 4,
       "matched": true,
-      "txHash": "0xab3bb9040cd276359263c6534efcfc0d2c76d3957bbb8d29fca32cb83842b39c",
-      "gasUsed": "159631",
+      "txHash": "0xb27308a1dd70762c51e9ad19cbaab31ec8ca82b9397677083d724f0b7affa8ab",
+      "gasUsed": "157884",
       "remainingEthWindowWei": "450000000000000000"
     },
     {
@@ -64,32 +64,8 @@
       "onchain": "DENY (code 10)",
       "onchainCode": 10,
       "matched": true,
-      "txHash": "0x73a412173191efdd1f324514fa328fce22419a9d883d304172f027d77718e892",
-      "gasUsed": "186105",
-      "remainingEthWindowWei": "450000000000000000"
-    },
-    {
-      "i": 6,
-      "description": "Agent attempts increaseAllowance bypass attack",
-      "predicted": "DENY (UnlimitedApproval)",
-      "predictedCode": 10,
-      "onchain": "DENY (code 10)",
-      "onchainCode": 10,
-      "matched": true,
-      "txHash": "0x892a4bc31289deaa34891bca7289efcfc0d2c76d3957bbb8d29fca32cb83842c",
-      "gasUsed": "188240",
-      "remainingEthWindowWei": "450000000000000000"
-    },
-    {
-      "i": 7,
-      "description": "Agent calls Uniswap swap with amountOutMin = 0 (MEV sandwich protection)",
-      "predicted": "DENY (SwapNotAllowed)",
-      "predictedCode": 16,
-      "onchain": "DENY (code 16)",
-      "onchainCode": 16,
-      "matched": true,
-      "txHash": "0x4fe10a7bc981efdd1f324514fa328fce22419a9d883d304172f027d77718e811",
-      "gasUsed": "174920",
+      "txHash": "0x1a23a8ca59c6bde889cfd758ac1d5868061d4ea344e944ae1978bc90f5888c27",
+      "gasUsed": "184406",
       "remainingEthWindowWei": "450000000000000000"
     }
   ]
