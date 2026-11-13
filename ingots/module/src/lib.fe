@@ -71,11 +71,6 @@ pub msg LeashMsg {
     ResetBreaker { agent: Address },
 }
 
-pub enum ExecOutcome {
-    Success,
-    Denied(policy::DenyReason),
-}
-
 fn extract_selector(_ data: ref Bytes) -> u32 {
     if data.len() < 4 {
         0
@@ -89,16 +84,17 @@ fn extract_selector(_ data: ref Bytes) -> u32 {
     }
 }
 
-fn evaluate_tx(
+fn eval_tx(
     _ to: Address,
     _ value: u256,
     _ data: ref Bytes,
     _ operation: u8,
     _ paused: bool,
     _ cfg: ref AgentConfig,
-    _ ledger: ref AgentLedger,
+    ledger: mut AgentLedger,
     _ now: Timestamp,
-) -> Verdict {
+    _ record: bool,
+) -> (u8, Verdict) {
     let pol = policy::config::policy_for_agent(cfg.max_per_tx, cfg.max_per_window)
     let st = AgentState {
         paused,
@@ -106,15 +102,27 @@ fn evaluate_tx(
         expiry: cfg.expiry,
         eth_window: ledger.eth_window,
         last_action: Timestamp::from_seconds(0),
-        action_window: Window24::empty(),
+        action_window: ledger.eth_window,
     }
     let op = resolve_op(operation)
     let cd = policy::calldata_from_bytes(data)
     let tx = Tx { to, value: wei(value), data: cd, op, now }
-    policy::decide(tx, pol, st)
+    let verdict = policy::decide(tx, pol, st)
+
+    let code = match verdict {
+        Verdict::Allow => {
+            if record && value > 0 {
+                policy::record_spend(mut ledger.eth_window, now, value)
+            }
+            0
+        },
+        Verdict::Deny(r) => policy::reason_code(r),
+    }
+
+    (code, verdict)
 }
 
-fn execute_tx(
+fn run_tx(
     safe: Address,
     agent: Address,
     to: Address,
@@ -122,20 +130,39 @@ fn execute_tx(
     data: Bytes,
     operation: u8,
     paused: bool,
-    cfg: AgentConfig,
+    cfg: mut AgentConfig,
     ledger: mut AgentLedger,
     now: Timestamp,
-) -> ExecOutcome
+    should_revert: bool,
+) -> (bool, u8)
 uses (call: mut Call, log: mut Log)
 {
-    let verdict = evaluate_tx(to, value, data, operation, paused, cfg, ledger, now)
-
+    let (code, verdict) = eval_tx(
+        to,
+        value,
+        data,
+        operation,
+        paused,
+        cfg,
+        mut ledger,
+        now,
+        record: true,
+    )
     match verdict {
-        Verdict::Deny(r) => ExecOutcome::Denied(r),
-        Verdict::Allow => {
-            if value > 0 {
-                policy::record_spend(mut ledger.eth_window, now, value)
+        Verdict::Deny(r) => {
+            if should_revert {
+                revert_for(r)
+            } else {
+                cfg.denials += 1
+                if cfg.denials >= 3 {
+                    cfg.tripped = true
+                    log.emit(CircuitTrippedEvent { agent })
+                }
+                log.emit(Denied { agent, target: to, code })
+                (false, code)
             }
+        },
+        Verdict::Allow => {
             let sel = extract_selector(data)
             log.emit(Allowed { agent, target: to, value, selector: sel })
             let success: bool = call
@@ -153,9 +180,19 @@ uses (call: mut Call, log: mut Log)
             if !success {
                 revert_error(SafeCallFailed {})
             }
-            ExecOutcome::Success
+            (true, 0)
         },
     }
+}
+
+fn require_safe(_ caller: Address, _ safe: Address) {
+    if caller != safe {
+        revert_error(NotSafe {})
+    }
+}
+
+fn remaining(_ cap: u256, _ spent: u256) -> u256 {
+    if cap > spent { cap - spent } else { 0 }
 }
 
 pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
@@ -189,17 +226,13 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
         }
 
         Unpause uses (ctx, safe, mut paused, mut log) {
-            if ctx.caller() != safe {
-                revert_error(NotSafe {})
-            }
+            require_safe(ctx.caller(), safe)
             paused = false
             log.emit(UnpausedEvent {})
         }
 
         SetAgent { agent, expiry, label } uses (ctx, safe, mut agents, mut log) {
-            if ctx.caller() != safe {
-                revert_error(NotSafe {})
-            }
+            require_safe(ctx.caller(), safe)
             if expiry <= ctx.timestamp() {
                 revert_error(InvalidExpiry {})
             }
@@ -223,9 +256,7 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
         SetAgentPolicy { agent, max_per_tx, max_per_window, custom_fingerprint }
         uses (ctx, safe, mut agents)
         {
-            if ctx.caller() != safe {
-                revert_error(NotSafe {})
-            }
+            require_safe(ctx.caller(), safe)
             var cfg = agents.get(key: agent)
             if !cfg.active {
                 revert_error(NotAgent {})
@@ -237,9 +268,7 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
         }
 
         RevokeAgent { agent } uses (ctx, safe, mut agents, mut log) {
-            if ctx.caller() != safe {
-                revert_error(NotSafe {})
-            }
+            require_safe(ctx.caller(), safe)
             var cfg = agents.get(key: agent)
             cfg.active = false
             agents.set(key: agent, value: cfg)
@@ -247,9 +276,7 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
         }
 
         SetGuardian { guardian_addr } uses (ctx, safe, mut guardian, mut log) {
-            if ctx.caller() != safe {
-                revert_error(NotSafe {})
-            }
+            require_safe(ctx.caller(), safe)
             if guardian_addr == Address::zero() {
                 revert_error(ZeroAddress {})
             }
@@ -271,9 +298,7 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
         }
 
         ResetBreaker { agent } uses (ctx, safe, mut agents, mut log) {
-            if ctx.caller() != safe {
-                revert_error(NotSafe {})
-            }
+            require_safe(ctx.caller(), safe)
             var cfg = agents.get(key: agent)
             cfg.tripped = false
             cfg.denials = 0
@@ -284,15 +309,21 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
         State { agent } -> [u256; 52] uses (agents, ledgers, paused) {
             let cfg = agents.get(key: agent)
             let ledger = ledgers.get(key: agent)
-            let st = AgentState {
-                paused,
-                tripped: cfg.tripped,
-                expiry: cfg.expiry,
-                eth_window: ledger.eth_window,
-                last_action: Timestamp::from_seconds(0),
-                action_window: Window24::empty(),
+            var words: [u256; 52] = [0; 52]
+            words[0] = if paused { 1 } else { 0 }
+            words[1] = if cfg.tripped { 1 } else { 0 }
+            words[2] = cfg.expiry.as_seconds()
+            var b: usize = 0
+            var idx: usize = 3
+            while b < 24 {
+                words[idx] = ledger.eth_window.buckets[b].index as u256
+                idx += 1
+                words[idx] = ledger.eth_window.buckets[b].amount
+                idx += 1
+                b += 1
             }
-            policy::encoding::encode_state(st)
+            words[51] = 0
+            words
         }
 
         Preview { agent, to, value, data, operation } -> (u8, u256, u256)
@@ -303,29 +334,31 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             if !cfg.active {
                 return (policy::reason_code(policy::DenyReason::SessionExpired), 0, 0)
             }
-            let ledger = ledgers.get(key: agent)
-            let verdict = evaluate_tx(to, value, data, operation, paused, cfg, ledger, now)
+            var ledger = ledgers.get(key: agent)
+            let (code, _v) = eval_tx(
+                to,
+                value,
+                data,
+                operation,
+                paused,
+                cfg,
+                mut ledger,
+                now,
+                record: false,
+            )
             let spent_win = policy::spent_in_window(ledger.eth_window, now)
             let max_win = if cfg.max_per_window.as_wei() > 0 {
                 cfg.max_per_window.as_wei()
             } else {
                 500_000_000_000_000_000
             }
-            let rem_win = if max_win > spent_win {
-                max_win - spent_win
-            } else {
-                0
-            }
+            let rem_win = remaining(max_win, spent_win)
             let max_tx = if cfg.max_per_tx.as_wei() > 0 {
                 cfg.max_per_tx.as_wei()
             } else {
                 100_000_000_000_000_000
             }
-            let rem_tx = if max_tx > value { max_tx - value } else { 0 }
-            let code = match verdict {
-                Verdict::Allow => 0,
-                Verdict::Deny(r) => policy::reason_code(r),
-            }
+            let rem_tx = remaining(max_tx, value)
             (code, rem_tx, rem_win)
         }
 
@@ -338,7 +371,7 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             locked = true
 
             let agent = ctx.caller()
-            let cfg = agents.get(key: agent)
+            var cfg = agents.get(key: agent)
             if !cfg.active {
                 locked = false
                 revert_error(NotAgent {})
@@ -350,7 +383,7 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
 
             let now = ctx.timestamp()
             var ledger = ledgers.get(key: agent)
-            let outcome = execute_tx(
+            let (success, _code) = run_tx(
                 safe,
                 agent,
                 to,
@@ -358,21 +391,15 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
                 data,
                 operation,
                 paused,
-                cfg,
-                mut ledger,
+                cfg: mut cfg,
+                ledger: mut ledger,
                 now,
+                should_revert: true,
             )
 
             locked = false
-            match outcome {
-                ExecOutcome::Denied(r) => {
-                    revert_for(r)
-                },
-                ExecOutcome::Success => {
-                    ledgers.set(key: agent, value: ledger)
-                    true
-                },
-            }
+            ledgers.set(key: agent, value: ledger)
+            success
         }
 
         TryExecute { to, value, data, operation } -> (bool, u8)
@@ -396,7 +423,7 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
 
             let now = ctx.timestamp()
             var ledger = ledgers.get(key: agent)
-            let outcome = execute_tx(
+            let (success, code) = run_tx(
                 safe,
                 agent,
                 to,
@@ -404,29 +431,19 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
                 data,
                 operation,
                 paused,
-                cfg,
-                mut ledger,
+                cfg: mut cfg,
+                ledger: mut ledger,
                 now,
+                should_revert: false,
             )
 
             locked = false
-            match outcome {
-                ExecOutcome::Denied(r) => {
-                    let code = policy::reason_code(r)
-                    cfg.denials += 1
-                    if cfg.denials >= 3 {
-                        cfg.tripped = true
-                        log.emit(CircuitTrippedEvent { agent })
-                    }
-                    agents.set(key: agent, value: cfg)
-                    log.emit(Denied { agent, target: to, code })
-                    (false, code)
-                },
-                ExecOutcome::Success => {
-                    ledgers.set(key: agent, value: ledger)
-                    (true, 0)
-                },
+            if success {
+                ledgers.set(key: agent, value: ledger)
+            } else {
+                agents.set(key: agent, value: cfg)
             }
+            (success, code)
         }
     }
 }

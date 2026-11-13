@@ -9,7 +9,19 @@ use ingot::types::{
     SEL_TRANSFER_FROM,
     SEL_UNISWAP_V2_SWAP_TOKENS,
     SEL_UNISWAP_V3_EXACT_INPUT_SINGLE,
+    SEL_AAVE_WITHDRAW,
+    SEL_AAVE_SUPPLY,
+    SEL_AAVE_REPAY,
 }
+
+pub enum AaveCall {
+    Withdraw(Address, u256, Address),
+    Malformed,
+    Unknown,
+}
+
+impl Copy for AaveCall {}
+impl Snapshot for AaveCall {}
 
 pub enum Erc20Call {
     Transfer(Address, u256),
@@ -81,35 +93,27 @@ pub fn decode_erc20(_ data: ref Calldata) -> Erc20Call {
         },
     }
 
-    if sel == SEL_TRANSFER {
+    if sel == SEL_TRANSFER
+        || sel == SEL_APPROVE
+        || sel == SEL_INCREASE_ALLOWANCE
+        || sel == SEL_DECREASE_ALLOWANCE {
         if data.len != 68 {
             return Erc20Call::Malformed
         }
         if !is_address_word(data, offset: 4) {
             return Erc20Call::Malformed
         }
-        let to = read_address(data, offset: 4)
-        let amt = read_word(data, offset: 36)
-        Erc20Call::Transfer(to, amt)
-    } else if sel == SEL_APPROVE || sel == SEL_INCREASE_ALLOWANCE {
-        if data.len != 68 {
-            return Erc20Call::Malformed
+        let addr = read_address(data, offset: 4)
+        let amt = if sel == SEL_DECREASE_ALLOWANCE {
+            0
+        } else {
+            read_word(data, offset: 36)
         }
-        if !is_address_word(data, offset: 4) {
-            return Erc20Call::Malformed
+        if sel == SEL_TRANSFER {
+            Erc20Call::Transfer(addr, amt)
+        } else {
+            Erc20Call::Approve(addr, amt)
         }
-        let spender = read_address(data, offset: 4)
-        let amt = read_word(data, offset: 36)
-        Erc20Call::Approve(spender, amt)
-    } else if sel == SEL_DECREASE_ALLOWANCE {
-        if data.len != 68 {
-            return Erc20Call::Malformed
-        }
-        if !is_address_word(data, offset: 4) {
-            return Erc20Call::Malformed
-        }
-        let spender = read_address(data, offset: 4)
-        Erc20Call::Approve(spender, 0)
     } else if sel == SEL_TRANSFER_FROM {
         if data.len != 100 {
             return Erc20Call::Malformed
@@ -150,6 +154,34 @@ pub fn decode_swap(_ data: ref Calldata) -> SwapCall {
         SwapCall::ExactInput(amount_in, amount_out_min)
     } else {
         SwapCall::Unknown
+    }
+}
+
+pub fn decode_aave(_ data: ref Calldata) -> AaveCall {
+    if data.len < 4 {
+        return AaveCall::Malformed
+    }
+
+    let sel = match selector_of(data) {
+        Option::Some(s) => s,
+        Option::None => {
+            return AaveCall::Malformed
+        },
+    }
+
+    if sel == SEL_AAVE_WITHDRAW {
+        if data.len != 100 {
+            return AaveCall::Malformed
+        }
+        if !is_address_word(data, offset: 4) || !is_address_word(data, offset: 68) {
+            return AaveCall::Malformed
+        }
+        let asset = read_address(data, offset: 4)
+        let amount = read_word(data, offset: 36)
+        let to = read_address(data, offset: 68)
+        AaveCall::Withdraw(asset, amount, to)
+    } else {
+        AaveCall::Unknown
     }
 }
 

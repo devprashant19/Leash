@@ -1,4 +1,4 @@
-use ingot::rules::{check_erc20_guard, check_uniswap_guard}
+use ingot::rules::{check_aave_guard, check_erc20_guard, check_uniswap_guard}
 use ingot::types::{AgentState, DenyReason, Policy, TargetKind, Tx}
 
 pub trait ActionGuard {
@@ -39,5 +39,22 @@ impl ActionGuard for UniswapGuard {
         DenyReason,
     > {
         check_uniswap_guard(tx, policy, state)
+    }
+}
+
+pub struct AaveGuard {}
+
+impl ActionGuard for AaveGuard {
+    fn matches_kind(self, _ kind: TargetKind) -> bool {
+        match kind {
+            TargetKind::AavePool => true,
+            _ => false,
+        }
+    }
+
+    fn check_tx(self, _ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
+        DenyReason,
+    > {
+        check_aave_guard(tx, policy, state)
     }
 }

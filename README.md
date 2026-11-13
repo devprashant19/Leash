@@ -178,8 +178,11 @@ Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb7
 | **Machine-readable JSON Output** | D1 | Structured JSON verdict | N/A | `leash check --json` | **Shipped** |
 | **C Static Header Export** | D7 | `leash.h` / `main.c` bindings | N/A | C FFI | **Shipped** |
 | **Trading Hours Schedule** | A11 | `OutsideTradingHours` (14) | Roadmap | Roadmap | Stage 9 |
-| **Asymmetric Timelock** | B4 | 24h limit increase queue | Roadmap | Roadmap | Stage 10 |
-| **Uniswap & Lending Guards** | C1–C4 | Slippage & collateral limits | Roadmap | Roadmap | Stage 11 |
+| **Asymmetric Timelock** | B4 | 24h limit increase queue | Yes (`LeashQueue`) | Yes (`--timelock`) | **Shipped** (Stage 10) |
+| **Owner Co-signed Overrides** | B5 | EIP-712 structured bypass | Yes (`ExecuteWithOverride`) | Yes (`--override`) | **Shipped** (Stage 10) |
+| **Uniswap MEV & Slippage** | C1/C2 | Sandwich protection (`amountOutMin > 0`) | Yes (`SwapNotAllowed`) | Yes | **Shipped** (Stage 11) |
+| **Aave Lending Guard** | C3 | Collateral diversion protection | Yes (`TargetKind::AavePool`) | Yes | **Shipped** (Stage 11) |
+| **Oracle USD-Denominated Caps** | C4 | Chainlink staleness & USD caps | Yes (`decide_with_usd`) | Yes | **Shipped** (Stage 11) |
 
 ---
 
@@ -241,7 +244,7 @@ $$\text{PARITY\_GOLDEN\_DIGEST} = \mathtt{0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb8
 
 **Mutation Verification**: Flipping `>` to `>=` in `check_per_tx_cap` immediately failed 11 parity tests, verifying test sensitivity.
 
-### 31-Exploit Adversarial Attack Suite (E2)
+### 33-Exploit Adversarial Attack Suite (E2)
 Located in [`test/attacks/src/`](test/attacks/src/):
 - **Attack 01**: MultiSend DelegateCall Hijack → Rejected (`DelegateCallBlocked`)
 - **Attack 02**: Cap Evasion via Split Spends → Rejected (`WindowCapExceeded`)
@@ -264,10 +267,12 @@ Located in [`test/attacks/src/`](test/attacks/src/):
 - **Attack 20**: Swap Recipient Diversion & Slippage Verification → Validated against allowlist & minimum output
 - **Attack 21**: Owner Co-Signed Override Cap Exemption & Structural Security → Bypasses spend caps only; strictly enforces target allowlist, delegatecall block, and non-malleable signatures
 - **Attack 22**: Escalation Timelock Queue & Safe Veto Defense → Threshold violations queued with `EscalationRequired` (code 20); early execution blocked; Safe veto stops execution
+- **Attack 23**: Aave v3 Withdrawal Diversion Attack → Diversion of withdrawn collateral to unauthorized recipient rejected (`RecipientNotAllowed`, code 11); unlisted asset rejected (`LendingNotAllowed`, code 17)
+- **Attack 24**: Oracle Staleness & USD Spending Cap Evasion → Stale or zero oracle price feed rejected (`PriceUnavailable`, code 18); exceeding USD cap rejected (`UsdCapExceeded`, code 19)
 
 ### Bytecode Size & Headroom (E3)
-- **Runtime Code Size**: **24,362 bytes** (strictly below the 24,576-byte hard EIP-170 limit with 0 compiler warnings).
-- **EIP-170 Headroom**: **+214 bytes below 24,576-byte limit** while packing all 11 policy rules, ERC-20 hardening, and Uniswap MEV protection.
+- **Runtime Code Size**: **22,029 bytes** (strictly below the 24,576-byte hard EIP-170 limit with 0 compiler warnings).
+- **EIP-170 Headroom**: **+2,547 bytes below 24,576-byte limit** while packing all 11 policy rules, ERC-20 hardening, Uniswap MEV protection, and Aave lending controls.
 - **Initcode Size**: 24,620 bytes (< 49,152 bytes EIP-3860 limit).
 - Gas profiling details available in [`docs/GAS.md`](docs/GAS.md).
 

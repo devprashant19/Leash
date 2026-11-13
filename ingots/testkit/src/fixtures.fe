@@ -10,6 +10,7 @@ use policy::{
     SEL_TRANSFER_FROM,
     SEL_UNISWAP_V2_SWAP_TOKENS,
     SEL_UNISWAP_V3_EXACT_INPUT_SINGLE,
+    SEL_AAVE_WITHDRAW,
     Timestamp,
     default_policy,
 }
@@ -117,4 +118,17 @@ pub fn uniswap_v3_exact_input_single(amount_in: u256, amount_out_min: u256) -> C
     write_word(buf: mut buf, offset: 4, val: amount_in)
     write_word(buf: mut buf, offset: 36, val: amount_out_min)
     Calldata { len: 68, bytes: buf }
+}
+
+pub fn addr_aave_pool() -> Address {
+    Address::new(0x6ae43d3271ff6888e7fc43fd7321a503ff738951)
+}
+
+pub fn aave_withdraw(asset: Address, amount: u256, to: Address) -> Calldata {
+    var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    write_u32(buf: mut buf, offset: 0, val: SEL_AAVE_WITHDRAW)
+    write_word(buf: mut buf, offset: 4, val: asset.word())
+    write_word(buf: mut buf, offset: 36, val: amount)
+    write_word(buf: mut buf, offset: 68, val: to.word())
+    Calldata { len: 100, bytes: buf }
 }

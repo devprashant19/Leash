@@ -77,9 +77,9 @@ Every transaction evaluated by `policy::decide` follows a deterministic, non-bra
 - **Deny Reason**: `DenyReason::WindowCapExceeded`
 - **Edge cases**: Sums active hourly buckets where `bucket_index > current_index - 24`. Saturated checked addition prevents `u256` overflow.
 
-### 11. Protocol Guards (ERC-20 & Uniswap Router)
+### 11. Protocol Guards (ERC-20, Uniswap Router, and Aave Pool)
 - **Inputs**: `tx.data: Calldata`, `policy.tokens: [TokenRule; MAX_TOKENS]`, `policy.recipients: [Address; MAX_RECIPIENTS]`, `target.kind: TargetKind`
-- **Deny Reasons**: `TokenCapExceeded` (9), `UnlimitedApproval` (10), `RecipientNotAllowed` (11), `MalformedCalldata` (6), `SwapNotAllowed` (16)
+- **Deny Reasons**: `TokenCapExceeded` (9), `UnlimitedApproval` (10), `RecipientNotAllowed` (11), `MalformedCalldata` (6), `SwapNotAllowed` (16), `LendingNotAllowed` (17)
 - **ERC-20 Guard Edge Cases**:
   - Target must have a matching `TokenRule`; if missing, defaults to deny (`TokenCapExceeded`).
   - Calldata lengths: `transfer` must be exactly 68 bytes; `approve` exactly 68 bytes; `increaseAllowance` exactly 68 bytes; `decreaseAllowance` exactly 68 bytes; `transferFrom` exactly 100 bytes. Longer or shorter calldata returns `MalformedCalldata`.
@@ -91,8 +91,15 @@ Every transaction evaluated by `policy::decide` follows a deterministic, non-bra
   - Target kind `UniswapRouter` (`0x7a25...` or SwapRouter02).
   - Selectors: `SEL_UNISWAP_V2_SWAP_TOKENS` (`0x38ed1739`) and `SEL_UNISWAP_V3_EXACT_INPUT_SINGLE` (`0x04e45aaf`).
   - **MEV Sandwich Protection**: Zero minimum output (`amountOutMin == 0`) is strictly denied with `SwapNotAllowed` (code 16) to prevent 100% slippage frontrunning.
-  - Swap input amounts exceeding token caps return `TokenCapExceeded` (code 12).
+  - Swap input amounts exceeding token caps return `TokenCapExceeded` (code 9).
   - Unauthorized selectors on the router return `SwapNotAllowed` (code 16).
+- **Aave v3 Pool Guard Edge Cases**:
+  - Target kind `AavePool` (`0x6ae4...` or Pool v3).
+  - Selector: `withdraw(address,uint256,address)` (`0x69328dec`).
+  - Strict 100-byte calldata shape and address sanitization (`is_address_word`).
+  - Withdrawn destination `to` must be on recipient allowlist (`RecipientNotAllowed`, code 11) to prevent diverting collateral to attacker accounts.
+  - Withdrawn asset must be allowlisted in `policy.tokens` and must not exceed per-tx token cap (`TokenCapExceeded`, code 9).
+  - Unauthorized selectors on the pool return `LendingNotAllowed` (code 17).
 
 ### 12. EscalationRequired (`code 20`)
 - **Inputs**: `tx.value: Wei`, `escalation_threshold: Wei`
@@ -102,6 +109,14 @@ Every transaction evaluated by `policy::decide` follows a deterministic, non-bra
   - If `escalation_threshold > 0` and `tx.value > escalation_threshold`, execution direct from the agent is withheld with `EscalationRequired`.
   - Transaction enters `LeashQueue` with timelock delay (`ready_at = now + delay_sec`).
   - Safe owners can veto any queued transaction during the timelock window.
+
+### 13. USD-Denominated Caps (`decide_with_usd`)
+- **Inputs**: `tx.value: Wei`, `price_quote: Option<PriceQuote>`, `max_usd_per_tx: u256`, `max_price_age: Duration`
+- **Deny Reasons**: `PriceUnavailable` (18), `UsdCapExceeded` (19)
+- **Edge cases**:
+  - Missing oracle quote (`None`), zero price (`usd_per_eth_1e8 == 0`), futuristic timestamp (`tx.now < quote.updated_at`), or stale price (`tx.now > quote.updated_at + max_price_age`) returns `PriceUnavailable` (code 18).
+  - USD equivalent calculated via `(tx.value * quote.usd_per_eth_1e8) / 1e18`.
+  - Exceeding `max_usd_per_tx` returns `UsdCapExceeded` (code 19).
 
 ---
 

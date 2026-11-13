@@ -5,7 +5,13 @@ pub use types::*
 pub use config::*
 pub use decode::*
 pub use ledger::*
-pub use rules::{decide, decide_with_escalation, decide_with_override}
+pub use rules::{
+    check_aave_guard,
+    decide,
+    decide_with_escalation,
+    decide_with_override,
+    decide_with_usd,
+}
 pub use queue::{
     QueueAction,
     QueueError,
@@ -34,7 +40,7 @@ pub use encoding::{
 pub use fingerprint::{explain_reason, fingerprint}
 pub use validate::{PolicyCheck, check_code, check_name, validate}
 pub use budget::{Budget, remaining}
-pub use guard::{ActionGuard, Erc20Guard, UniswapGuard}
+pub use guard::{ActionGuard, AaveGuard, Erc20Guard, UniswapGuard}
 
 use test_types::*
 use test_decode::*
@@ -51,6 +57,7 @@ use test_cooldown::*
 use test_guard::*
 use test_queue::*
 use test_override::*
+use test_aave_usd::*
 
 pub fn version() -> u32 {
     1

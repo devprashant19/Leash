@@ -907,6 +907,35 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm --prefix demo run typecheck`: clean, 0 errors.
 - **Reviewed by human**: pending confirmation.
 
+---
+
+## 2026-11-26 — Stage 11 End-to-End Implementation: Aave v3 Guard (C3) and Chainlink Oracle USD Caps (C4)
+- **AI-assisted**: yes (Antigravity).
+- **Files**:
+  - `ingots/policy/src/types.fe`: Added `TargetKind::AavePool`, Aave selectors (`SEL_AAVE_WITHDRAW`, `SEL_AAVE_SUPPLY`, `SEL_AAVE_REPAY`), `PriceQuote`, and deny reasons `PriceUnavailable` (code 18) and `UsdCapExceeded` (code 19).
+  - `ingots/policy/src/decode.fe`: Implemented `decode_aave` with 100-byte calldata structure and zeroed high 12 bytes address sanitization.
+  - `ingots/policy/src/rules.fe`: Added `check_aave_guard` enforcing recipient allowlists on withdrawn collateral and token caps; added `decide_with_usd` for Chainlink oracle valuation and staleness checks; refactored `find_target_idx` and `find_token_rule_idx` returning indices by reference.
+  - `ingots/policy/src/guard.fe`: Added `AaveGuard` implementing the `ActionGuard` trait.
+  - `ingots/policy/src/config.fe`: Replaced struct literal allocations with direct field mutations, drastically cutting generated code and data.
+  - `ingots/policy/src/test_aave_usd.fe`: 77 unit tests in policy covering Aave v3 withdraw operations, recipient validation, token cap checks, oracle price staleness, zero price rejection, and USD-denominated caps.
+  - `ingots/testkit/src/fixtures.fe`: Added `addr_aave_pool` and `aave_withdraw` calldata helper.
+  - `ingots/module/src/lib.fe`: Refactored `eval_tx` and `Preview`, reused loaded window memory in module evaluation, dropping static array allocations in the DATA section. Reduced `LeashModule` runtime code from 24,790 bytes to 22,029 bytes (2,547 bytes headroom below EIP-170 limit, 0 warnings).
+  - `test/attacks/src/attack_23_aave_withdraw_diversion.fe`: Adversarial attack verifying collateral diversion to unauthorized recipient is denied (`RecipientNotAllowed`, code 11), and unlisted collateral asset is denied (`LendingNotAllowed`, code 17).
+  - `test/attacks/src/attack_24_oracle_staleness_and_usd_caps.fe`: Adversarial attack verifying stale price feed (> 1h old) is denied (`PriceUnavailable`, code 18), zero/missing price is denied, and USD cap violations are denied (`UsdCapExceeded`, code 19).
+  - `docs/adr/013-aave-guard-and-oracle-pricing.md`: Authored ADR-013.
+  - `docs/RULES.md` & `docs/THREAT_MODEL.md`: Updated rules and threat model mapping (Claims C24 & C25).
+  - `docs/handoff/2026-11-26.md`: Authored Stage 11 handoff.
+  - `README.md`: Updated attack count to 33 attacks, test count to 159 tests, and runtime bytecode to 22,029 bytes.
+- **Verification Evidence**:
+  - `fe test`: **159 passed; 0 failed** across all 7 workspace inputs.
+  - `fe fmt --check ingots; fe fmt --check test`: Clean (0 diffs).
+  - `fe check`: Clean (0 errors).
+  - `fe build ingots/module --emit sizes`:
+    - `LeashModule`: 22,029 bytes runtime (2,547 bytes headroom below 24,576 bytes EIP-170 limit; 0 warnings).
+    - `LeashQueue`: 8,610 bytes runtime.
+  - `fe test ingots/cli`: 3 passed, 0 failed; golden fingerprint `0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee` verified deterministic.
+- **Reviewed by human**: pending confirmation.
+
 
 
 

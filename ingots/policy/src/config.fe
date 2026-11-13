@@ -18,52 +18,41 @@ use ingot::types::{
 pub const ADDR_TOKEN: Address = Address::new(0x1000000000000000000000000000000000000001)
 pub const ADDR_TREASURY: Address = Address::new(0x2000000000000000000000000000000000000002)
 
-pub fn default_policy() -> Policy {
+pub fn policy_for_agent(_ max_tx: Wei, _ max_win: Wei) -> Policy {
     var targets: [TargetRule; MAX_TARGETS] = [TargetRule::empty(); MAX_TARGETS]
-    // Target 0: Demo ERC-20 token (kind Erc20, sorted selectors: approve, transferFrom, transfer)
-    var selectors_token: [u32; MAX_SELECTORS] = [0; MAX_SELECTORS]
-    selectors_token[0] = SEL_APPROVE
-    selectors_token[1] = SEL_TRANSFER_FROM
-    selectors_token[2] = SEL_TRANSFER
+    targets[0].target = ADDR_TOKEN
+    targets[0].kind = TargetKind::Erc20
+    targets[0].n_selectors = 3
+    targets[0].selectors[0] = SEL_APPROVE
+    targets[0].selectors[1] = SEL_TRANSFER_FROM
+    targets[0].selectors[2] = SEL_TRANSFER
 
-    targets[0] = TargetRule {
-        target: ADDR_TOKEN,
-        kind: TargetKind::Erc20,
-        allow_eth_transfer: false,
-        delegate_ok: false,
-        n_selectors: 3,
-        selectors: selectors_token,
-    }
-
-    // Target 1: Treasury EOA (kind Generic, allow_eth_transfer = true)
-    targets[1] = TargetRule {
-        target: ADDR_TREASURY,
-        kind: TargetKind::Generic,
-        allow_eth_transfer: true,
-        delegate_ok: false,
-        n_selectors: 0,
-        selectors: [0; MAX_SELECTORS],
-    }
+    targets[1].target = ADDR_TREASURY
+    targets[1].allow_eth_transfer = true
 
     var tokens: [TokenRule; MAX_TOKENS] = [TokenRule::empty(); MAX_TOKENS]
-    tokens[0] = TokenRule {
-        token: ADDR_TOKEN,
-        max_per_tx: TokenAmount::from(100_000_000_000_000_000_000),
-        // 100 tokens
-        max_per_window: TokenAmount::from(500_000_000_000_000_000_000),
-        // 500 tokens
-        max_approve: TokenAmount::from(100_000_000_000_000_000_000),
-        // 100 tokens
+    tokens[0].token = ADDR_TOKEN
+    tokens[0].max_per_tx = TokenAmount::from(100_000_000_000_000_000_000)
+    tokens[0].max_per_window = TokenAmount::from(500_000_000_000_000_000_000)
+    tokens[0].max_approve = TokenAmount::from(100_000_000_000_000_000_000)
+
+    let tx_cap = if max_tx.as_wei() > 0 {
+        max_tx
+    } else {
+        ether(1) / 10
+    }
+    let win_cap = if max_win.as_wei() > 0 {
+        max_win
+    } else {
+        ether(1) / 2
     }
 
     Policy {
         version: 1,
         n_targets: 2,
         targets,
-        max_per_tx: ether(1) / 10,
-        // 0.1 ETH
-        max_per_window: ether(1) / 2,
-        // 0.5 ETH
+        max_per_tx: tx_cap,
+        max_per_window: win_cap,
         window: hours(24),
         n_tokens: 1,
         tokens,
@@ -75,13 +64,6 @@ pub fn default_policy() -> Policy {
     }
 }
 
-pub fn policy_for_agent(_ max_tx: Wei, _ max_win: Wei) -> Policy {
-    var pol = default_policy()
-    if max_tx.as_wei() > 0 {
-        pol.max_per_tx = max_tx
-    }
-    if max_win.as_wei() > 0 {
-        pol.max_per_window = max_win
-    }
-    pol
+pub fn default_policy() -> Policy {
+    policy_for_agent(max_tx: Wei::zero(), max_win: Wei::zero())
 }

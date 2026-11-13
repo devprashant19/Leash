@@ -1,0 +1,236 @@
+use ingot::config::default_policy
+use ingot::rules::{decide, decide_with_usd}
+use ingot::types::{
+    Address,
+    AgentState,
+    Calldata,
+    DenyReason,
+    Duration,
+    Operation,
+    Policy,
+    PriceQuote,
+    TargetKind,
+    TargetRule,
+    TokenAmount,
+    TokenRule,
+    Tx,
+    Verdict,
+    Wei,
+    verdict_code,
+}
+use std::evm::units::{Timestamp, ether, seconds, wei}
+
+fn write_u32(buf: mut [u8; 100], offset: usize, val: u32) {
+    buf[offset] = ((val >> 24) & 0xff).downcast_truncate()
+    buf[offset + 1] = ((val >> 16) & 0xff).downcast_truncate()
+    buf[offset + 2] = ((val >> 8) & 0xff).downcast_truncate()
+    buf[offset + 3] = (val & 0xff).downcast_truncate()
+}
+
+fn write_word(buf: mut [u8; 100], offset: usize, val: u256) {
+    var shift: u256 = 248
+    var i: usize = 0
+    while i < 32 {
+        let b = ((val >> shift) & 0xff).downcast_truncate()
+        buf[offset + i] = b
+        if shift == 0 { break }
+        shift -= 8
+        i += 1
+    }
+}
+
+fn build_aave_withdraw(asset: Address, amount: u256, to: Address) -> Calldata {
+    var buf: [u8; 100] = [0; 100]
+    write_u32(buf: mut buf, offset: 0, val: 0x69328dec)
+    write_word(buf: mut buf, offset: 4, val: asset.word())
+    write_word(buf: mut buf, offset: 36, val: amount)
+    write_word(buf: mut buf, offset: 68, val: to.word())
+    Calldata { len: 100, bytes: buf }
+}
+
+#[test]
+fn test_aave_withdraw_lifecycle() {
+    var pol = default_policy()
+    let pool_addr = Address::new(0x6ae43d3271ff6888e7fc43fd7321a503ff738951)
+    let token_addr = Address::new(0x1000000000000000000000000000000000000001)
+    let treasury = Address::new(0x2000000000000000000000000000000000000002)
+    let attacker = Address::new(0x9999999999999999999999999999999999999999)
+
+    // Add AavePool as Target 2
+    pol.targets[2] = TargetRule {
+        target: pool_addr,
+        kind: TargetKind::AavePool,
+        allow_eth_transfer: false,
+        delegate_ok: false,
+        n_selectors: 1,
+        selectors: [0x69328dec, 0, 0, 0, 0, 0, 0, 0],
+        // SEL_AAVE_WITHDRAW
+    }
+    pol.n_targets = 3
+
+    // Configure recipient allowlist: only treasury is allowed
+    pol.n_recipients = 1
+    pol.recipients[0] = treasury
+
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(1000)
+
+    // 1. Valid withdraw of 50 tokens to treasury: Allowed (code 0)
+    let cd_valid = build_aave_withdraw(
+        asset: token_addr,
+        amount: 50000000000000000000,
+        to: treasury,
+    )
+    let tx_valid = Tx {
+        to: pool_addr,
+        value: Wei::zero(),
+        data: cd_valid,
+        op: Operation::Call,
+        now,
+    }
+    let v_valid = decide(tx: tx_valid, policy: pol, state)
+    assert(verdict_code(v_valid) == 0)
+
+    // 2. Withdraw diverted to attacker: Denied (code 11: RecipientNotAllowed)
+    let cd_attacker = build_aave_withdraw(
+        asset: token_addr,
+        amount: 50000000000000000000,
+        to: attacker,
+    )
+    let tx_attacker = Tx {
+        to: pool_addr,
+        value: Wei::zero(),
+        data: cd_attacker,
+        op: Operation::Call,
+        now,
+    }
+    let v_attacker = decide(tx: tx_attacker, policy: pol, state)
+    assert(verdict_code(v_attacker) == 11) // RecipientNotAllowed
+
+    // 3. Withdraw exceeding token cap (amount 200 tokens > 100 max): Denied (code 9: TokenCapExceeded)
+    let cd_over = build_aave_withdraw(
+        asset: token_addr,
+        amount: 200000000000000000000,
+        to: treasury,
+    )
+    let tx_over = Tx { to: pool_addr, value: Wei::zero(), data: cd_over, op: Operation::Call, now }
+    let v_over = decide(tx: tx_over, policy: pol, state)
+    assert(verdict_code(v_over) == 9) // TokenCapExceeded
+
+    // 4. Withdraw of unlisted asset: Denied (code 17: LendingNotAllowed)
+    let cd_unlisted = build_aave_withdraw(
+        asset: Address::new(0x7777),
+        amount: 50000000000000000000,
+        to: treasury,
+    )
+    let tx_unlisted = Tx {
+        to: pool_addr,
+        value: Wei::zero(),
+        data: cd_unlisted,
+        op: Operation::Call,
+        now,
+    }
+    let v_unlisted = decide(tx: tx_unlisted, policy: pol, state)
+    assert(verdict_code(v_unlisted) == 17) // LendingNotAllowed
+}
+
+#[test]
+fn test_usd_cap_pricing_lifecycle() {
+    let pol = default_policy()
+    let treasury = Address::new(0x2000000000000000000000000000000000000002)
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(10000)
+
+    // $1,000 USD cap (with 8 decimals = 1000 * 1e8)
+    let max_usd: u256 = 100000000000
+    let max_age = seconds(3600)
+
+    // Price: $2,000 / ETH (with 8 decimals = 2000 * 1e8)
+    let fresh_quote = Option::Some(
+        PriceQuote {
+            usd_per_eth_1e8: 200000000000,
+            updated_at: Timestamp::from_seconds(9000),
+            // 1000s old < 3600s max
+        },
+    )
+
+    // 1. Small spend: 0.04 ETH ($80 < $1,000 cap): Allowed
+    let small_tx = Tx {
+        to: treasury,
+        value: ether(4) / 100,
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    let v_small = decide_with_usd(
+        tx: small_tx,
+        policy: pol,
+        state,
+        price_quote: fresh_quote,
+        max_usd_per_tx: max_usd,
+        max_price_age: max_age,
+    )
+    assert(verdict_code(v_small) == 0) // Allow
+
+    // 2. Large spend: 0.04 ETH with $50 cap ($80 > $50 cap): UsdCapExceeded (code 19)
+    let v_usd_exceeded = decide_with_usd(
+        tx: small_tx,
+        policy: pol,
+        state,
+        price_quote: fresh_quote,
+        max_usd_per_tx: 5000000000,
+        // $50 cap
+        max_price_age: max_age,
+    )
+    assert(
+        verdict_code(v_usd_exceeded) == 19,
+    ) // UsdCapExceeded (code 19)
+
+    // 3. Stale price feed (updated 3601s ago > 3600s max_age): PriceUnavailable (code 18)
+    let stale_quote = Option::Some(
+        PriceQuote {
+            usd_per_eth_1e8: 200000000000,
+            updated_at: Timestamp::from_seconds(10000 - 3601),
+        },
+    )
+    let v_stale = decide_with_usd(
+        tx: small_tx,
+        policy: pol,
+        state,
+        price_quote: stale_quote,
+        max_usd_per_tx: max_usd,
+        max_price_age: max_age,
+    )
+    assert(verdict_code(v_stale) == 18) // PriceUnavailable (code 18)
+
+    // 4. Exactly max age (updated 3600s ago == 3600s max_age): Allowed
+    let boundary_quote = Option::Some(
+        PriceQuote {
+            usd_per_eth_1e8: 200000000000,
+            updated_at: Timestamp::from_seconds(10000 - 3600),
+        },
+    )
+    let v_boundary = decide_with_usd(
+        tx: small_tx,
+        policy: pol,
+        state,
+        price_quote: boundary_quote,
+        max_usd_per_tx: max_usd,
+        max_price_age: max_age,
+    )
+    assert(verdict_code(v_boundary) == 0) // Allow
+
+    // 5. Missing price feed (None): PriceUnavailable (code 18)
+    let no_quote: Option<PriceQuote> = Option::None
+    let v_missing = decide_with_usd(
+        tx: small_tx,
+        policy: pol,
+        state,
+        price_quote: no_quote,
+        max_usd_per_tx: max_usd,
+        max_price_age: max_age,
+    )
+    assert(
+        verdict_code(v_missing) == 18,
+    ) // PriceUnavailable (code 18)
+}

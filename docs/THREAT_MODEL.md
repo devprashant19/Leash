@@ -112,6 +112,8 @@ Every security invariant and threat mitigation asserted in the documentation is 
 | **C21** | **Component Isolation** | Static analysis / CI Grep | `git grep -nE 'policy::rules'` | Compiler | 0 occurrences |
 | **C22** | **Owner Override Selective Bypass** | `test/attacks/src/attack_21_owner_override.fe` | `test_attack_21_*` (2 tests) | Native & EVM | Allows over-cap spends; strictly rejects delegatecall, unlisted targets, replay |
 | **C23** | **Escalation Queue & Veto Defense** | `test/attacks/src/attack_22_escalation_veto.fe` | `test_attack_22_escalation_queue_and_veto_defense` | Native & EVM | Denied: `EscalationRequired` (code 20); rejects early exec; veto blocks |
+| **C24** | **Aave Withdrawal Diversion Guard** | `test/attacks/src/attack_23_aave_withdraw_diversion.fe` | `test_attack_23_aave_withdraw_diversion` | Native & EVM | Denied: `RecipientNotAllowed` (code 11) / `LendingNotAllowed` (code 17) |
+| **C25** | **Oracle Staleness & USD Caps** | `test/attacks/src/attack_24_oracle_staleness_and_usd_caps.fe` | `test_attack_24_oracle_staleness_and_usd_caps` | Native & EVM | Denied: `PriceUnavailable` (code 18) / `UsdCapExceeded` (code 19) |
 
 ---
 

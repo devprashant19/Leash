@@ -1,11 +1,21 @@
-use ingot::decode::{Erc20Call, SwapCall, decode_erc20, decode_swap, selector_of}
+use ingot::decode::{
+    AaveCall,
+    Erc20Call,
+    SwapCall,
+    decode_aave,
+    decode_erc20,
+    decode_swap,
+    selector_of,
+}
 use ingot::ledger::{U256_MAX, checked_add_saturate, spent_in_window}
 use ingot::types::{
     Address,
     AgentState,
     DenyReason,
+    Duration,
     Operation,
     Policy,
+    PriceQuote,
     TargetKind,
     TargetRule,
     TokenRule,
@@ -14,14 +24,14 @@ use ingot::types::{
     Wei,
 }
 
-fn find_target(_ to: Address, _ policy: ref Policy) -> Option<TargetRule> {
+fn find_target_idx(_ to: Address, _ policy: ref Policy) -> Option<usize> {
     if to == Address::zero() {
         return Option::None
     }
     var i: usize = 0
     while i < (policy.n_targets as usize) {
         if policy.targets[i].target == to {
-            return Option::Some(policy.targets[i])
+            return Option::Some(i)
         }
         i += 1
     }
@@ -61,11 +71,11 @@ fn check_selector_and_calldata(_ tx: ref Tx, _ target: ref TargetRule) -> Option
     }
 }
 
-fn find_token_rule(_ token: Address, _ policy: ref Policy) -> Option<TokenRule> {
+fn find_token_rule_idx(_ token: Address, _ policy: ref Policy) -> Option<usize> {
     var i: usize = 0
     while i < (policy.n_tokens as usize) {
         if policy.tokens[i].token == token {
-            return Option::Some(policy.tokens[i])
+            return Option::Some(i)
         }
         i += 1
     }
@@ -104,12 +114,13 @@ fn check_transfer(
 pub fn check_erc20_guard(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
     DenyReason,
 > {
-    let token_rule = match find_token_rule(token: tx.to, policy) {
-        Option::Some(tr) => tr,
+    let token_idx = match find_token_rule_idx(token: tx.to, policy) {
+        Option::Some(idx) => idx,
         Option::None => {
             return Option::Some(DenyReason::TokenCapExceeded)
         },
     }
+    let token_rule = ref policy.tokens[token_idx]
 
     match decode_erc20(tx.data) {
         Erc20Call::Malformed => Option::Some(DenyReason::MalformedCalldata),
@@ -156,6 +167,25 @@ pub fn check_uniswap_guard(_ tx: ref Tx, _ policy: ref Policy, _ state: ref Agen
     }
 }
 
+pub fn check_aave_guard(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
+    DenyReason,
+> {
+    match decode_aave(tx.data) {
+        AaveCall::Malformed => Option::Some(DenyReason::MalformedCalldata),
+        AaveCall::Unknown => Option::Some(DenyReason::LendingNotAllowed),
+        AaveCall::Withdraw(asset, amount, to) => {
+            let tr_idx = match find_token_rule_idx(token: asset, policy) {
+                Option::Some(idx) => idx,
+                Option::None => {
+                    return Option::Some(DenyReason::LendingNotAllowed)
+                },
+            }
+            let token_rule = ref policy.tokens[tr_idx]
+            check_transfer(to, amt: amount, token_rule, policy)
+        },
+    }
+}
+
 pub fn decide(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Verdict {
     // 1. Paused
     if state.paused {
@@ -192,15 +222,16 @@ pub fn decide(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Ve
     }
 
     // 6. TargetNotAllowed
-    let target = match find_target(to: tx.to, policy) {
-        Option::Some(t) => t,
+    let target_idx = match find_target_idx(to: tx.to, policy) {
+        Option::Some(idx) => idx,
         Option::None => {
             return Verdict::Deny(DenyReason::TargetNotAllowed)
         },
     }
 
     // 7. MalformedCalldata / SelectorNotAllowed
-    if let Option::Some(reason) = check_selector_and_calldata(tx, target) {
+    let tr = ref policy.targets[target_idx]
+    if let Option::Some(reason) = check_selector_and_calldata(tx, target: tr) {
         return Verdict::Deny(reason)
     }
 
@@ -225,7 +256,7 @@ pub fn decide(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Ve
     }
 
     // 11. Protocol guards (ERC-20, Uniswap Router)
-    match target.kind {
+    match policy.targets[target_idx].kind {
         TargetKind::Erc20 => {
             if let Option::Some(reason) = check_erc20_guard(tx, policy, state) {
                 return Verdict::Deny(reason)
@@ -233,6 +264,11 @@ pub fn decide(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Ve
         },
         TargetKind::UniswapRouter => {
             if let Option::Some(reason) = check_uniswap_guard(tx, policy, state) {
+                return Verdict::Deny(reason)
+            }
+        },
+        TargetKind::AavePool => {
+            if let Option::Some(reason) = check_aave_guard(tx, policy, state) {
                 return Verdict::Deny(reason)
             }
         },
@@ -338,15 +374,16 @@ pub fn decide_with_override(
     }
 
     // 6. TargetNotAllowed
-    let target = match find_target(to: tx.to, policy) {
-        Option::Some(t) => t,
+    let target_idx = match find_target_idx(to: tx.to, policy) {
+        Option::Some(idx) => idx,
         Option::None => {
             return Verdict::Deny(DenyReason::TargetNotAllowed)
         },
     }
 
     // 7. MalformedCalldata / SelectorNotAllowed
-    if let Option::Some(reason) = check_selector_and_calldata(tx, target) {
+    let tr = ref policy.targets[target_idx]
+    if let Option::Some(reason) = check_selector_and_calldata(tx, target: tr) {
         return Verdict::Deny(reason)
     }
 
@@ -361,7 +398,7 @@ pub fn decide_with_override(
     // Notice: 9. PerTxCapExceeded and 10. WindowCapExceeded are skipped with valid owner override!
 
     // 11. Protocol guards (with token caps skipped)
-    match target.kind {
+    match policy.targets[target_idx].kind {
         TargetKind::Erc20 => {
             if let Option::Some(reason) = check_erc20_guard_override(tx, policy, state) {
                 return Verdict::Deny(reason)
@@ -392,6 +429,44 @@ pub fn decide_with_escalation(
             } else {
                 Verdict::Allow
             }
+        },
+        Verdict::Deny(r) => Verdict::Deny(r),
+    }
+}
+
+pub fn decide_with_usd(
+    _ tx: ref Tx,
+    _ policy: ref Policy,
+    _ state: ref AgentState,
+    _ price_quote: Option<PriceQuote>,
+    _ max_usd_per_tx: u256,
+    _ max_price_age: Duration,
+) -> Verdict {
+    let outcome = decide(tx, policy, state)
+    match outcome {
+        Verdict::Allow => {
+            if max_usd_per_tx > 0 {
+                let pq = match price_quote {
+                    Option::Some(q) => q,
+                    Option::None => {
+                        return Verdict::Deny(DenyReason::PriceUnavailable)
+                    },
+                }
+                if pq.usd_per_eth_1e8 == 0 {
+                    return Verdict::Deny(DenyReason::PriceUnavailable)
+                }
+                if tx.now < pq.updated_at {
+                    return Verdict::Deny(DenyReason::PriceUnavailable)
+                }
+                if tx.now > pq.updated_at + max_price_age {
+                    return Verdict::Deny(DenyReason::PriceUnavailable)
+                }
+                let usd_val = (tx.value.as_wei() * pq.usd_per_eth_1e8) / 1000000000000000000
+                if usd_val > max_usd_per_tx {
+                    return Verdict::Deny(DenyReason::UsdCapExceeded)
+                }
+            }
+            Verdict::Allow
         },
         Verdict::Deny(r) => Verdict::Deny(r),
     }

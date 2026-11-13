@@ -1,0 +1,127 @@
+use policy::{
+    Address,
+    AgentState,
+    DenyReason,
+    Operation,
+    SEL_AAVE_WITHDRAW,
+    TargetKind,
+    TargetRule,
+    Timestamp,
+    Tx,
+    Verdict,
+    Wei,
+    decide,
+    default_policy,
+}
+use testkit::{aave_withdraw, addr_aave_pool, addr_attacker, addr_token, addr_treasury}
+
+#[test]
+pub fn test_attack_23_aave_withdraw_diversion() {
+    var pol = default_policy()
+    let pool = addr_aave_pool()
+    let token = addr_token()
+    let treasury = addr_treasury()
+    let attacker = addr_attacker()
+
+    // Configure AavePool as allowed target with SEL_AAVE_WITHDRAW and borrow selector
+    var selectors: [u32; 8] = [0; 8]
+    selectors[0] = SEL_AAVE_WITHDRAW
+    selectors[1] = 0xa415bc63 // borrow(address,uint256,uint256,uint16,address)
+
+    pol.targets[2] = TargetRule {
+        target: pool,
+        kind: TargetKind::AavePool,
+        allow_eth_transfer: false,
+        delegate_ok: false,
+        n_selectors: 2,
+        selectors,
+    }
+    pol.n_targets = 3
+
+    // Configure recipient allowlist: only treasury is permitted
+    pol.n_recipients = 1
+    pol.recipients[0] = treasury
+
+    var state = AgentState::empty()
+    state.expiry = Timestamp::from_seconds(2_000_000_000)
+
+    // 1. Attack: Attacker tries to withdraw pool collateral to attacker address -> RecipientNotAllowed
+    let bad_withdraw = aave_withdraw(asset: token, amount: 500, to: attacker)
+    let tx_divert = Tx {
+        to: pool,
+        value: Wei::zero(),
+        data: bad_withdraw,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx_divert, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::RecipientNotAllowed => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // 2. Attack: Attacker tries to withdraw an unlisted asset -> LendingNotAllowed
+    let fake_token = Address::new(0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef)
+    let bad_asset = aave_withdraw(asset: fake_token, amount: 500, to: treasury)
+    let tx_bad_asset = Tx {
+        to: pool,
+        value: Wei::zero(),
+        data: bad_asset,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx_bad_asset, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::LendingNotAllowed => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // 3. Attack: Attacker tries calling an unapproved lending action (borrow) -> LendingNotAllowed
+    var borrow_data = aave_withdraw(asset: token, amount: 500, to: treasury)
+    borrow_data.bytes[0] = 0xa4
+    borrow_data.bytes[1] = 0x15
+    borrow_data.bytes[2] = 0xbc
+    borrow_data.bytes[3] = 0x63 // borrow(address,uint256,uint256,uint16,address)
+    let tx_unauthorized_call = Tx {
+        to: pool,
+        value: Wei::zero(),
+        data: borrow_data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx_unauthorized_call, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::LendingNotAllowed => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // 4. Honest transaction: Legitimate withdraw of token to treasury -> Allow
+    let ok_withdraw = aave_withdraw(asset: token, amount: 500, to: treasury)
+    let tx_ok = Tx {
+        to: pool,
+        value: Wei::zero(),
+        data: ok_withdraw,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx_ok, pol, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+}

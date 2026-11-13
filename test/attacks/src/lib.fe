@@ -20,3 +20,5 @@ pub use attack_19_mev_zero_slippage_sandwich::*
 pub use attack_20_swap_recipient_diversion::*
 pub use attack_21_owner_override::*
 pub use attack_22_escalation_veto::*
+pub use attack_23_aave_withdraw_diversion::*
+pub use attack_24_oracle_staleness_and_usd_caps::*
