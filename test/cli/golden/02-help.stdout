@@ -6,6 +6,6 @@ USAGE:
   leash explain                                   Print active policy rules
   leash fingerprint                               Print policy Keccak-256 fingerprint
   leash replay <log.csv>                          Audit historical tx CSV log
-  leash serve [--stdio]                           Agent tool mode (line JSON-RPC)
+  leash serve                                     Agent tool mode: run bin/leash-serve.ts
   leash --help, -h                                Show this help
   leash --version, -v                             Show version

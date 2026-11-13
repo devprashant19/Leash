@@ -45,7 +45,7 @@
 ### Scene 5: Architectural Walkthrough in Pure Fe (1:45 – 2:00)
 - **Visual:** VS Code highlighting `ingots/policy/src/rules.fe` lines 229 (`pub fn decide(...) -> Verdict` with no `uses` clause), and `ingots/module/src/lib.fe` lines 341 (`if locked { revert_error(Reentrant {}) }`).
 - **Narration:**  
-  *"Under the hood, Leash leverages Fe's effect system to prove safety at compile time. The core `decide` rule function is completely pure with zero effects. Only the stateful module handles I/O and storage. The compiled Safe module sits comfortably under the 24-kilobyte EIP-170 limit with zero warnings. Leash: autonomous agents on a cryptographically enforced leash."*
+  *"Under the hood, Leash uses Fe's effect system to prove safety at compile time. The core `decide` rule function declares no effects at all. Only the stateful module handles I/O and storage. The compiled Safe module sits comfortably under the 24-kilobyte EIP-170 limit with zero warnings. Leash: autonomous agents on a cryptographically enforced leash."*
 
 ---
 

@@ -1,6 +1,6 @@
 # THREAT_MODEL.md — Leash Security and Threat Model
 
-*Status: Comprehensive Threat Model (Updated for Phase 2)*
+*Status: updated through Stage 12 (attack tests in `test/attacks/src/`)*
 
 ## 1. Assets and Trust Boundaries
 

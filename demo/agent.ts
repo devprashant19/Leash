@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { type Hex, type Address } from 'viem';
+import { sepolia } from 'viem/chains';
 import { runScenario } from './lib/scenario';
 
 function loadDeployment() {
@@ -39,7 +40,7 @@ async function main() {
 
   const env = loadEnv();
   const dep = loadDeployment();
-  const rpcUrl = env.SEPOLIA_RPC_URL || 'https://rpc.sepolia.org';
+  const rpcUrl = env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com';
   const agentPk = env.AGENT_PK as Hex;
 
   if (!agentPk) {
@@ -53,8 +54,8 @@ async function main() {
   console.log(`[agent] Agent Address:  ${dep.agent}\n`);
 
   console.log(`[agent] Executing 5-Transaction Canonical Scenario on Sepolia...`);
-  const result = await runScenario(rpcUrl, dep.module as Address, dep.safe as Address, agentPk);
-  result.network = 'sepolia';
+  const result = await runScenario(rpcUrl, dep.module as Address, dep.safe as Address, agentPk, sepolia);
+  console.log(`[agent] Prediction source: ${result.predictionSource}`);
 
   console.log('\n---------------------------------------------------------------------------------------------------------');
   console.log('| # | Proposed Transaction                            | CLI Predicted           | On-Chain Result   | Match |');

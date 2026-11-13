@@ -21,7 +21,7 @@ async function main() {
   });
 
   const envPath = path.resolve(__dirname, '.env');
-  let currentRpc = 'https://rpc.sepolia.org';
+  let currentRpc = 'https://ethereum-sepolia-rpc.publicnode.com';
 
   const rpcInput = await ask(rl, `Sepolia RPC URL [default: ${currentRpc}]: `);
   if (rpcInput.trim()) {

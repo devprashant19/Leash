@@ -976,3 +976,30 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 - **Why the golden value changed**: the new help line is intended Stage 12 (D6) behaviour, so the expected output is updated to match. No CLI code changed. The line was copied verbatim from `lib.fe:34`.
 - **Verification**: the native golden suite cannot run on this Windows host (Fe native linking needs x86-64 Linux or AArch64 macOS; WSL and Docker were unavailable). The next CI `build` job is the check.
 - **Reviewed by human**: pending confirmation.
+
+## 2026-11-13 — Release readiness: demo uses the real Fe CLI, docs corrected
+- **AI-assisted**: yes (Claude Code), using the `release-check` and `readme-suite` skills.
+- **Demo predictions** (`demo/lib/leash-cli.ts`, `demo/lib/scenario.ts`, `demo/local.ts`, `demo/agent.ts`):
+  - The demo looked for `bin/leash`, but `fe build --backend native` writes `out/cli`, and a DENY (exit 2) made `execFileSync` throw. Every prediction therefore came from the TypeScript mirror of the rules, and the "CLI fingerprint" was a constant.
+  - It now runs `out/cli` (or `$LEASH_BIN`), treats exit 2 as DENY, reads the fingerprint from `leash fingerprint`, records `predictionSource` (`fe-native` or `ts-mirror`) in the run file, and with `LEASH_REQUIRE_NATIVE=1` fails instead of falling back.
+  - The CI `demo` job builds the native CLI, runs in strict mode, checks for `"predictionSource": "fe-native"`, and uploads `run.local.json`.
+- **Bugs fixed**:
+  - `transferFrom` selector `0x23b87266` → `0x23b872dd` (TS mirror, DECLARATION.md).
+  - `runScenario` was hard-wired to the Anvil chain (31337), so `agent:sepolia` could not run on Sepolia; the chain is now a parameter.
+  - The hard-coded `C:\Users\u\bin\anvil.exe` path is replaced by `anvil` on `PATH` / `$ANVIL_PATH`.
+  - The default RPC `rpc.sepolia.org` is replaced by `ethereum-sepolia-rpc.publicnode.com`.
+- **Fe CLI**: `leash serve` printed a fixed "ready" JSON line and exited. It now points to `bin/leash-serve.ts`, which runs the binary for each check. The help line and golden `02-help` were updated to match.
+- **Removed** `demo/deployments/sepolia.json`: it held local Anvil addresses labelled as Sepolia. `deploy.ts` writes the real file on deployment.
+- **Docs**:
+  - README: removed the placeholder video link; corrected the dashboard command, test counts and code links (`main.fe` → `lib.fe` with real line numbers); made the `record` and `Pause` effect claims match the code; refreshed Limitations.
+  - New `docs/deployment.md` (free-tier deployment) and `.github/workflows/release.yml` (native CLI binaries).
+  - `docs/submission.md`: corrected the counts, the module size (22,029 bytes) and the freeze note.
+  - `docs/GAS.md`: `LeashQueue` initcode 8,730.
+- **Verification**:
+  - Windows: `fe fmt --check`, `fe check` and compile-fail pass; `fe test` 159 passed; demo 5/5 with `ts-mirror`; strict mode exits 1 without a native binary; session test 8/8; `tsc --noEmit` clean.
+  - Linux container (Ubuntu 24.04, x86-64, Fe 26.6.0, Node 22, Anvil 1.9.0):
+    - Passed: `fe fmt --check`, `fe check`; `fe test` 159 passed; `fe test --backend native` 119 passed; `scripts/count-tests.sh` 77 = 77.
+    - Passed: `fe build --backend native` → `out/cli`; runtime 22,029 bytes; golden 17/17; fixture parity passed; `leash serve` prints the pointer and exits 1; `tsc --noEmit` clean; session test 8/8.
+    - Found by this run and fixed: `scripts/compile-fail.sh` failed on CRLF endings from a Windows checkout (added `.gitattributes`: `*.sh text eol=lf`). The demo needed per-ingot `out/` folders; `demo/lib/artifacts.ts` now also reads the workspace `out/`.
+    - The strict real-CLI demo is run by the CI `demo` job on every push.
+- **Reviewed by human**: pending confirmation.

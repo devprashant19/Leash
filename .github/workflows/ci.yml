@@ -116,13 +116,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Build contracts
+      - name: Build contracts and the native leash CLI
         run: |
           fe build ingots/module
           fe build ingots/testkit
-      - name: Run Demo End-to-End
+          fe build --backend native
+          test -x out/cli
+      - name: Run Demo End-to-End (predictions from the real Fe CLI)
+        env:
+          # Fail instead of falling back to the TypeScript mirror of the rules.
+          LEASH_REQUIRE_NATIVE: "1"
         run: |
           cd demo
-          npm install
+          npm ci
           npm run demo
+          grep -q '"predictionSource": "fe-native"' run.local.json
+      - name: Upload the demo run (fe-native predictions vs on-chain results)
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-run-fe-native
+          path: demo/run.local.json
 

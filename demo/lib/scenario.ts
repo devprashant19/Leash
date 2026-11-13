@@ -10,12 +10,15 @@ import {
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { foundry } from 'viem/chains';
+import type { Chain } from 'viem';
 import { getLeashModuleArtifact } from './artifacts';
 import {
   predictVerdict,
+  predictionSource,
+  cliFingerprint,
   ADDR_TOKEN,
   ADDR_TREASURY,
-  GOLDEN_FINGERPRINT
+  type PredictionSource
 } from './leash-cli';
 
 export interface StepRecord {
@@ -36,6 +39,8 @@ export interface ScenarioRunResult {
   moduleAddress: Address;
   safeAddress: Address;
   feVersion: string;
+  /** 'fe-native' = predictions came from the real Fe-built `leash` binary. */
+  predictionSource: PredictionSource;
   fingerprintCli: string;
   fingerprintChain: string;
   fingerprintsMatch: boolean;
@@ -47,11 +52,14 @@ export async function runScenario(
   rpcUrl: string,
   moduleAddress: Address,
   safeAddress: Address,
-  agentPk: Hex
+  agentPk: Hex,
+  chain: Chain = foundry
 ): Promise<ScenarioRunResult> {
   const agentAccount = privateKeyToAccount(agentPk);
-  const publicClient = createPublicClient({ chain: foundry, transport: http(rpcUrl) });
-  const walletClient = createWalletClient({ account: agentAccount, chain: foundry, transport: http(rpcUrl) });
+  const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
+  const walletClient = createWalletClient({ account: agentAccount, chain, transport: http(rpcUrl) });
+  const source = predictionSource();
+  const fingerprintCli = cliFingerprint();
   const moduleArtifact = getLeashModuleArtifact();
 
   // 1. Check policy fingerprints from both sides
@@ -62,7 +70,7 @@ export async function runScenario(
   })) as bigint;
 
   const hexFp = '0x' + chainFingerprintBigInt.toString(16).padStart(64, '0');
-  const fingerprintsMatch = hexFp.toLowerCase() === GOLDEN_FINGERPRINT.toLowerCase();
+  const fingerprintsMatch = hexFp.toLowerCase() === fingerprintCli.toLowerCase();
 
   const steps: StepRecord[] = [];
   const U256_MAX = 2n ** 256n - 1n;
@@ -192,11 +200,12 @@ export async function runScenario(
   const allStepsMatched = steps.every((st) => st.matched);
 
   return {
-    network: 'anvil-local',
+    network: chain.id === foundry.id ? 'anvil-local' : chain.name.toLowerCase(),
     moduleAddress,
     safeAddress,
     feVersion: '26.6.0',
-    fingerprintCli: GOLDEN_FINGERPRINT,
+    predictionSource: source,
+    fingerprintCli,
     fingerprintChain: hexFp,
     fingerprintsMatch,
     allStepsMatched,

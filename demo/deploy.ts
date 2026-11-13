@@ -40,7 +40,7 @@ async function main() {
   console.log('======================================================\n');
 
   const env = loadEnv();
-  const rpcUrl = env.SEPOLIA_RPC_URL || 'https://rpc.sepolia.org';
+  const rpcUrl = env.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com';
   const ownerPk = env.OWNER_PK as Hex;
   const agentPk = env.AGENT_PK as Hex;
   const guardianAddress = (env.GUARDIAN_ADDRESS || '0x2000000000000000000000000000000000000002') as Address;

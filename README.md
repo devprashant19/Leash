@@ -13,10 +13,10 @@
 
 ## 1. Demo & Verification
 
-- **2-Minute Video Demo**: [Watch on YouTube](https://youtu.be/leash-fe-demo) *(Script and scene timings available in [`docs/video-script.md`](docs/video-script.md))*
-- **Interactive Visual Dashboard**: Open [`demo/dashboard/index.html`](demo/dashboard/index.html) in your browser (or run `npx serve demo/dashboard`).
-- **Verified Contract Artifacts (Sourcify)**: Contract build metadata in [`demo/deployments/LeashModule.metadata.json`](demo/deployments/LeashModule.metadata.json).
-- **Sepolia Deployment Manifest**: [`demo/deployments/sepolia.json`](demo/deployments/sepolia.json).
+- **Video script**: scene-by-scene script and timings in [`docs/video-script.md`](docs/video-script.md).
+- **Interactive Visual Dashboard**: run `npx serve demo` and open `/dashboard/` (it reads `demo/run.json`), or open [`demo/dashboard/index.html`](demo/dashboard/index.html) directly to see the bundled run.
+- **Contract build metadata**: [`demo/deployments/LeashModule.metadata.json`](demo/deployments/LeashModule.metadata.json) (from `fe build --emit metadata`).
+- **Deploying (free tier)**: Sepolia contracts, dashboard hosting and CLI release, step by step in [`docs/deployment.md`](docs/deployment.md).
 - **Full Submission Details**: [`docs/submission.md`](docs/submission.md).
 
 ### The 5-Transaction Canonical Scenario (Reproduce in 7 Seconds)
@@ -32,6 +32,7 @@ The automated demo launches an ephemeral local Anvil node, deploys `MockSafe`, `
 | **5** | Agent calls `approve(exchange, 2^256 - 1)` unlimited drain | `DENY (UnlimitedApproval)` | `DENY (code 10)` | 186,105 | **✓ PASS** |
 
 **Parity Verdict**: **5 / 5 Matched (100.0% Agreement, Zero Drift)**.  
+**Prediction source**: in CI the predictions come from the real Fe-built `leash` binary (`out/cli`): the `demo` job builds it with `fe build --backend native` and runs with `LEASH_REQUIRE_NATIVE=1`, which fails the run if any prediction comes from anywhere else. The result is recorded as `"predictionSource": "fe-native"` in `demo/run.local.json`, which each CI run uploads as the `demo-run-fe-native` artifact. Fe links native binaries only on x86-64 Linux and AArch64 macOS, so on Windows the demo uses a TypeScript mirror of the rules and prints `Prediction source: ts-mirror`.  
 **Cryptographic Policy Fingerprint**: `0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee` (identical on CLI and on-chain).
 
 ---
@@ -191,10 +192,10 @@ Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb7
 Every capability in Leash maps directly to unique language features in Fe 26.6.0:
 
 1. **Effects Bound Powers (Static Least Privilege)**:
-   - `policy::decide` has **no `uses` clause** ([`ingots/policy/src/rules.fe#L23`](ingots/policy/src/rules.fe)): It is mathematically proven to be pure and deterministic, incapable of touching contract storage, performing I/O, or calling external contracts.
-   - `policy::record` requires only `mut Ledger` ([`ingots/policy/src/ledger.fe#L50`](ingots/policy/src/ledger.fe)), guaranteeing that state updates can only touch accounting counters.
-   - Guardian emergency `Pause` is granted `mut paused` only ([`ingots/module/src/main.fe#L182`](ingots/module/src/main.fe)): Fe's compiler statically guarantees the guardian can never execute transactions, rotate keys, or access Safe funds.
-   - CLI subcommands enforce minimal privileges: `leash check` uses only `Args`, `Stdout`, and `Stderr` ([`ingots/cli/src/main.fe#L34`](ingots/cli/src/main.fe)), with zero filesystem effects (`Fs`), while only `leash replay` is granted `Fs`.
+   - `policy::decide` has **no `uses` clause** ([`ingots/policy/src/rules.fe#L189`](ingots/policy/src/rules.fe#L189)): the compiler rejects any storage access, I/O or external call inside it, so it is pure and deterministic. The CI `rules` job fails if a `uses` clause is added.
+   - `policy::record` takes the agent state as `mut AgentState` ([`ingots/policy/src/ledger.fe#L53`](ingots/policy/src/ledger.fe#L53)) and is, with `record_denial`, the only policy function that changes it.
+   - Guardian emergency `Pause` declares `uses (ctx, safe, guardian, mut paused, mut log)` ([`ingots/module/src/lib.fe#L219`](ingots/module/src/lib.fe#L219)): the only storage it can write is `paused` (plus the event log), so the compiler rules out the guardian executing transactions, rotating keys or changing limits from that handler.
+   - CLI subcommands get only the effects they need: `leash check` uses `Args`, `Stdout` and `Stderr` ([`ingots/cli/src/check.fe#L125`](ingots/cli/src/check.fe#L125)), and only `leash replay` is granted `Fs` ([`ingots/cli/src/replay.fe#L271`](ingots/cli/src/replay.fe#L271)).
 
 2. **Strictly Typed Financial Units**:
    - `Wei`, `Duration`, and `Timestamp` are distinct, strongly typed units ([`ingots/policy/src/types.fe#L1-L15`](ingots/policy/src/types.fe)).
@@ -211,7 +212,7 @@ Every capability in Leash maps directly to unique language features in Fe 26.6.0
    - Fe's `#[error]` struct attribute generates standard 4-byte ABI error selectors ([`ingots/module/src/errors.fe`](ingots/module/src/errors.fe)), allowing Safe clients, Viem, and Etherscan to cleanly decode typed reverts (e.g. `Paused()`, `TargetNotAllowed()`, `PerTxCapExceeded()`).
 
 6. **C ABI Export**:
-   - C header bindings ([`examples/c/leash.h`](examples/c/leash.h)) and reference consumer ([`examples/c/main.c`](examples/c/main.c)) demonstrate embedding Fe policy evaluation in C/C++ native agent harnesses.
+   - C header bindings ([`examples/c/leash.h`](examples/c/leash.h)) and reference consumer ([`examples/c/main.c`](examples/c/main.c)) demonstrate embedding Fe policy evaluation in C/C++ agent programs.
 
 ---
 
@@ -271,19 +272,23 @@ Located in [`test/attacks/src/`](test/attacks/src/):
 - **Attack 24**: Oracle Staleness & USD Spending Cap Evasion → Stale or zero oracle price feed rejected (`PriceUnavailable`, code 18); exceeding USD cap rejected (`UsdCapExceeded`, code 19)
 
 ### Bytecode Size & Headroom (E3)
-- **Runtime Code Size**: **22,029 bytes** (strictly below the 24,576-byte hard EIP-170 limit with 0 compiler warnings).
-- **EIP-170 Headroom**: **+2,547 bytes below 24,576-byte limit** while packing all 11 policy rules, ERC-20 hardening, Uniswap MEV protection, and Aave lending controls.
-- **Initcode Size**: 24,620 bytes (< 49,152 bytes EIP-3860 limit).
+- **Runtime Code Size**: **22,029 bytes** (below the 24,576-byte EIP-170 limit, 0 compiler warnings; measured with `fe build --emit sizes`).
+- **EIP-170 Headroom**: **2,547 bytes** with all policy rules, ERC-20 hardening, the Uniswap guard and the Aave guard.
+- **Initcode Size**: 22,284 bytes (< 49,152 bytes EIP-3860 limit).
 - Gas profiling details available in [`docs/GAS.md`](docs/GAS.md).
 
 ---
 
 ## 8. Limitations and Future Work
 
+Known limits of this release, each with where it is handled:
+
 1. **Hourly Bucket Approximation**: The 24-hour rolling window uses 24 discrete 1-hour buckets. Spend within the current hour rolls over cleanly, but timestamps within the same 60-minute bucket are grouped together. Continuous exponential sliding windows are scheduled for Stage 12.
 2. **Circuit Breaker Reset**: In the current implementation, resetting a tripped circuit breaker requires an explicit call from the Safe account (`ResetCircuitBreaker`). Automated exponential backoff resets are planned for Stage 10.
-3. **DeFi Protocol Guards**: Support for Uniswap V3 slippage bounds, Aave collateral ratios, and Chainlink USD oracles is designed and documented in [`phases/stage-09-defi-guards.md`](phases/stage-09-defi-guards.md) and [`phases/stage-11-aave-usd.md`](phases/stage-11-aave-usd.md) for post-contest deployment.
-4. **Offline TOML Parsing**: Parsing arbitrary external TOML policy manifests into static bytecode is documented for Stage 12 tooling.
+3. **Native CLI platforms**: Fe 26.6.0 links native binaries on x86-64 Linux and AArch64 macOS. Windows users run the CLI under WSL; the Windows demo uses the labelled TypeScript mirror (see the demo section).
+4. **Agent tool server**: `bin/leash-serve.ts` asks the Fe `leash` binary for each verdict when one is present; its multi-step planning session (`record`) keeps its window state in TypeScript.
+5. **Safe on testnet**: `demo/deploy.ts` deploys the Fe `MockSafe` test account. Using a canonical Safe means enabling the module from the Safe's Transaction Builder, as described in [`docs/deployment.md`](docs/deployment.md).
+6. **Offline TOML Parsing**: Parsing arbitrary external TOML policy manifests into static bytecode is documented for Stage 12 tooling.
 
 ---
 
@@ -307,10 +312,10 @@ Every requirement from `phases/00-project-context.md §11` is fulfilled and link
 | Contest Requirement | Leash Deliverable | Phase | Proof in Repository |
 |---|---|---|---|
 | **Core contribution in Fe** | `policy`, `module`, `cli`, `testkit` ingots are 100% pure Fe | 1–4 | [`fe.toml`](fe.toml), [`ingots/`](ingots/) |
-| **Public GitHub repo, OSI licence** | Public repository under Apache-2.0 | 0 | [`LICENSE`](LICENSE), [GitHub Repo](https://github.com/devprashant19/Leash) |
+| **Public GitHub repo, OSI licence** | Apache-2.0 | 0 | [`LICENSE`](LICENSE), [GitHub Repo](https://github.com/devprashant19/Leash) |
 | **Commit SHA & exact Fe version** | Pinned `fe 26.6.0 (5b3f96a)` | 0, 7 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml), [`docs/submission.md`](docs/submission.md) |
 | **Reproducible build instructions** | `make setup && make all && make demo` | 0, 7 | [`Makefile`](Makefile), [Quick Start](#2-quick-start) |
-| **Appropriate automated tests** | 137 tests passing across EVM + Native backends, attack suite | 1–5 | [`test/`](test/), [CI Workflow](https://github.com/devprashant19/Leash/actions) |
+| **Appropriate automated tests** | 159 EVM tests and 119 native tests passing (77 shared policy tests on both), attack suite | 1–5 | [`test/`](test/), [CI Workflow](https://github.com/devprashant19/Leash/actions) |
 | **README: approach, architecture, limitations** | Complete technical report adhering to contest structure | 7 | This document ([README.md](README.md)) |
 | **Short pitch + Fe highlight** | Pitch and Fe highlight defined in context §1 | 7 | [Pitch Header](#leash--drift-proof-safe-guardrails-for-ai-agents-in-fe) |
 | **Demo or reproducible example** | 2-min video script + local Anvil demo runner | 6 | [`docs/video-script.md`](docs/video-script.md), [`demo/local.ts`](demo/local.ts) |

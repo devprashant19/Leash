@@ -41,7 +41,7 @@ v1.0.0-submission
 
 ### 2-Minute Demo Video
 ```text
-URL: https://youtu.be/leash-fe-demo (Replace with uploaded video link)
+URL: <paste the unlisted YouTube link of the recorded demo here>
 Video Script & Storyboard: docs/video-script.md
 ```
 
@@ -56,19 +56,19 @@ make setup && make all && make demo
 ## 2. Contest Submission Checklist
 
 - [x] **Core contribution in Fe**: `ingots/policy`, `ingots/module`, `ingots/cli`, and `ingots/testkit` are 100% pure Fe. TypeScript is restricted strictly to testnet orchestration scripts and dashboard.
-- [x] **Public GitHub repo with OSI licence**: Public GitHub repository under Apache-2.0.
+- [x] **OSI licence**: Apache-2.0 ([`LICENSE`](../LICENSE)). Set the repository to Public before submitting (GitHub → Settings → General → Change visibility).
 - [x] **Exact Fe compiler version**: Pinned to `fe 26.6.0 (5b3f96a)` across `Makefile`, `.github/workflows/ci.yml`, and `README.md`.
 - [x] **Reproducible build instructions**: `make setup`, `make test`, `make build`, and `make demo` documented and tested.
 - [x] **Appropriate automated tests**:
-  - 137 automated tests passing green across 7 workspace packages.
+  - `fe test`: 159 passed on the EVM backend; `fe test --backend native`: 119 passed; the 77 shared policy tests pass on both backends (`scripts/count-tests.sh`).
   - Cross-backend parity suite: 10,000 transactions verified across EVM and Native backends with golden digest `0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb81b1f36a595fa9a1f975c1c5175a8`.
   - Mutation testing: Confirmed operator mutant immediately fails 11 test assertions.
   - Adversarial exploit suite: 25 attack tests neutralizing reentrancy, delegatecall hijacks, cap evasion, unlimited approvals, and privilege escalation.
-- [x] **EIP-170 Compliance**: Runtime code size is **23,639 bytes** (+937 bytes headroom below the 24,576-byte EVM limit).
+- [x] **EIP-170 Compliance**: Runtime code size is **22,029 bytes** (+2,547 bytes headroom below the 24,576-byte EVM limit).
 - [x] **Demo & Local Verification**: 5-transaction canonical rogue agent scenario runs on local Anvil node in **5 seconds** with **100% agreement and 0 drift**.
 - [x] **Declaration of pre-existing work & AI use**: `DECLARATION.md` and complete audit log in `docs/ai-log.md` detailing every AI-assisted change.
 - [x] **All commits in contest window**: All commits created and dated between Nov 3 and Nov 24, 2026. Starter repo tagged as `starter`.
-- [x] **Feature Freeze Respect**: Feature freeze tagged at `v0.1.0-freeze`. Only demo, documentation, and packaging modified in Phases 6 & 7.
+- [x] **Feature freeze**: tagged at `v0.1.0-freeze`. Roadmap Stages 9–12 (DeFi guards, override and escalation, Aave and USD caps, agent tooling) were built on `main` after that tag.
 
 ---
 

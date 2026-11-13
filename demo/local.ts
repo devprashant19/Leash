@@ -25,7 +25,8 @@ async function startAnvil(): Promise<{ proc?: ChildProcess; port: number }> {
     return { port };
   }
 
-  const anvilPath = process.platform === 'win32' ? 'C:\\Users\\u\\bin\\anvil.exe' : 'anvil';
+  // Uses `anvil` from PATH (Foundry); set ANVIL_PATH to override.
+  const anvilPath = process.env.ANVIL_PATH || 'anvil';
   console.log(`[demo] Starting ephemeral Anvil node (${anvilPath}) on port ${port}...`);
 
   const proc = spawn(anvilPath, ['--port', port.toString(), '--silent'], {
@@ -80,6 +81,12 @@ async function main() {
     }
     console.log('---------------------------------------------------------------------------------------------------------\n');
 
+    console.log(
+      `[demo] Prediction source: ${result.predictionSource}` +
+        (result.predictionSource === 'fe-native'
+          ? ' (real Fe-built leash binary)'
+          : ' (TypeScript mirror: no native leash binary on this host; build one with `fe build --backend native` on Linux/macOS)')
+    );
     console.log(`[demo] Cryptographic Policy Fingerprint:`);
     console.log(`       CLI Fingerprint:      ${result.fingerprintCli}`);
     console.log(`       On-Chain Fingerprint: ${result.fingerprintChain}`);

@@ -2,15 +2,18 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 function loadArtifact(ingot: string, name: string) {
-  const baseDir = path.resolve(__dirname, '..', '..', 'ingots', ingot, 'out');
+  const root = path.resolve(__dirname, '..', '..');
+  // `fe build ingots/<ingot>` writes to ingots/<ingot>/out; the workspace `fe build` writes to out/.
+  const baseDir = [path.join(root, 'ingots', ingot, 'out'), path.join(root, 'out')].find((d) =>
+    fs.existsSync(path.join(d, `${name}.bin`))
+  );
+  if (!baseDir) {
+    throw new Error(`Bytecode for ${name} not found. Run 'fe build' (or 'fe build ingots/${ingot}') first.`);
+  }
   const bytecodePath = path.join(baseDir, `${name}.bin`);
   const abiPath = path.join(baseDir, `${name}.abi.json`);
-
-  if (!fs.existsSync(bytecodePath)) {
-    throw new Error(`Bytecode not found at ${bytecodePath}. Run 'fe build ingots/${ingot}' first.`);
-  }
   if (!fs.existsSync(abiPath)) {
-    throw new Error(`ABI not found at ${abiPath}. Run 'fe build ingots/${ingot}' first.`);
+    throw new Error(`ABI not found at ${abiPath}. Run 'fe build' first.`);
   }
 
   const bytecode = ('0x' + fs.readFileSync(bytecodePath, 'utf8').trim()) as `0x${string}`;

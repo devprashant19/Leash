@@ -2,17 +2,19 @@
 
 ## 1. Standard Library Reference Locations (Fe v26.6.0)
 
+These paths are in the `argotorg/fe` repository at tag v26.6.0, not in this repo.
+
 | Capability / API | Location in `argotorg/fe` (v26.6.0) | Notes |
 |---|---|---|
-| **Typed Units** (`Wei`, `Address`, `Duration`, `Timestamp`) | `ingots/std/src/evm/units.fe`, `ingots/std/src/time.fe`, `ingots/std/src/evm/address.fe` | `Wei`, `Address` in `std::evm`; `Duration`, `Timestamp` in `std::time` |
-| **Keccak-256 Hashing** | `ingots/core/src/hash.fe` (`core::hash::keccak256_word`, `core::hash::keccak256`) | Available on both EVM and Native for `[u8; N]`, `MemSpan`, `MemBuffer` |
-| **Storage Maps** | `ingots/std/src/evm/storage_map.fe` (`std::evm::StorageMap`) | EVM contract storage mapping |
-| **EVM Effects** (`Ctx`, `Log`, `Call`, `Evm`, `Create`) | `ingots/std/src/evm/effects.fe` | Effects system for contracts |
-| **Contract Calls & Returndata** | `ingots/std/src/evm/calls.fe`, `ingots/std/src/evm/returndata.fe` | Low-level EVM call wrappers, `evm.call` and `evm.try_call` |
-| **Text & Hex Decoding** | `ingots/core/src/text.fe` (`decode_hex`, `parse_uint`), `ingots/core/src/string.fe` | `decode_hex` takes any `T: Text` and returns `Option<Bytes>` |
-| **I/O & Streams** (`Stdout`, `Stderr`, `Stdin`) | `ingots/std/src/io.fe` | Defined as traits implemented by `Host`; provides `print!` and `println!` |
-| **Process Environment** (`Args`, `Env`) | `ingots/std/src/env.fe`, `ingots/std/src/process.fe` | Defined as traits implemented by `Host`; `Args::get` returns `Arg` with `.span()` |
-| **File System** (`Fs`, `File`) | `ingots/std/src/fs.fe` | Native file system operations |
+| **Typed Units** (`Wei`, `Address`, `Duration`, `Timestamp`) | `ingots/std/src/evm/units.fe`, `ingots/std/src/time.fe`, `ingots/std/src/evm/address.fe` | `Wei`, `Address` in `std::evm`; `Duration`, `Timestamp` in `std::time` | <!-- check-docs: ignore -->
+| **Keccak-256 Hashing** | `ingots/core/src/hash.fe` (`core::hash::keccak256_word`, `core::hash::keccak256`) | Available on both EVM and Native for `[u8; N]`, `MemSpan`, `MemBuffer` | <!-- check-docs: ignore -->
+| **Storage Maps** | `ingots/std/src/evm/storage_map.fe` (`std::evm::StorageMap`) | EVM contract storage mapping | <!-- check-docs: ignore -->
+| **EVM Effects** (`Ctx`, `Log`, `Call`, `Evm`, `Create`) | `ingots/std/src/evm/effects.fe` | Effects system for contracts | <!-- check-docs: ignore -->
+| **Contract Calls & Returndata** | `ingots/std/src/evm/calls.fe`, `ingots/std/src/evm/returndata.fe` | Low-level EVM call wrappers, `evm.call` and `evm.try_call` | <!-- check-docs: ignore -->
+| **Text & Hex Decoding** | `ingots/core/src/text.fe` (`decode_hex`, `parse_uint`), `ingots/core/src/string.fe` | `decode_hex` takes any `T: Text` and returns `Option<Bytes>` | <!-- check-docs: ignore -->
+| **I/O & Streams** (`Stdout`, `Stderr`, `Stdin`) | `ingots/std/src/io.fe` | Defined as traits implemented by `Host`; provides `print!` and `println!` | <!-- check-docs: ignore -->
+| **Process Environment** (`Args`, `Env`) | `ingots/std/src/env.fe`, `ingots/std/src/process.fe` | Defined as traits implemented by `Host`; `Args::get` returns `Arg` with `.span()` | <!-- check-docs: ignore -->
+| **File System** (`Fs`, `File`) | `ingots/std/src/fs.fe` | Native file system operations | <!-- check-docs: ignore -->
 
 ---
 
@@ -65,7 +67,7 @@
 4. **Single-Element Tuples for `evm.create<T>`**:
    - Calling `evm.create<T>(args: (x))` treats `(x)` as parenthesized expression rather than a tuple.
    - Single-element tuples require a trailing comma: `evm.create<T>(args: (x,))`.
-5. **EVM Gas Limits in Off-chain Test Harnesses**:
+5. **EVM Gas Limits in Off-chain Test Contracts**:
    - Running 10,000 complex cryptographic transactions in a single EVM contract execution exceeds standard gas limits (30M gas).
    - Solution: Sharding the parity suite into 10 deterministic chunks of 1,000 transactions with rolling seeds (`PARITY_SEED + chunk_idx`) allows instant verification across both EVM and native backends (~0.35s per chunk) with rolling Keccak-256 state continuity.
 6. **Zero-Field Message Variant Syntax**:

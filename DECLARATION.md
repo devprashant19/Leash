@@ -11,7 +11,7 @@
 - **ERC-20 Interface**: Standard selectors for:
   - `transfer(address,uint256)` (`0xa9059cbb`)
   - `approve(address,uint256)` (`0x095ea7b3`)
-  - `transferFrom(address,address,uint256)` (`0x23b87266`)
+  - `transferFrom(address,address,uint256)` (`0x23b872dd`)
   - `increaseAllowance(address,uint256)` (`0x39509351`)
   - `decreaseAllowance(address,uint256)` (`0xa457c2d7`)
   - `balanceOf(address)` (`0x70a08231`)

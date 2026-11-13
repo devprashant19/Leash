@@ -31,7 +31,7 @@ fn print_help() -> i32 uses (out: mut Stdout) {
         "  leash replay <log.csv>                          Audit historical tx CSV log",
     )
     println!(
-        "  leash serve [--stdio]                           Agent tool mode (line JSON-RPC)",
+        "  leash serve                                     Agent tool mode: run bin/leash-serve.ts",
     )
     println!(
         "  leash --help, -h                                Show this help",
@@ -58,10 +58,12 @@ pub fn main() -> i32 uses (args: Args, out: mut Stdout, err: mut Stderr, fs: Fs)
     } else if subcmd == "replay" {
         replay::run()
     } else if subcmd == "serve" {
-        println!(
-            "{\"status\":\"ready\",\"mode\":\"stdio\",\"fingerprint\":\"0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee\"}",
+        // The stdio JSON server lives in bin/leash-serve.ts and calls this binary
+        // (`leash check --json`) for every verdict. This binary does not serve itself.
+        eprintln!(
+            "error: run `npm --prefix demo run serve` (bin/leash-serve.ts); it calls this binary for each check",
         )
-        0
+        1
     } else if subcmd == "--help" || subcmd == "-h" {
         print_help()
     } else if subcmd == "--version" || subcmd == "-v" {

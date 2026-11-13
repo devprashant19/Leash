@@ -1,4 +1,4 @@
-import { execFileSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -40,7 +40,7 @@ export const ADDR_AAVE_POOL = '0x6ae43d3271ff6888e7fc43fd7321a503ff738951'.toLow
 
 export const SEL_APPROVE = '0x095ea7b3';
 export const SEL_TRANSFER = '0xa9059cbb';
-export const SEL_TRANSFER_FROM = '0x23b87266';
+export const SEL_TRANSFER_FROM = '0x23b872dd';
 export const SEL_INCREASE_ALLOWANCE = '0x39509351';
 export const SEL_DECREASE_ALLOWANCE = '0xa457c2d7';
 export const SEL_UNISWAP_V2_SWAP = '0x38ed1739';
@@ -54,30 +54,74 @@ export const MAX_PER_WINDOW_WEI = 500_000_000_000_000_000n; // 0.5 ETH
 export const TOKEN_MAX_PER_TX = 100_000_000_000_000_000_000n; // 100 tokens
 export const TOKEN_MAX_APPROVE = 100_000_000_000_000_000_000n; // 100 tokens
 
+/**
+ * Where a prediction came from.
+ * - 'fe-native': the real `leash` binary built from ingots/cli with `fe build --backend native`.
+ * - 'ts-mirror': the TypeScript copy of the rules below. Used only when no native binary
+ *   exists (Fe cannot link native binaries on Windows). It proves nothing about the Fe code.
+ */
+export type PredictionSource = 'fe-native' | 'ts-mirror';
+
+const REPO_ROOT = path.resolve(__dirname, '..', '..');
+
+/** The native `leash` binary: $LEASH_BIN, else out/cli (fe build output), else bin/leash. */
+export function findLeashBinary(): string | null {
+  const exe = process.platform === 'win32' ? '.exe' : '';
+  const candidates = [
+    process.env.LEASH_BIN,
+    path.join(REPO_ROOT, 'out', `cli${exe}`),
+    path.join(REPO_ROOT, 'bin', `leash${exe}`),
+  ].filter((p): p is string => !!p);
+  return candidates.find((p) => fs.existsSync(p)) ?? null;
+}
+
+/** LEASH_REQUIRE_NATIVE=1 (set in CI) forbids the TypeScript fallback. */
+function requireNative(): boolean {
+  return process.env.LEASH_REQUIRE_NATIVE === '1';
+}
+
+export function predictionSource(): PredictionSource {
+  if (findLeashBinary()) return 'fe-native';
+  if (requireNative()) {
+    throw new Error(
+      'LEASH_REQUIRE_NATIVE=1 but no native leash binary was found. ' +
+        'Run `fe build --backend native` (x86-64 Linux or AArch64 macOS) or set LEASH_BIN.'
+    );
+  }
+  return 'ts-mirror';
+}
+
+function runLeash(binary: string, args: string[]): string {
+  const res = spawnSync(binary, args, { encoding: 'utf8' });
+  if (res.error) throw new Error(`could not run ${binary}: ${res.error.message}`);
+  // Exit 0 = ALLOW, 2 = DENY: both are answers. Anything else is a failure.
+  if (res.status !== 0 && res.status !== 2) {
+    throw new Error(`leash ${args[0]} exited with ${res.status}: ${(res.stderr || '').trim()}`);
+  }
+  return res.stdout;
+}
+
+/** The policy fingerprint as the CLI computes it (or the pinned vector when only the TS mirror is available). */
+export function cliFingerprint(): string {
+  const binary = predictionSource() === 'fe-native' ? findLeashBinary() : null;
+  if (!binary) return GOLDEN_FINGERPRINT;
+  return runLeash(binary, ['fingerprint']).trim();
+}
+
 export function predictVerdict(opts: CheckOptions): LeashCheckResult {
-  const binaryPath = path.resolve(__dirname, '..', '..', 'bin', process.platform === 'win32' ? 'leash.exe' : 'leash');
+  const binary = predictionSource() === 'fe-native' ? findLeashBinary() : null;
 
-  if (fs.existsSync(binaryPath)) {
-    try {
-      const args = [
-        'check',
-        '--to', opts.to,
-        '--value-wei', (opts.valueWei || 0n).toString(),
-        '--json'
-      ];
-      if (opts.data && opts.data !== '0x') args.push('--data', opts.data);
-      if (opts.op) args.push('--op', opts.op);
-      if (opts.now !== undefined) args.push('--now', opts.now.toString());
-      if (opts.stateHex) args.push('--state', opts.stateHex);
-
-      const stdout = execFileSync(binaryPath, args, { encoding: 'utf8' });
-      return JSON.parse(stdout);
-    } catch {
-      // Fall through to pure TS implementation
-    }
+  if (binary) {
+    const args = ['check', '--to', opts.to, '--value-wei', (opts.valueWei || 0n).toString(), '--json'];
+    if (opts.data && opts.data !== '0x') args.push('--data', opts.data);
+    if (opts.op) args.push('--op', opts.op);
+    if (opts.now !== undefined) args.push('--now', opts.now.toString());
+    if (opts.stateHex) args.push('--state', opts.stateHex);
+    // No silent fallback: if the real binary misbehaves, the demo must fail loudly.
+    return JSON.parse(runLeash(binary, args));
   }
 
-  // Pure Fe Policy Rule Engine (ADR-001 & context §6)
+  // TypeScript mirror of the policy rules (fallback only; see PredictionSource).
   const to = opts.to.toLowerCase();
   const value = opts.valueWei || 0n;
   const data = opts.data || '0x';
@@ -156,7 +200,7 @@ export function predictVerdict(opts: CheckOptions): LeashCheckResult {
     // ERC20 selectors
     // approve: 0x095ea7b3, increaseAllowance: 0x39509351, decreaseAllowance: 0xa457c2d7
     // transfer: 0xa9059cbb
-    // transferFrom: 0x23b87266
+    // transferFrom: 0x23b872dd
     if (sel === SEL_APPROVE || sel === SEL_INCREASE_ALLOWANCE) {
       if (byteLen !== 68) {
         return makeResult('DENY', 6, 'MalformedCalldata', 'Invalid approve calldata length', now);

@@ -12,7 +12,7 @@ export const SUPPORTED_CHAINS: Record<string, ChainConfig> = {
   sepolia: {
     chain: sepolia,
     name: 'Ethereum Sepolia',
-    defaultRpc: 'https://rpc.sepolia.org',
+    defaultRpc: 'https://ethereum-sepolia-rpc.publicnode.com',
     blockExplorer: 'https://sepolia.etherscan.io',
   },
   'base-sepolia': {
@@ -44,3 +44,4 @@ export function getChainConfig(network = 'sepolia'): ChainConfig {
   }
   return cfg;
 }
+

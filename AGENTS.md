@@ -41,7 +41,7 @@
 ---
 
 ## 5. How to Work
-1. **Never guess a Fe API**: Fe 26.6.0 is new. Before using any std feature, read `ingots/std` source in the reference clone or the graphify map.
+1. **Never guess a Fe API**: Fe 26.6.0 is new. Before using any std feature, read the `ingots/std` source of argotorg/fe v26.6.0 (reference clone) or the graphify map. <!-- check-docs: ignore -->
 2. Run `fe check` after every small change.
 3. Follow TDD: red on both backends -> green on both -> `fe fmt` -> `fe check` -> commit.
 4. Respect timeboxes and document fallbacks in `docs/FE_FINDINGS.md`.
@@ -51,5 +51,5 @@
 ## 6. How to End Every Session
 1. Run the standard gate commands and paste the raw output into `docs/ai-log.md`.
 2. Add one line per AI-assisted change to `docs/ai-log.md`.
-3. Write a handoff note in `docs/handoff/YYYY-MM-DD.md`.
+3. Write a handoff note in `docs/handoff/`, named by date (for example `2026-11-13.md`).
 4. Commit all changes (working tree must be clean) and push.
