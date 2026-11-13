@@ -158,3 +158,4 @@ export function startMcpServer(): void {
 if (require.main === module) {
   startMcpServer();
 }
+

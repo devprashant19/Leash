@@ -64,3 +64,4 @@ fe test
 # Check bytecode headroom
 fe build ingots/module --emit sizes
 ```
+

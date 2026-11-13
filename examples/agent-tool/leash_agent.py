@@ -101,3 +101,4 @@ if __name__ == "__main__":
         print(f"Verdict for 0.80 ETH transfer: {denied['verdict']} (Reason: {denied['reason']})")
     finally:
         client.close()
+

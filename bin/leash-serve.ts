@@ -198,3 +198,4 @@ export function startServer(): void {
 if (require.main === module) {
   startServer();
 }
+

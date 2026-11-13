@@ -42,3 +42,4 @@ We implement Aave v3 Lending Guards and Chainlink-compatible Oracle USD Caps:
 - Agents can safely supply and withdraw from Aave v3 with mathematical proof that funds cannot be diverted to rogue recipients.
 - Safe treasuries can set immutable USD-denominated spending limits protected against oracle staleness.
 - Bytecode size remains comfortably below the EVM runtime cap.
+

@@ -40,3 +40,4 @@ We implement a dedicated Agent Tooling Architecture:
 - AI agents can evaluate hundreds of proposed transactions per second with zero process spawn overhead.
 - Multi-tx planning allows agents to self-correct and re-route before incurring gas fees or Safe reverts.
 - MCP compatibility enables native tool use in modern AI coding and assistant workflows.
+

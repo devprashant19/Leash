@@ -42,3 +42,4 @@ fn main() {
     println!("Value bytes: {:?} (0.05 ETH)", &val[24..32]);
     println!("Rust interface bindings verified against leash.h.");
 }
+
