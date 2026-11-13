@@ -65,7 +65,7 @@ To check it locally: `npx serve demo`, then open `http://localhost:3000/dashboar
 
 ## 4. CLI binary (GitHub Releases)
 
-`.github/workflows/release.yml` builds `leash` with `fe build --backend native` on `ubuntu-latest` (x86-64) and `macos-14` (arm64):
+`.github/workflows/release.yml` builds `leash` with `fe build --backend native` on `ubuntu-latest` (x86-64) and `macos-latest` (Apple Silicon, arm64):
 
 - **Manual run** (Actions → Release → Run workflow): uploads the binaries as workflow artifacts.
 - **Pushing a tag `cli-v*`:** also attaches them to a GitHub release for that tag.
