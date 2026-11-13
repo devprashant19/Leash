@@ -969,3 +969,10 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 
 
 
+
+## 2026-11-13 — CI fix — golden `02-help` out of date after Stage 12
+- **AI-assisted**: yes (Claude Code). Files: `test/cli/golden/02-help.stdout`
+- **What**: CI run 43417361016 failed in job `build`, step "Run golden CLI tests": 1 / 17 failed (`02-help`). Commit 58b3fe0 added the `leash serve [--stdio]` line to the `--help` text (`ingots/cli/src/lib.fe:34`) and wired the `serve` subcommand (line 60), but did not update the golden file.
+- **Why the golden value changed**: the new help line is intended Stage 12 (D6) behaviour, so the expected output is updated to match. No CLI code changed. The line was copied verbatim from `lib.fe:34`.
+- **Verification**: the native golden suite cannot run on this Windows host (Fe native linking needs x86-64 Linux or AArch64 macOS; WSL and Docker were unavailable). The next CI `build` job is the check.
+- **Reviewed by human**: pending confirmation.
