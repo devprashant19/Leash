@@ -30,7 +30,8 @@ https://github.com/devprashant19/Leash
 
 ### 40-Character Commit SHA
 ```text
-<COMMIT_SHA>
+# Run `git rev-parse HEAD` to get the exact 40-character commit SHA of tag v1.0.0-submission:
+# Example: 317f505d39849f2bf452bcead96362157c2f531b
 ```
 
 ### Submission Release Tag
