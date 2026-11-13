@@ -4,8 +4,12 @@ use policy::{
     MAX_CALLDATA,
     Policy,
     SEL_APPROVE,
+    SEL_DECREASE_ALLOWANCE,
+    SEL_INCREASE_ALLOWANCE,
     SEL_TRANSFER,
     SEL_TRANSFER_FROM,
+    SEL_UNISWAP_V2_SWAP_TOKENS,
+    SEL_UNISWAP_V3_EXACT_INPUT_SINGLE,
     Timestamp,
     default_policy,
 }
@@ -73,4 +77,44 @@ pub fn erc20_transfer_from(from: Address, to: Address, amt: u256) -> Calldata {
     write_word(buf: mut buf, offset: 36, val: to.word())
     write_word(buf: mut buf, offset: 68, val: amt)
     Calldata { len: 100, bytes: buf }
+}
+
+pub fn erc20_increase_allowance(spender: Address, amt: u256) -> Calldata {
+    var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    write_u32(buf: mut buf, offset: 0, val: SEL_INCREASE_ALLOWANCE)
+    write_word(buf: mut buf, offset: 4, val: spender.word())
+    write_word(buf: mut buf, offset: 36, val: amt)
+    Calldata { len: 68, bytes: buf }
+}
+
+pub fn erc20_decrease_allowance(spender: Address, amt: u256) -> Calldata {
+    var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    write_u32(buf: mut buf, offset: 0, val: SEL_DECREASE_ALLOWANCE)
+    write_word(buf: mut buf, offset: 4, val: spender.word())
+    write_word(buf: mut buf, offset: 36, val: amt)
+    Calldata { len: 68, bytes: buf }
+}
+
+pub fn addr_uniswap_router() -> Address {
+    Address::new(0x7a250d5630b4cf539739df2c5dacb4c659f2488d)
+}
+
+pub fn uniswap_v2_swap(amount_in: u256, amount_out_min: u256) -> Calldata {
+    var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    write_u32(buf: mut buf, offset: 0, val: SEL_UNISWAP_V2_SWAP_TOKENS)
+    write_word(buf: mut buf, offset: 4, val: amount_in)
+    write_word(buf: mut buf, offset: 36, val: amount_out_min)
+    Calldata { len: 68, bytes: buf }
+}
+
+pub fn uniswap_v3_exact_input_single(amount_in: u256, amount_out_min: u256) -> Calldata {
+    var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    write_u32(
+        buf: mut buf,
+        offset: 0,
+        val: SEL_UNISWAP_V3_EXACT_INPUT_SINGLE,
+    )
+    write_word(buf: mut buf, offset: 4, val: amount_in)
+    write_word(buf: mut buf, offset: 36, val: amount_out_min)
+    Calldata { len: 68, bytes: buf }
 }

@@ -2,8 +2,12 @@ use ingot::types::{
     DenyReason,
     Operation,
     SEL_APPROVE,
+    SEL_DECREASE_ALLOWANCE,
+    SEL_INCREASE_ALLOWANCE,
     SEL_TRANSFER,
     SEL_TRANSFER_FROM,
+    SEL_UNISWAP_V2_SWAP_TOKENS,
+    SEL_UNISWAP_V3_EXACT_INPUT_SINGLE,
     operation_from_u8,
     reason_code,
     reason_from_code,
@@ -15,6 +19,10 @@ fn test_selectors_match() {
     assert(SEL_TRANSFER == 0xa9059cbb)
     assert(SEL_APPROVE == 0x095ea7b3)
     assert(SEL_TRANSFER_FROM == 0x23b872dd)
+    assert(SEL_INCREASE_ALLOWANCE == 0x39509351)
+    assert(SEL_DECREASE_ALLOWANCE == 0xa457c2d7)
+    assert(SEL_UNISWAP_V3_EXACT_INPUT_SINGLE == 0x04e45aaf)
+    assert(SEL_UNISWAP_V2_SWAP_TOKENS == 0x38ed1739)
 }
 
 #[test]

@@ -17,6 +17,7 @@ pub use encoding::{
 pub use fingerprint::{explain_reason, fingerprint}
 pub use validate::{PolicyCheck, check_code, check_name, validate}
 pub use budget::{Budget, remaining}
+pub use guard::{ActionGuard, Erc20Guard, UniswapGuard}
 
 use test_types::*
 use test_decode::*
@@ -30,6 +31,7 @@ use test_validate::*
 use test_recipient_rate::*
 use test_budget::*
 use test_cooldown::*
+use test_guard::*
 
 pub fn version() -> u32 {
     1

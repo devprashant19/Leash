@@ -12,6 +12,10 @@ pub const MAX_CALLDATA: usize = 100
 pub const SEL_TRANSFER: u32 = sol("transfer(address,uint256)")
 pub const SEL_APPROVE: u32 = sol("approve(address,uint256)")
 pub const SEL_TRANSFER_FROM: u32 = sol("transferFrom(address,address,uint256)")
+pub const SEL_INCREASE_ALLOWANCE: u32 = sol("increaseAllowance(address,uint256)")
+pub const SEL_DECREASE_ALLOWANCE: u32 = sol("decreaseAllowance(address,uint256)")
+pub const SEL_UNISWAP_V3_EXACT_INPUT_SINGLE: u32 = 0x04e45aaf
+pub const SEL_UNISWAP_V2_SWAP_TOKENS: u32 = 0x38ed1739
 
 pub struct TokenAmount { pub raw: u256 }
 

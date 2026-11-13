@@ -1,0 +1,15 @@
+use ingot::guard::{ActionGuard, Erc20Guard, UniswapGuard}
+use ingot::types::TargetKind
+
+#[test]
+fn test_action_guard_trait_matching() {
+    let erc20_guard = Erc20Guard {}
+    assert(erc20_guard.matches_kind(TargetKind::Erc20))
+    assert(!erc20_guard.matches_kind(TargetKind::Generic))
+    assert(!erc20_guard.matches_kind(TargetKind::UniswapRouter))
+
+    let uni_guard = UniswapGuard {}
+    assert(uni_guard.matches_kind(TargetKind::UniswapRouter))
+    assert(!uni_guard.matches_kind(TargetKind::Erc20))
+    assert(!uni_guard.matches_kind(TargetKind::AavePool))
+}

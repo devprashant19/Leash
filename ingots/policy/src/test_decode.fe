@@ -1,6 +1,15 @@
 use ingot::config::{ADDR_TOKEN, ADDR_TREASURY}
 use ingot::decode::{Erc20Call, decode_erc20, selector_of}
-use ingot::types::{Address, Calldata, MAX_CALLDATA, SEL_APPROVE, SEL_TRANSFER, SEL_TRANSFER_FROM}
+use ingot::types::{
+    Address,
+    Calldata,
+    MAX_CALLDATA,
+    SEL_APPROVE,
+    SEL_DECREASE_ALLOWANCE,
+    SEL_INCREASE_ALLOWANCE,
+    SEL_TRANSFER,
+    SEL_TRANSFER_FROM,
+}
 
 pub fn make_transfer_calldata(to: Address, amt: u256) -> Calldata {
     var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
@@ -151,6 +160,53 @@ fn test_decode_dirty_address() {
     data.bytes[4] = 1
     match decode_erc20(data) {
         Erc20Call::Malformed => {},
+        _ => assert(false),
+    }
+}
+
+#[test]
+fn test_decode_increase_and_decrease_allowance() {
+    var buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    buf[0] = ((SEL_INCREASE_ALLOWANCE >> 24) & 0xff).downcast_truncate()
+    buf[1] = ((SEL_INCREASE_ALLOWANCE >> 16) & 0xff).downcast_truncate()
+    buf[2] = ((SEL_INCREASE_ALLOWANCE >> 8) & 0xff).downcast_truncate()
+    buf[3] = (SEL_INCREASE_ALLOWANCE & 0xff).downcast_truncate()
+
+    var i: usize = 0
+    while i < 32 {
+        let shift = ((31 - i) * 8) as u256
+        buf[4 + i] = ((ADDR_TREASURY.word() >> shift) & 0xff).downcast_truncate()
+        buf[36 + i] = ((500 as u256 >> shift) & 0xff).downcast_truncate()
+        i += 1
+    }
+    let data = Calldata { len: 68, bytes: buf }
+    match decode_erc20(data) {
+        Erc20Call::Approve(spender, amt) => {
+            assert(spender == ADDR_TREASURY)
+            assert(amt == 500)
+        },
+        _ => assert(false),
+    }
+
+    var dec_buf: [u8; MAX_CALLDATA] = [0; MAX_CALLDATA]
+    dec_buf[0] = ((SEL_DECREASE_ALLOWANCE >> 24) & 0xff).downcast_truncate()
+    dec_buf[1] = ((SEL_DECREASE_ALLOWANCE >> 16) & 0xff).downcast_truncate()
+    dec_buf[2] = ((SEL_DECREASE_ALLOWANCE >> 8) & 0xff).downcast_truncate()
+    dec_buf[3] = (SEL_DECREASE_ALLOWANCE & 0xff).downcast_truncate()
+
+    var j: usize = 0
+    while j < 32 {
+        let shift = ((31 - j) * 8) as u256
+        dec_buf[4 + j] = ((ADDR_TREASURY.word() >> shift) & 0xff).downcast_truncate()
+        dec_buf[36 + j] = ((200 as u256 >> shift) & 0xff).downcast_truncate()
+        j += 1
+    }
+    let dec_data = Calldata { len: 68, bytes: dec_buf }
+    match decode_erc20(dec_data) {
+        Erc20Call::Approve(spender, amt) => {
+            assert(spender == ADDR_TREASURY)
+            assert(amt == 0)
+        },
         _ => assert(false),
     }
 }

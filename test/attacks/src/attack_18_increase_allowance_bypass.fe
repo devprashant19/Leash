@@ -1,0 +1,126 @@
+use policy::{
+    Address,
+    AgentState,
+    DenyReason,
+    Operation,
+    Timestamp,
+    Tx,
+    U256_MAX,
+    Verdict,
+    Wei,
+    decide,
+    default_policy,
+}
+use testkit::{
+    addr_attacker,
+    addr_token,
+    addr_treasury,
+    erc20_decrease_allowance,
+    erc20_increase_allowance,
+}
+
+#[test]
+pub fn test_attack_18_increase_allowance_bypass() {
+    var pol = default_policy()
+    pol.n_recipients = 1
+    pol.recipients[0] = addr_treasury()
+
+    // Enable increaseAllowance and decreaseAllowance selectors on token target
+    pol.targets[0].selectors[3] = policy::SEL_INCREASE_ALLOWANCE
+    pol.targets[0].selectors[4] = policy::SEL_DECREASE_ALLOWANCE
+    pol.targets[0].n_selectors = 5
+
+    var state = AgentState::empty()
+    state.expiry = Timestamp::from_seconds(2_000_000_000)
+
+    // 1. Attacker calls increaseAllowance(treasury, 2^256 - 1)
+    let bad_data = erc20_increase_allowance(spender: addr_treasury(), amt: U256_MAX)
+    let tx_unlimited = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: bad_data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx_unlimited, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::UnlimitedApproval => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // 2. Attacker calls increaseAllowance to unlisted recipient
+    let bad_spender_data = erc20_increase_allowance(spender: addr_attacker(), amt: 50)
+    let tx_bad_spender = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: bad_spender_data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx_bad_spender, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::RecipientNotAllowed => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // 3. Attacker calls increaseAllowance over token approval cap
+    let max_app = pol.tokens[0].max_approve.as_u256()
+    let over_cap_data = erc20_increase_allowance(spender: addr_treasury(), amt: max_app + 1)
+    let tx_over_cap = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: over_cap_data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx_over_cap, pol, state) {
+        Verdict::Deny(reason) => {
+            match reason {
+                DenyReason::UnlimitedApproval => {},
+                _ => assert(false),
+            }
+        },
+        _ => assert(false),
+    }
+
+    // 4. Valid increaseAllowance within cap -> Allowed
+    let ok_data = erc20_increase_allowance(spender: addr_treasury(), amt: max_app / 2)
+    let tx_ok = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: ok_data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx_ok, pol, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+
+    // 5. Valid decreaseAllowance -> Allowed
+    let dec_data = erc20_decrease_allowance(spender: addr_treasury(), amt: max_app / 2)
+    let tx_dec = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: dec_data,
+        op: Operation::Call,
+        now: Timestamp::from_seconds(1_763_000_000),
+    }
+
+    match decide(tx_dec, pol, state) {
+        Verdict::Allow => {},
+        _ => assert(false),
+    }
+}

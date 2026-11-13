@@ -1,4 +1,15 @@
-use ingot::types::{Address, Calldata, MAX_CALLDATA, SEL_APPROVE, SEL_TRANSFER, SEL_TRANSFER_FROM}
+use ingot::types::{
+    Address,
+    Calldata,
+    MAX_CALLDATA,
+    SEL_APPROVE,
+    SEL_DECREASE_ALLOWANCE,
+    SEL_INCREASE_ALLOWANCE,
+    SEL_TRANSFER,
+    SEL_TRANSFER_FROM,
+    SEL_UNISWAP_V2_SWAP_TOKENS,
+    SEL_UNISWAP_V3_EXACT_INPUT_SINGLE,
+}
 
 pub enum Erc20Call {
     Transfer(Address, u256),
@@ -7,6 +18,15 @@ pub enum Erc20Call {
     Malformed,
     Unknown,
 }
+
+pub enum SwapCall {
+    ExactInput(u256, u256),
+    Malformed,
+    Unknown,
+}
+
+impl Copy for SwapCall {}
+impl Snapshot for SwapCall {}
 
 impl Copy for Erc20Call {}
 impl Snapshot for Erc20Call {}
@@ -71,7 +91,7 @@ pub fn decode_erc20(_ data: ref Calldata) -> Erc20Call {
         let to = read_address(data, offset: 4)
         let amt = read_word(data, offset: 36)
         Erc20Call::Transfer(to, amt)
-    } else if sel == SEL_APPROVE {
+    } else if sel == SEL_APPROVE || sel == SEL_INCREASE_ALLOWANCE {
         if data.len != 68 {
             return Erc20Call::Malformed
         }
@@ -81,6 +101,15 @@ pub fn decode_erc20(_ data: ref Calldata) -> Erc20Call {
         let spender = read_address(data, offset: 4)
         let amt = read_word(data, offset: 36)
         Erc20Call::Approve(spender, amt)
+    } else if sel == SEL_DECREASE_ALLOWANCE {
+        if data.len != 68 {
+            return Erc20Call::Malformed
+        }
+        if !is_address_word(data, offset: 4) {
+            return Erc20Call::Malformed
+        }
+        let spender = read_address(data, offset: 4)
+        Erc20Call::Approve(spender, 0)
     } else if sel == SEL_TRANSFER_FROM {
         if data.len != 100 {
             return Erc20Call::Malformed
@@ -97,6 +126,30 @@ pub fn decode_erc20(_ data: ref Calldata) -> Erc20Call {
         Erc20Call::TransferFrom(from, to, amt)
     } else {
         Erc20Call::Unknown
+    }
+}
+
+pub fn decode_swap(_ data: ref Calldata) -> SwapCall {
+    if data.len < 4 {
+        return SwapCall::Malformed
+    }
+
+    let sel = match selector_of(data) {
+        Option::Some(s) => s,
+        Option::None => {
+            return SwapCall::Malformed
+        },
+    }
+
+    if sel == SEL_UNISWAP_V2_SWAP_TOKENS || sel == SEL_UNISWAP_V3_EXACT_INPUT_SINGLE {
+        if data.len < 68 {
+            return SwapCall::Malformed
+        }
+        let amount_in = read_word(data, offset: 4)
+        let amount_out_min = read_word(data, offset: 36)
+        SwapCall::ExactInput(amount_in, amount_out_min)
+    } else {
+        SwapCall::Unknown
     }
 }
 

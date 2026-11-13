@@ -1,0 +1,43 @@
+use ingot::rules::{check_erc20_guard, check_uniswap_guard}
+use ingot::types::{AgentState, DenyReason, Policy, TargetKind, Tx}
+
+pub trait ActionGuard {
+    fn matches_kind(self, _ kind: TargetKind) -> bool
+    fn check_tx(self, _ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
+        DenyReason,
+    >
+}
+
+pub struct Erc20Guard {}
+
+impl ActionGuard for Erc20Guard {
+    fn matches_kind(self, _ kind: TargetKind) -> bool {
+        match kind {
+            TargetKind::Erc20 => true,
+            _ => false,
+        }
+    }
+
+    fn check_tx(self, _ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
+        DenyReason,
+    > {
+        check_erc20_guard(tx, policy, state)
+    }
+}
+
+pub struct UniswapGuard {}
+
+impl ActionGuard for UniswapGuard {
+    fn matches_kind(self, _ kind: TargetKind) -> bool {
+        match kind {
+            TargetKind::UniswapRouter => true,
+            _ => false,
+        }
+    }
+
+    fn check_tx(self, _ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
+        DenyReason,
+    > {
+        check_uniswap_guard(tx, policy, state)
+    }
+}
