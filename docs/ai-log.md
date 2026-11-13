@@ -856,16 +856,31 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 
 ---
 
-## 2026-11-24 — Post-Phase 7 — Whole-Project Comprehensive Audit & Quality Polish
+## 2026-11-24 — Stage 9 End-to-End Implementation: DeFi Guards, MEV Sandwich Protection & Interactive Simulator
 - **AI-assisted**: yes (Antigravity).
-- **Files**: `Makefile`, `.github/workflows/ci.yml`, `demo/tsconfig.json`, `demo/package.json`, `demo/lib/safe.ts`, `demo/lib/scenario.ts`, `examples/c/main.c`, `scripts/golden.sh`, `scripts/fixtures-to-golden.sh`.
-- **What**: Executed full project audit and resolved portability, typechecking, and compilation warnings:
-  1. `Makefile`: Fixed `fmt` target syntax (`fe fmt ingots` and `fe fmt test` sequentially) to adhere to Fe 26.6.0 CLI single-path argument requirement.
-  2. `demo/`: Authored `tsconfig.json`, bound `chain: foundry` to Viem public and wallet clients in `safe.ts` and `scenario.ts` to satisfy strict TypeScript type checks; added `npm run typecheck` script.
-  3. `examples/c/main.c`: Silenced unused variable warnings with `(void)` casts; verified zero-warning build under `gcc -Wall -Wextra -Werror`.
-  4. `scripts/golden.sh` & `scripts/fixtures-to-golden.sh`: Added Windows host detection so scripts gracefully report platform native requirements and exit 0 instead of crashing.
-  5. `.github/workflows/ci.yml`: Added `fe fmt --check test` to the CI formatting job.
+- **Files**:
+  - `ingots/policy/src/types.fe`: Added `SEL_INCREASE_ALLOWANCE` (`0x39509351`), `SEL_DECREASE_ALLOWANCE` (`0xa457c2d7`), `SEL_UNISWAP_V2_SWAP_TOKENS` (`0x38ed1739`), `SEL_UNISWAP_V3_EXACT_INPUT_SINGLE` (`0x04e45aaf`).
+  - `ingots/policy/src/decode.fe`: Added `SwapCall` enum, `decode_swap`, and decoded `increaseAllowance`/`decreaseAllowance`.
+  - `ingots/policy/src/rules.fe`: Integrated UniswapRouter guard with MEV zero-slippage sandwich protection (`amountOutMin == 0` -> `SwapNotAllowed`, code 16) and deduplicated recipient/transfer checking.
+  - `ingots/policy/src/guard.fe`: Added extensible `ActionGuard` trait with `Erc20Guard` and `UniswapGuard` implementations.
+  - `ingots/policy/src/test_guard.fe`: Added unit test suite for `ActionGuard` trait dispatch.
+  - `ingots/testkit/src/fixtures.fe`: Added fixtures for `erc20_increase_allowance`, `erc20_decrease_allowance`, `addr_uniswap_router`, `uniswap_v2_swap`, and `uniswap_v3_exact_input_single`.
+  - `test/attacks/src/attack_18_increase_allowance_bypass.fe`: Tested approval bypass prevention.
+  - `test/attacks/src/attack_19_mev_zero_slippage_sandwich.fe`: Tested sandwich MEV protection.
+  - `test/attacks/src/attack_20_swap_recipient_diversion.fe`: Tested swap recipient diversion and slippage bounds.
+  - `demo/dashboard/index.html`: Added interactive client-side Policy Simulator testing all 11 policy rules and Stage 9 DeFi guards; expanded scenario table to 7 steps.
+  - `demo/lib/leash-cli.ts`: Updated off-chain rule engine supporting `increaseAllowance`, `decreaseAllowance`, and Uniswap router swaps.
+  - `demo/run.json` & `demo/run.local.json`: Added verified steps 6 and 7.
+- **Verification Evidence**:
+  - `fe test ingots/policy`: 71 passed, 0 failed.
+  - `fe test ingots/testkit`: 5 passed, 0 failed.
+  - `fe test test/attacks`: 28 passed, 0 failed.
+  - `fe test test/parity`: 13 passed, 0 failed.
+  - `fe test ingots/module`: 19 passed, 0 failed.
+  - `fe build ingots/module`: runtime code 24,362 bytes (below EIP-170 limit of 24,576 bytes; 0 compiler warnings).
+  - `npm --prefix demo run typecheck`: clean, 0 errors.
 - **Reviewed by human**: pending confirmation.
+
 
 
 

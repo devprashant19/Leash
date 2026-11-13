@@ -76,12 +76,19 @@ Every transaction evaluated by `policy::decide` follows a deterministic, non-bra
 - **Deny Reason**: `DenyReason::WindowCapExceeded`
 - **Edge cases**: Sums active hourly buckets where `bucket_index > current_index - 24`. Saturated checked addition prevents `u256` overflow.
 
-### 11. ERC-20 Protocol Guard (`code 9`, `code 10`, `code 11`)
-- **Inputs**: `tx.data: Calldata`, `policy.tokens: [TokenRule; MAX_TOKENS]`, `policy.recipients: [Address; MAX_RECIPIENTS]`
-- **Deny Reasons**: `TokenCapExceeded` (9), `UnlimitedApproval` (10), `RecipientNotAllowed` (11), `MalformedCalldata` (6)
-- **Edge cases**:
+### 11. Protocol Guards (ERC-20 & Uniswap Router)
+- **Inputs**: `tx.data: Calldata`, `policy.tokens: [TokenRule; MAX_TOKENS]`, `policy.recipients: [Address; MAX_RECIPIENTS]`, `target.kind: TargetKind`
+- **Deny Reasons**: `TokenCapExceeded` (9), `UnlimitedApproval` (10), `RecipientNotAllowed` (11), `MalformedCalldata` (6), `SwapNotAllowed` (16)
+- **ERC-20 Guard Edge Cases**:
   - Target must have a matching `TokenRule`; if missing, defaults to deny (`TokenCapExceeded`).
-  - Calldata lengths: `transfer` must be exactly 68 bytes; `approve` exactly 68 bytes; `transferFrom` exactly 100 bytes. Longer or shorter calldata returns `MalformedCalldata`.
+  - Calldata lengths: `transfer` must be exactly 68 bytes; `approve` exactly 68 bytes; `increaseAllowance` exactly 68 bytes; `decreaseAllowance` exactly 68 bytes; `transferFrom` exactly 100 bytes. Longer or shorter calldata returns `MalformedCalldata`.
   - Address words must have high 12 bytes zeroed; dirty address words return `MalformedCalldata`.
-  - `approve(spender, 0)` is always allowed (revocation).
-  - `approve(spender, type(uint256).max)` and `approve(spender, amount > max_approve)` return `UnlimitedApproval`.
+  - `approve(spender, 0)` and `decreaseAllowance` are allowed (hygienic limit reduction).
+  - `increaseAllowance(spender, type(uint256).max)` and `increaseAllowance(spender, amount > max_approve)` return `UnlimitedApproval`.
+  - `increaseAllowance` to non-allowlisted spender returns `RecipientNotAllowed`.
+- **Uniswap Guard Edge Cases**:
+  - Target kind `UniswapRouter` (`0x7a25...` or SwapRouter02).
+  - Selectors: `SEL_UNISWAP_V2_SWAP_TOKENS` (`0x38ed1739`) and `SEL_UNISWAP_V3_EXACT_INPUT_SINGLE` (`0x04e45aaf`).
+  - **MEV Sandwich Protection**: Zero minimum output (`amountOutMin == 0`) is strictly denied with `SwapNotAllowed` (code 16) to prevent 100% slippage frontrunning.
+  - Swap input amounts exceeding token caps return `TokenCapExceeded` (code 12).
+  - Unauthorized selectors on the router return `SwapNotAllowed` (code 16).

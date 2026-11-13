@@ -105,6 +105,9 @@ Every security invariant and threat mitigation asserted in the documentation is 
 | **C14** | **Value Overflow Immunity** | `test/attacks/src/attack_15_value_overflow.fe` | `test_attack_15_value_overflow_attempts_denied` | Native & EVM | Denied without panic (`PerTxCapExceeded`, `TokenCapExceeded`) |
 | **C15** | **Rate Limiting Burst Guard** | `test/attacks/src/attack_16_rate_limit_burst.fe` | `test_attack_16_rate_limit_burst` | Native & EVM | Denied: `RateLimited` |
 | **C16** | **Cooldown Period Protection** | `test/attacks/src/attack_17_cooldown_subversion.fe` | `test_attack_17_cooldown_subversion` | Native & EVM | Denied: `CooldownActive` (tested at cd-1s and cd) |
-| **C17** | **Pure Decide Invariant** | Static analysis / CI Grep | `git grep -nE 'fn decide[^{]*uses'` | Compiler | 0 occurrences |
-| **C18** | **Component Isolation** | Static analysis / CI Grep | `git grep -nE 'policy::rules'` | Compiler | 0 occurrences |
+| **C17** | **IncreaseAllowance Bypass Guard** | `test/attacks/src/attack_18_increase_allowance_bypass.fe` | `test_attack_18_increase_allowance_bypass` | Native & EVM | Denied: `UnlimitedApproval` / `RecipientNotAllowed` |
+| **C18** | **MEV Zero-Slippage Sandwich Guard** | `test/attacks/src/attack_19_mev_zero_slippage_sandwich.fe` | `test_attack_19_mev_zero_slippage_sandwich` | Native & EVM | Denied: `SwapNotAllowed` (code 16 on `amountOutMin == 0`) |
+| **C19** | **Swap Recipient Diversion Guard** | `test/attacks/src/attack_20_swap_recipient_diversion.fe` | `test_attack_20_swap_recipient_diversion` | Native & EVM | Denied: `SwapNotAllowed` / `TokenCapExceeded` |
+| **C20** | **Pure Decide Invariant** | Static analysis / CI Grep | `git grep -nE 'fn decide[^{]*uses'` | Compiler | 0 occurrences |
+| **C21** | **Component Isolation** | Static analysis / CI Grep | `git grep -nE 'policy::rules'` | Compiler | 0 occurrences |
 

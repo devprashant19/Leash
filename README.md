@@ -241,7 +241,7 @@ $$\text{PARITY\_GOLDEN\_DIGEST} = \mathtt{0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb8
 
 **Mutation Verification**: Flipping `>` to `>=` in `check_per_tx_cap` immediately failed 11 parity tests, verifying test sensitivity.
 
-### 25-Exploit Adversarial Attack Suite (E2)
+### 28-Exploit Adversarial Attack Suite (E2)
 Located in [`test/attacks/src/`](test/attacks/src/):
 - **Attack 01**: MultiSend DelegateCall Hijack → Rejected (`DelegateCallBlocked`)
 - **Attack 02**: Cap Evasion via Split Spends → Rejected (`WindowCapExceeded`)
@@ -259,11 +259,14 @@ Located in [`test/attacks/src/`](test/attacks/src/):
 - **Attack 15**: Arithmetic Wrap Overflow ($2^{256} - 1$) → Denied without overflow panic
 - **Attack 16**: Rate Limit Burst Spamming → Rejected (`RateLimited`)
 - **Attack 17**: Cooldown Subversion → Rejected (`CooldownActive`)
+- **Attack 18**: ERC-20 `increaseAllowance` Bypass Attack → Rejected (`UnlimitedApproval` / `RecipientNotAllowed`)
+- **Attack 19**: Uniswap V2/V3 Zero-Slippage MEV Sandwich Drain (`amountOutMin == 0`) → Rejected (`SwapNotAllowed`, code 16)
+- **Attack 20**: Swap Recipient Diversion & Slippage Verification → Validated against allowlist & minimum output
 
 ### Bytecode Size & Headroom (E3)
-- **Runtime Code Size**: **23,639 bytes** (18,513 code, 5,126 data).
-- **EIP-170 Headroom**: **+937 bytes below 24,576-byte hard limit** (0 compiler warnings).
-- **Initcode Size**: 23,894 bytes (< 49,152 bytes EIP-3860 limit).
+- **Runtime Code Size**: **24,362 bytes** (strictly below the 24,576-byte hard EIP-170 limit with 0 compiler warnings).
+- **EIP-170 Headroom**: **+214 bytes below 24,576-byte limit** while packing all 11 policy rules, ERC-20 hardening, and Uniswap MEV protection.
+- **Initcode Size**: 24,620 bytes (< 49,152 bytes EIP-3860 limit).
 - Gas profiling details available in [`docs/GAS.md`](docs/GAS.md).
 
 ---
