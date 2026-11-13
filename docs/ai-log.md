@@ -881,6 +881,33 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm --prefix demo run typecheck`: clean, 0 errors.
 - **Reviewed by human**: pending confirmation.
 
+---
+
+## 2026-11-25 — Stage 10 End-to-End Implementation: Owner Co-signed Override (B5) and Escalation Queue (B6)
+- **AI-assisted**: yes (Antigravity).
+- **Files**:
+  - `ingots/policy/src/queue.fe`: Implemented pure queue state transitions `QueueState` (`Empty`, `Queued`, `Vetoed`, `Executed`), `QueueAction` (`Queue`, `Veto`, `Execute`), `QueueError`, and `next_queue_state(state, action, now, ready_at) -> Result<QueueError, QueueState>`.
+  - `ingots/policy/src/override_hash.fe`: Implemented pure EIP-712 hashing: domain separator, struct hash (`Override`), and digest computation matching EIP-712 specifications.
+  - `ingots/policy/src/rules.fe`: Added `decide_with_override` (purely bypassing only spending caps while strictly preserving all security, delegatecall, and target allowlist rules) and `decide_with_escalation` (returning `EscalationRequired`, code 20, for txs exceeding escalation threshold).
+  - `ingots/policy/src/test_queue.fe` & `test_override.fe`: Unit test suites for queue lifecycle, escalation, and override digest computation.
+  - `ingots/cli/src/args.fe` & `check.fe`: Added `--override` flag to predict verdicts for owner co-signed transactions off-chain with 100% agreement.
+  - `ingots/cli/src/test_cli.fe`: Added CLI override evaluation test.
+  - `ingots/module/src/queue_module.fe`: Implemented companion contract `LeashQueue` (8,610 bytes runtime) managing timelocked queues, Safe vetos, execution, and EIP-712 owner signature verification.
+  - `ingots/module/src/safe.fe`: Added `IsOwner { owner: Address } -> bool` to `SafeMsg`.
+  - `ingots/module/src/test_queue_module.fe`: Full EVM test suite for `LeashQueue` covering initialization, state tracking, early execution rejection, safe veto authority, and deadline expiry.
+  - `test/attacks/src/attack_21_owner_override.fe`: Verified override cannot bypass unlisted targets, delegatecall, and that nonces prevent signature replay.
+  - `test/attacks/src/attack_22_escalation_veto.fe`: Verified escalation queue defense, early execution rejection, and Safe veto blocking execution.
+  - `docs/adr/011-escalation-queue.md`: ADR-011 for escalation queue.
+  - `docs/adr/012-owner-cosigned-override.md`: ADR-012 for owner co-signed overrides.
+  - `docs/RULES.md` & `docs/THREAT_MODEL.md`: Updated rules table and threat matrix with C22 and C23 mappings.
+  - `README.md`: Updated attack count to 31 attacks and test count to 155 tests.
+- **Verification Evidence**:
+  - `fe test`: 155 passed; 0 failed across all 7 workspace inputs.
+  - `fe build ingots/module --emit sizes`: `LeashModule` runtime 24,362 bytes (+214 bytes headroom under 24,576 limit); `LeashQueue` runtime 8,610 bytes.
+  - `npm --prefix demo run typecheck`: clean, 0 errors.
+- **Reviewed by human**: pending confirmation.
+
+
 
 
 

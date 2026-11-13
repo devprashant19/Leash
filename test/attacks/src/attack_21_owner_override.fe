@@ -1,0 +1,121 @@
+use policy::{
+    Address,
+    AgentState,
+    Calldata,
+    DenyReason,
+    Operation,
+    Policy,
+    Tx,
+    Verdict,
+    compute_domain_separator,
+    compute_override_digest,
+    compute_override_struct_hash,
+    decide,
+    decide_with_override,
+    default_policy,
+    ether,
+    verdict_code,
+}
+use std::evm::units::Timestamp
+use testkit::fixtures::{addr_attacker, addr_treasury}
+
+#[test]
+fn test_attack_21_override_cannot_bypass_unlisted_target_or_delegatecall() {
+    let pol = default_policy()
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(1000)
+    let attacker = addr_attacker()
+    let treasury = addr_treasury()
+
+    // 1. Attacker attempts to use override on unlisted target
+    let tx_unlisted = Tx {
+        to: attacker,
+        value: ether(10),
+        // huge value
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    let v_unlisted = decide_with_override(tx: tx_unlisted, policy: pol, state)
+    assert(
+        verdict_code(v_unlisted) == 4,
+    ) // DenyReason::TargetNotAllowed (code 4)
+
+    // 2. Attacker attempts to use override with DelegateCall
+    let tx_del = Tx {
+        to: treasury,
+        value: ether(10),
+        data: Calldata::empty(),
+        op: Operation::DelegateCall,
+        now,
+    }
+    let v_del = decide_with_override(tx: tx_del, policy: pol, state)
+    assert(
+        verdict_code(v_del) == 3,
+    ) // DenyReason::DelegateCallBlocked (code 3)
+
+    // 3. Legitimate treasury spend over cap is allowed by override
+    let tx_treasury = Tx {
+        to: treasury,
+        value: ether(5),
+        // 5 ETH > 0.1 ETH cap
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    let v_treasury = decide_with_override(tx: tx_treasury, policy: pol, state)
+    assert(verdict_code(v_treasury) == 0) // Allow
+}
+
+#[test]
+fn test_attack_21_override_replay_and_digest_validation() {
+    let agent = Address::new(0x1111)
+    let treasury = addr_treasury()
+    let module = Address::new(0x3333)
+    let chain_id: u256 = 11155111
+
+    let dom = compute_domain_separator(chain_id, verifying_contract: module)
+    let nonce_0: u256 = 0
+    let nonce_1: u256 = 1
+    let deadline: u256 = 2000000000
+
+    let struct_hash_0 = compute_override_struct_hash(
+        agent,
+        to: treasury,
+        value: 5000000000000000000,
+        data_hash: 0,
+        op: 0,
+        nonce: nonce_0,
+        deadline,
+    )
+    let digest_0 = compute_override_digest(domain_separator: dom, struct_hash: struct_hash_0)
+
+    // Replay with identical parameters produces identical digest
+    let struct_hash_0_replay = compute_override_struct_hash(
+        agent,
+        to: treasury,
+        value: 5000000000000000000,
+        data_hash: 0,
+        op: 0,
+        nonce: nonce_0,
+        deadline,
+    )
+    let digest_0_replay = compute_override_digest(
+        domain_separator: dom,
+        struct_hash: struct_hash_0_replay,
+    )
+    assert(digest_0 == digest_0_replay)
+
+    // Different nonce (nonce 1) must produce a strictly distinct digest (nonce replay prevention)
+    let struct_hash_1 = compute_override_struct_hash(
+        agent,
+        to: treasury,
+        value: 5000000000000000000,
+        data_hash: 0,
+        op: 0,
+        nonce: nonce_1,
+        deadline,
+    )
+    let digest_1 = compute_override_digest(domain_separator: dom, struct_hash: struct_hash_1)
+    assert(digest_0 != digest_1)
+}

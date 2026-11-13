@@ -18,3 +18,5 @@ pub use attack_17_cooldown_subversion::*
 pub use attack_18_increase_allowance_bypass::*
 pub use attack_19_mev_zero_slippage_sandwich::*
 pub use attack_20_swap_recipient_diversion::*
+pub use attack_21_owner_override::*
+pub use attack_22_escalation_veto::*

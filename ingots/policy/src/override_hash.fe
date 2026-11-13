@@ -1,0 +1,47 @@
+use core::hash::Keccak256
+use std::evm::Address
+
+pub const EIP712_DOMAIN_TYPEHASH: u256 = 0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f
+pub const OVERRIDE_TYPEHASH: u256 = 0x091cf415d1a9aea7801bb1543c89c6d6b4b9a6abc82cdadf813c1648fe01c6fe
+pub const LEASH_NAME_HASH: u256 = 0xd3336b5afd6b9c093dbf2e0e28c6e2e28b010de7f9bde54a702702d265bcd6b2
+pub const LEASH_VERSION_HASH: u256 = 0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6
+
+pub fn compute_domain_separator(_ chain_id: u256, _ verifying_contract: Address) -> u256 {
+    var k = Keccak256::new()
+    k.update_word(EIP712_DOMAIN_TYPEHASH, len: 32)
+    k.update_word(LEASH_NAME_HASH, len: 32)
+    k.update_word(LEASH_VERSION_HASH, len: 32)
+    k.update_word(chain_id, len: 32)
+    k.update_word(verifying_contract.word(), len: 32)
+    k.finish_word()
+}
+
+pub fn compute_override_struct_hash(
+    _ agent: Address,
+    _ to: Address,
+    _ value: u256,
+    _ data_hash: u256,
+    _ op: u8,
+    _ nonce: u256,
+    _ deadline: u256,
+) -> u256 {
+    var k = Keccak256::new()
+    k.update_word(OVERRIDE_TYPEHASH, len: 32)
+    k.update_word(agent.word(), len: 32)
+    k.update_word(to.word(), len: 32)
+    k.update_word(value, len: 32)
+    k.update_word(data_hash, len: 32)
+    k.update_word(op as u256, len: 32)
+    k.update_word(nonce, len: 32)
+    k.update_word(deadline, len: 32)
+    k.finish_word()
+}
+
+pub fn compute_override_digest(_ domain_separator: u256, _ struct_hash: u256) -> u256 {
+    var k = Keccak256::new()
+    let prefix: [u8; 2] = [0x19, 0x01]
+    k.update(prefix, offset: 0, len: 2)
+    k.update_word(domain_separator, len: 32)
+    k.update_word(struct_hash, len: 32)
+    k.finish_word()
+}

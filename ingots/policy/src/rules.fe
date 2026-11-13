@@ -11,6 +11,7 @@ use ingot::types::{
     TokenRule,
     Tx,
     Verdict,
+    Wei,
 }
 
 fn find_target(_ to: Address, _ policy: ref Policy) -> Option<TargetRule> {
@@ -239,4 +240,159 @@ pub fn decide(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Ve
     }
 
     Verdict::Allow
+}
+
+pub fn check_erc20_guard_override(
+    _ tx: ref Tx,
+    _ policy: ref Policy,
+    _ state: ref AgentState,
+) -> Option<DenyReason> {
+    match decode_erc20(tx.data) {
+        Erc20Call::Malformed => Option::Some(DenyReason::MalformedCalldata),
+        Erc20Call::Unknown => Option::Some(DenyReason::SelectorNotAllowed),
+        Erc20Call::Transfer(to, _amt) => {
+            if !is_recipient_allowed(to, policy) {
+                Option::Some(DenyReason::RecipientNotAllowed)
+            } else {
+                Option::None
+            }
+        },
+        Erc20Call::TransferFrom(_from, to, _amt) => {
+            if !is_recipient_allowed(to, policy) {
+                Option::Some(DenyReason::RecipientNotAllowed)
+            } else {
+                Option::None
+            }
+        },
+        Erc20Call::Approve(spender, amt) => {
+            if amt == 0 {
+                Option::None
+            } else {
+                if !is_recipient_allowed(spender, policy) {
+                    return Option::Some(DenyReason::RecipientNotAllowed)
+                }
+                if amt == U256_MAX {
+                    Option::Some(DenyReason::UnlimitedApproval)
+                } else {
+                    Option::None
+                }
+            }
+        },
+    }
+}
+
+pub fn check_uniswap_guard_override(
+    _ tx: ref Tx,
+    _ policy: ref Policy,
+    _ state: ref AgentState,
+) -> Option<DenyReason> {
+    match decode_swap(tx.data) {
+        SwapCall::Malformed => Option::Some(DenyReason::MalformedCalldata),
+        SwapCall::Unknown => Option::Some(DenyReason::SwapNotAllowed),
+        SwapCall::ExactInput(_amount_in, amount_out_min) => {
+            if amount_out_min == 0 {
+                return Option::Some(DenyReason::SwapNotAllowed)
+            }
+            Option::None
+        },
+    }
+}
+
+pub fn decide_with_override(
+    _ tx: ref Tx,
+    _ policy: ref Policy,
+    _ state: ref AgentState,
+) -> Verdict {
+    // 1. Paused
+    if state.paused {
+        return Verdict::Deny(DenyReason::Paused)
+    }
+
+    // 2. CircuitTripped
+    if state.tripped {
+        return Verdict::Deny(DenyReason::CircuitTripped)
+    }
+
+    // 3. SessionExpired
+    if state.expiry.as_seconds() > 0 {
+        if tx.now >= state.expiry {
+            return Verdict::Deny(DenyReason::SessionExpired)
+        }
+    }
+
+    // 4. CooldownActive
+    if policy.cooldown.as_seconds() > 0 {
+        if state.last_action.as_seconds() > 0 {
+            if tx.now < state.last_action + policy.cooldown {
+                return Verdict::Deny(DenyReason::CooldownActive)
+            }
+        }
+    }
+
+    // 5. DelegateCallBlocked
+    match tx.op {
+        Operation::DelegateCall => {
+            return Verdict::Deny(DenyReason::DelegateCallBlocked)
+        },
+        Operation::Call => {},
+    }
+
+    // 6. TargetNotAllowed
+    let target = match find_target(to: tx.to, policy) {
+        Option::Some(t) => t,
+        Option::None => {
+            return Verdict::Deny(DenyReason::TargetNotAllowed)
+        },
+    }
+
+    // 7. MalformedCalldata / SelectorNotAllowed
+    if let Option::Some(reason) = check_selector_and_calldata(tx, target) {
+        return Verdict::Deny(reason)
+    }
+
+    // 8. RateLimited
+    if policy.max_actions_per_window > 0 {
+        let count = spent_in_window(state.action_window, tx.now)
+        if count + 1 > (policy.max_actions_per_window as u256) {
+            return Verdict::Deny(DenyReason::RateLimited)
+        }
+    }
+
+    // Notice: 9. PerTxCapExceeded and 10. WindowCapExceeded are skipped with valid owner override!
+
+    // 11. Protocol guards (with token caps skipped)
+    match target.kind {
+        TargetKind::Erc20 => {
+            if let Option::Some(reason) = check_erc20_guard_override(tx, policy, state) {
+                return Verdict::Deny(reason)
+            }
+        },
+        TargetKind::UniswapRouter => {
+            if let Option::Some(reason) = check_uniswap_guard_override(tx, policy, state) {
+                return Verdict::Deny(reason)
+            }
+        },
+        _ => {},
+    }
+
+    Verdict::Allow
+}
+
+pub fn decide_with_escalation(
+    _ tx: ref Tx,
+    _ policy: ref Policy,
+    _ state: ref AgentState,
+    _ escalation_threshold: Wei,
+) -> Verdict {
+    let outcome = decide(tx, policy, state)
+    match outcome {
+        Verdict::Allow => {
+            if escalation_threshold > Wei::zero() && tx.value > escalation_threshold {
+                Verdict::Deny(DenyReason::EscalationRequired)
+            } else {
+                Verdict::Allow
+            }
+        },
+        Verdict::Deny(r) => Verdict::Deny(r),
+    }
 }

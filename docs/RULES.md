@@ -16,8 +16,9 @@ Every transaction evaluated by `policy::decide` follows a deterministic, non-bra
 | 8 | Rate Limit | `RateLimited` | 12 | `state.action_window`, `policy.max_actions_per_window` | Guards against spamming actions within sliding window. |
 | 9 | ETH Per-Tx Cap | `PerTxCapExceeded` | 7 | `tx.value`, `policy.max_per_tx` | Simple scalar check on native ETH value. |
 | 10 | ETH Window Cap | `WindowCapExceeded` | 8 | `state.eth_window`, `tx.value`, `policy.max_per_window` | 24-hour rolling bucket window spend check. Checked addition with saturation. |
-| 11 | ERC-20 Protocol Guard | `RecipientNotAllowed` / `UnlimitedApproval` / `TokenCapExceeded` | 11 / 10 / 9 | `tx.data`, `policy.tokens`, `policy.recipients` | Protocol-specific parsing: recipient allowlist -> approval hygiene -> spend caps. |
-| 12 | Allow | `Verdict::Allow` | 0 | All previous checks passed | Safe transaction permitted for execution. |
+| 11 | Protocol Guards | `RecipientNotAllowed` / `UnlimitedApproval` / `TokenCapExceeded` / `SwapNotAllowed` | 11 / 10 / 9 / 16 | `tx.data`, `policy.tokens`, `policy.recipients` | Protocol-specific parsing: recipient allowlist -> approval hygiene -> spend caps -> MEV protection. |
+| 12 | Escalation Threshold | `EscalationRequired` | 20 | `tx.value`, `escalation_threshold` | Queues large allowed transactions for Safe timelock review before execution. |
+| 13 | Allow | `Verdict::Allow` | 0 | All previous checks passed | Safe transaction permitted for execution. |
 
 ---
 
@@ -92,3 +93,30 @@ Every transaction evaluated by `policy::decide` follows a deterministic, non-bra
   - **MEV Sandwich Protection**: Zero minimum output (`amountOutMin == 0`) is strictly denied with `SwapNotAllowed` (code 16) to prevent 100% slippage frontrunning.
   - Swap input amounts exceeding token caps return `TokenCapExceeded` (code 12).
   - Unauthorized selectors on the router return `SwapNotAllowed` (code 16).
+
+### 12. EscalationRequired (`code 20`)
+- **Inputs**: `tx.value: Wei`, `escalation_threshold: Wei`
+- **Deny Reason**: `DenyReason::EscalationRequired`
+- **Edge cases**:
+  - Evaluated **after** all security checks and spend caps pass.
+  - If `escalation_threshold > 0` and `tx.value > escalation_threshold`, execution direct from the agent is withheld with `EscalationRequired`.
+  - Transaction enters `LeashQueue` with timelock delay (`ready_at = now + delay_sec`).
+  - Safe owners can veto any queued transaction during the timelock window.
+
+---
+
+## Owner Co-Signed Overrides (`decide_with_override`)
+
+When a transaction carries an EIP-712 signature from a verified Safe owner:
+- **Allowed Bypasses**: Bypasses `PerTxCapExceeded` (code 7), `WindowCapExceeded` (code 8), and `TokenCapExceeded` (code 9).
+- **Strictly Enforced Controls**:
+  - `Paused` (code 1) is **never** bypassed.
+  - `SessionExpired` (code 2) is **never** bypassed.
+  - `DelegateCallBlocked` (code 3) is **never** bypassed.
+  - `TargetNotAllowed` (code 4) is **never** bypassed.
+  - `MalformedCalldata` (code 6) is **never** bypassed.
+  - `CircuitTripped` (code 15) is **never** bypassed.
+  - `SwapNotAllowed` MEV zero-slippage protection (code 16) is **never** bypassed.
+- **Accounting Invariant**: Override spends are still recorded against the rolling window.
+- **Replay Protection**: Nonce incremented per-agent in `LeashQueue`.
+

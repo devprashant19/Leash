@@ -5,6 +5,7 @@ use policy::{
     Tx,
     Verdict,
     decide,
+    decide_with_override,
     default_policy,
     explain_reason,
     fingerprint,
@@ -130,7 +131,11 @@ pub fn run() -> i32 uses (args: Args, out: mut Stdout, err: mut Stderr) {
         ParseResult::Ok(a) => {
             let tx = Tx { to: a.to, value: a.value, data: a.data, op: a.op, now: a.now }
             let pol = default_policy()
-            let verdict = decide(tx, pol, a.state)
+            let verdict = if a.is_override {
+                decide_with_override(tx, pol, a.state)
+            } else {
+                decide(tx, pol, a.state)
+            }
             let b = remaining(pol, a.state, a.now)
             let fp = fingerprint(pol)
 

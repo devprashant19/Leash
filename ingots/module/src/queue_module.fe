@@ -1,0 +1,360 @@
+use core::hash::Keccak256
+use policy
+use policy::override_hash::{
+    compute_domain_separator,
+    compute_override_digest,
+    compute_override_struct_hash,
+}
+use policy::queue::{
+    QueueAction,
+    QueueError,
+    QueueState,
+    next_queue_state,
+    queue_error_code,
+    queue_state_code,
+}
+use policy::types::{Address, Calldata, Operation, Policy, Tx, Verdict, Wei, Timestamp}
+use std::abi::Bytes
+use std::evm::{Call, Ctx, Evm, Log, StorageMap, revert_error, wei}
+use std::evm::crypto::ecrecover
+
+use ingot::safe::{SafeMsg}
+
+#[error]
+pub struct NotSafeOrModule {}
+
+#[error]
+pub struct TxNotQueued {}
+
+#[error]
+pub struct DataHashMismatch {}
+
+#[error]
+pub struct EarlyExecutionNotAllowed {}
+
+#[error]
+pub struct AlreadyExecuted {}
+
+#[error]
+pub struct TxVetoed {}
+
+#[error]
+pub struct InvalidTransition {}
+
+#[error]
+pub struct InvalidSignature {}
+
+#[error]
+pub struct SignatureExpired {}
+
+#[error]
+pub struct NotSafeOwner {}
+
+#[error]
+pub struct SafeCallFailedQueue {}
+
+#[event]
+pub struct QueuedEvent { pub id: u256, pub agent: Address, pub ready_at: u256 }
+
+#[event]
+pub struct VetoedEvent { pub id: u256 }
+
+#[event]
+pub struct ExecutedQueuedEvent { pub id: u256, pub agent: Address }
+
+#[event]
+pub struct ExecutedWithOverrideEvent { pub agent: Address, pub target: Address, pub value: u256 }
+
+pub msg QueueMsg {
+    #[selector = sol("queue(address,uint256,bytes,uint8,uint256)")]
+    Queue { to: Address, value: u256, data: Bytes, operation: u8, delay_sec: u256 } -> u256,
+    #[selector = sol("veto(uint256)")]
+    Veto { id: u256 },
+    #[selector = sol("executeQueued(uint256,bytes)")]
+    ExecuteQueued { id: u256, data: Bytes } -> bool,
+    #[selector = sol(
+        "executeWithOverride(address,uint256,bytes,uint8,uint256,uint8,uint256,uint256)",
+    )]
+    ExecuteWithOverride {
+        to: Address,
+        value: u256,
+        data: Bytes,
+        operation: u8,
+        deadline: u256,
+        v: u8,
+        r: u256,
+        s: u256,
+    } -> bool,
+    #[selector = sol("stateOf(uint256)")]
+    StateOf { id: u256 } -> u8,
+    #[selector = sol("nonceOf(address)")]
+    NonceOf { agent: Address } -> u256,
+}
+
+pub contract LeashQueue uses (ctx: Ctx, call: mut Call, log: mut Log) {
+    safe: Address,
+    mut next_id: u256,
+    mut tx_agent: StorageMap<u256, Address>,
+    mut tx_to: StorageMap<u256, Address>,
+    mut tx_value: StorageMap<u256, u256>,
+    mut tx_data_hash: StorageMap<u256, u256>,
+    mut tx_op: StorageMap<u256, u8>,
+    mut tx_ready_at: StorageMap<u256, u256>,
+    mut tx_state: StorageMap<u256, u8>,
+    mut agent_nonces: StorageMap<Address, u256>,
+
+    init(_safe: Address)
+    uses (mut safe, mut next_id)
+    {
+        safe = _safe
+        next_id = 1
+    }
+
+    recv QueueMsg {
+        Queue { to, value, data, operation, delay_sec } -> u256
+        uses (
+            ctx,
+            mut next_id,
+            mut tx_agent,
+            mut tx_to,
+            mut tx_value,
+            mut tx_data_hash,
+            mut tx_op,
+            mut tx_ready_at,
+            mut tx_state,
+            mut log,
+        )
+        {
+            let id = next_id
+            next_id += 1
+            let agent = ctx.caller()
+            let now = ctx.timestamp().as_seconds()
+            let ready_at = now + delay_sec
+
+            var k = Keccak256::new()
+            let span = data.span()
+            var i: usize = 0
+            while i < span.len() {
+                let b = span.byte_at(i)
+                let single: [u8; 1] = [b]
+                k.update(single, offset: 0, len: 1)
+                i += 1
+            }
+            let d_hash = k.finish_word()
+
+            tx_agent[id] = agent
+            tx_to[id] = to
+            tx_value[id] = value
+            tx_data_hash[id] = d_hash
+            tx_op[id] = operation
+            tx_ready_at[id] = ready_at
+            tx_state[id] = 1 // Queued
+
+            log.emit(QueuedEvent { id, agent, ready_at })
+            id
+        }
+
+        Veto { id } uses (ctx, safe, mut tx_state, mut log) {
+            if ctx.caller() != safe {
+                revert_error(NotSafeOrModule {})
+            }
+            let current = tx_state[id]
+            if current != 1 {
+                revert_error(TxNotQueued {})
+            }
+            tx_state[id] = 2 // Vetoed
+            log.emit(VetoedEvent { id })
+        }
+
+        ExecuteQueued { id, data } -> bool uses (
+            ctx,
+            safe,
+            mut call,
+            tx_agent,
+            tx_to,
+            tx_value,
+            tx_data_hash,
+            tx_op,
+            tx_ready_at,
+            mut tx_state,
+            mut log,
+        ) {
+            let current_code = tx_state[id]
+            let st = if current_code == 1 {
+                QueueState::Queued
+            } else if current_code == 2 {
+                QueueState::Vetoed
+            } else if current_code == 3 {
+                QueueState::Executed
+            } else {
+                QueueState::Empty
+            }
+
+            let now = ctx.timestamp()
+            let ready_at_ts = Timestamp::from_seconds(tx_ready_at[id])
+            let next_st_res = next_queue_state(st, QueueAction::Execute, now, ready_at: ready_at_ts)
+
+            match next_st_res {
+                Result::Ok(nxt) => {
+                    tx_state[id] = queue_state_code(nxt)
+                },
+                Result::Err(err) => {
+                    let c = queue_error_code(err)
+                    if c == 1 {
+                        revert_error(EarlyExecutionNotAllowed {})
+                    } else if c == 2 {
+                        revert_error(AlreadyExecuted {})
+                    } else if c == 3 {
+                        revert_error(TxVetoed {})
+                    } else {
+                        revert_error(InvalidTransition {})
+                    }
+                },
+            }
+
+            // Check data hash
+            var k = Keccak256::new()
+            let span = data.span()
+            var i: usize = 0
+            while i < span.len() {
+                let b = span.byte_at(i)
+                let single: [u8; 1] = [b]
+                k.update(single, offset: 0, len: 1)
+                i += 1
+            }
+            let d_hash = k.finish_word()
+            if d_hash != tx_data_hash[id] {
+                revert_error(DataHashMismatch {})
+            }
+
+            // Call Safe
+            let to = tx_to[id]
+            let val = tx_value[id]
+            let op = tx_op[id]
+            let success: bool = call
+                .call(
+                    addr: safe,
+                    gas: 1000000,
+                    value: Wei::zero(),
+                    message: SafeMsg::ExecTransactionFromModule {
+                        to,
+                        value: val,
+                        data: data.clone(),
+                        operation: op,
+                    },
+                )
+            if !success {
+                revert_error(SafeCallFailedQueue {})
+            }
+
+            log.emit(ExecutedQueuedEvent { id, agent: tx_agent[id] })
+            true
+        }
+
+        ExecuteWithOverride { to, value, data, operation, deadline, v, r, s } -> bool
+        uses (ctx, safe, mut call, mut agent_nonces, mut log)
+        {
+            let agent = ctx.caller()
+            let now = ctx.timestamp().as_seconds()
+            if now > deadline {
+                revert_error(SignatureExpired {})
+            }
+
+            // Canonical signature hygiene: v in {27, 28}, s <= half curve order
+            if v != 27 && v != 28 {
+                revert_error(InvalidSignature {})
+            }
+            let secp256k1_n_div_2: u256 = 0x7fffffffffffffffffffffffffffffff5d57617f795ce92411803ce91cd96573
+            if s > secp256k1_n_div_2 {
+                revert_error(InvalidSignature {})
+            }
+
+            var k = Keccak256::new()
+            let span = data.span()
+            var i: usize = 0
+            while i < span.len() {
+                let b = span.byte_at(i)
+                let single: [u8; 1] = [b]
+                k.update(single, offset: 0, len: 1)
+                i += 1
+            }
+            let d_hash = k.finish_word()
+
+            let nonce = agent_nonces[agent]
+            agent_nonces[agent] = nonce + 1
+
+            let chain_id: u256 = 11155111
+            let dom = compute_domain_separator(chain_id, verifying_contract: ctx.address())
+            let struct_hash = compute_override_struct_hash(
+                agent,
+                to,
+                value,
+                data_hash: d_hash,
+                op: operation,
+                nonce,
+                deadline,
+            )
+            let digest = compute_override_digest(domain_separator: dom, struct_hash)
+
+            let rec_res = ecrecover(hash: digest, v: v as u256, r, s)
+            let signer: Address = match rec_res {
+                Result::Ok(opt) => {
+                    match opt {
+                        Option::Some(w) => {
+                            if w == 0 {
+                                revert_error(InvalidSignature {})
+                            }
+                            Address::new(w)
+                        },
+                        Option::None => {
+                            revert_error(InvalidSignature {})
+                        },
+                    }
+                },
+                Result::Err(_) => {
+                    revert_error(InvalidSignature {})
+                },
+            }
+
+            // Verify signer is a Safe owner
+            let is_owner: bool = call
+                .call(
+                    addr: safe,
+                    gas: 50000,
+                    value: Wei::zero(),
+                    message: SafeMsg::IsOwner { owner: signer },
+                )
+            if !is_owner {
+                revert_error(NotSafeOwner {})
+            }
+
+            // Execute on Safe
+            let success: bool = call
+                .call(
+                    addr: safe,
+                    gas: 1000000,
+                    value: Wei::zero(),
+                    message: SafeMsg::ExecTransactionFromModule {
+                        to,
+                        value,
+                        data: data.clone(),
+                        operation,
+                    },
+                )
+            if !success {
+                revert_error(SafeCallFailedQueue {})
+            }
+
+            log.emit(ExecutedWithOverrideEvent { agent, target: to, value })
+            true
+        }
+
+        StateOf { id } -> u8 uses (tx_state) {
+            tx_state[id]
+        }
+
+        NonceOf { agent } -> u256 uses (agent_nonces) {
+            agent_nonces[agent]
+        }
+    }
+}

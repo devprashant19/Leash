@@ -1,0 +1,100 @@
+use policy::{
+    Address,
+    AgentState,
+    Calldata,
+    DenyReason,
+    Operation,
+    Policy,
+    QueueAction,
+    QueueError,
+    QueueState,
+    Tx,
+    Verdict,
+    decide_with_escalation,
+    default_policy,
+    ether,
+    next_queue_state,
+    queue_error_code,
+    queue_state_code,
+    verdict_code,
+}
+use std::evm::units::Timestamp
+use testkit::fixtures::addr_treasury
+
+#[test]
+fn test_attack_22_escalation_queue_and_veto_defense() {
+    let pol = default_policy()
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(1000)
+    let treasury = addr_treasury()
+    let threshold = ether(1) / 20 // 0.05 ETH threshold
+
+    // 1. Transaction exceeding escalation threshold (0.07 ETH) requires escalation
+    let tx_large = Tx {
+        to: treasury,
+        value: ether(7) / 100,
+        // 0.07 ETH
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    let v_escalate = decide_with_escalation(
+        tx: tx_large,
+        policy: pol,
+        state,
+        escalation_threshold: threshold,
+    )
+    assert(
+        verdict_code(v_escalate) == 20,
+    ) // EscalationRequired (code 20)
+
+    // 2. Queue transaction with 1 hour delay (ready_at = 4600)
+    let ready_at = Timestamp::from_seconds(4600)
+    let q_res = next_queue_state(QueueState::Empty, QueueAction::Queue, now, ready_at)
+    match q_res {
+        Result::Ok(st) => assert(queue_state_code(st) == 1),
+        // Queued
+        Result::Err(_) => assert(false),
+    }
+
+    // 3. Attacker attempts early execution before delay expires (t = 2000 < 4600)
+    let early_time = Timestamp::from_seconds(2000)
+    let early_exec = next_queue_state(
+        QueueState::Queued,
+        QueueAction::Execute,
+        early_time,
+        ready_at,
+    )
+    match early_exec {
+        Result::Ok(_) => assert(false),
+        Result::Err(e) => assert(queue_error_code(e) == 1),
+        // EarlyExecutionNotAllowed
+    }
+
+    // 4. Safe notices suspicious escalation and Vetoes it
+    let veto_res = next_queue_state(
+        QueueState::Queued,
+        QueueAction::Veto,
+        early_time,
+        ready_at,
+    )
+    match veto_res {
+        Result::Ok(st) => assert(queue_state_code(st) == 2),
+        // Vetoed
+        Result::Err(_) => assert(false),
+    }
+
+    // 5. Attacker tries to execute vetoed transaction at t = 5000 >= ready_at
+    let after_veto_time = Timestamp::from_seconds(5000)
+    let vetoed_exec = next_queue_state(
+        QueueState::Vetoed,
+        QueueAction::Execute,
+        after_veto_time,
+        ready_at,
+    )
+    match vetoed_exec {
+        Result::Ok(_) => assert(false),
+        Result::Err(e) => assert(queue_error_code(e) == 3),
+        // TxVetoed
+    }
+}

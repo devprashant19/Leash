@@ -110,4 +110,19 @@ Every security invariant and threat mitigation asserted in the documentation is 
 | **C19** | **Swap Recipient Diversion Guard** | `test/attacks/src/attack_20_swap_recipient_diversion.fe` | `test_attack_20_swap_recipient_diversion` | Native & EVM | Denied: `SwapNotAllowed` / `TokenCapExceeded` |
 | **C20** | **Pure Decide Invariant** | Static analysis / CI Grep | `git grep -nE 'fn decide[^{]*uses'` | Compiler | 0 occurrences |
 | **C21** | **Component Isolation** | Static analysis / CI Grep | `git grep -nE 'policy::rules'` | Compiler | 0 occurrences |
+| **C22** | **Owner Override Selective Bypass** | `test/attacks/src/attack_21_owner_override.fe` | `test_attack_21_*` (2 tests) | Native & EVM | Allows over-cap spends; strictly rejects delegatecall, unlisted targets, replay |
+| **C23** | **Escalation Queue & Veto Defense** | `test/attacks/src/attack_22_escalation_veto.fe` | `test_attack_22_escalation_queue_and_veto_defense` | Native & EVM | Denied: `EscalationRequired` (code 20); rejects early exec; veto blocks |
+
+---
+
+## 7. Threat Analysis: Owner Co-signed Overrides
+
+- **Risk**: A compromised agent key combined with a compromised Safe owner key can move funds above configured per-tx or window caps.
+- **Why this is acceptable**: In a Safe multisig architecture, a Safe owner (or N-of-M quorum) already holds direct on-chain authority to move funds or execute transactions directly from the Safe. The override mechanism allows owners to co-sign an urgent or large agent transaction without having to manually assemble the transaction calldata or disable the module.
+- **Safeguards Enforced**:
+  - Even with a valid owner signature, `DelegateCallBlocked`, `TargetNotAllowed`, `Paused`, `SessionExpired`, and `CircuitTripped` are **never** bypassed.
+  - Signatures are strictly bound to a single agent, destination, value, calldata hash, operation, chain ID, verifying contract, monotonically increasing nonce, and deadline.
+  - High-`s` and invalid `v` malleable signatures are rejected at the precompile boundary.
+- **Future Work**: Multi-owner threshold overrides requiring $M$-of-$N$ owner signatures for amounts exceeding critical treasury tiers.
+
 

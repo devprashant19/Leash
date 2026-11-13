@@ -1,5 +1,17 @@
 use ingot::args::default_check_state
-use policy::{default_policy, fingerprint}
+use policy::{
+    Address,
+    Calldata,
+    Operation,
+    Tx,
+    decide,
+    decide_with_override,
+    default_policy,
+    ether,
+    fingerprint,
+    verdict_code,
+}
+use std::evm::units::Timestamp
 
 #[test]
 fn test_default_check_state_unrestricted() {
@@ -16,4 +28,27 @@ fn test_cli_fingerprint_golden() {
     assert(
         fp == 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee,
     )
+}
+
+#[test]
+fn test_cli_override_evaluation() {
+    let pol = default_policy()
+    let st = default_check_state()
+    let treasury = Address::new(0x2000000000000000000000000000000000000002)
+    let now = Timestamp::from_seconds(1000)
+
+    let tx = Tx {
+        to: treasury,
+        value: ether(5),
+        // 5 ETH > 0.1 ETH cap
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+
+    // Normal check rejects with code 7 (PerTxCapExceeded)
+    assert(verdict_code(decide(tx, pol, st)) == 7)
+
+    // Override check allows it (code 0)
+    assert(verdict_code(decide_with_override(tx, pol, st)) == 0)
 }

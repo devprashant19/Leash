@@ -1,0 +1,169 @@
+use ingot::*
+use std::abi::{Bytes, bytes_from_words}
+use std::evm::{Address, Evm, Timestamp, Wei, wei}
+use testkit::MockSafe
+
+#[cfg(target = "evm")]
+#[test]
+fn test_queue_initialization_and_state() uses (evm: mut Evm) {
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let queue_addr = evm.create<LeashQueue>(value: Wei::zero(), args: (safe,))
+
+    let empty_words: [u256; 0] = [0; 0]
+    let dummy_data: Bytes = bytes_from_words(empty_words)
+    let id: u256 = evm
+        .call(
+            addr: queue_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: QueueMsg::Queue {
+                to: Address::new(0x2222),
+                value: 1000000000000000000,
+                data: dummy_data,
+                operation: 0,
+                delay_sec: 3600,
+            },
+        )
+    assert(id == 1)
+
+    let state: u8 = evm
+        .call(
+            addr: queue_addr,
+            gas: 50000,
+            value: Wei::zero(),
+            message: QueueMsg::StateOf { id: 1 },
+        )
+    assert(state == 1) // Queued
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+fn test_queue_veto_by_non_safe_reverts() uses (evm: mut Evm) {
+    let safe = Address::new(0x1111) // Different from caller
+    let queue_addr = evm.create<LeashQueue>(value: Wei::zero(), args: (safe,))
+
+    let empty_words: [u256; 0] = [0; 0]
+    let dummy_data: Bytes = bytes_from_words(empty_words)
+    let _id: u256 = evm
+        .call(
+            addr: queue_addr,
+            gas: 200000,
+            value: Wei::zero(),
+            message: QueueMsg::Queue {
+                to: Address::new(0x2222),
+                value: 1000000000000000000,
+                data: dummy_data,
+                operation: 0,
+                delay_sec: 3600,
+            },
+        )
+
+    // Caller is evm.address(), but safe is 0x1111, so this must revert
+    evm.call(
+        addr: queue_addr,
+        gas: 100000,
+        value: Wei::zero(),
+        message: QueueMsg::Veto { id: 1 },
+    )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+fn test_queue_early_execute_reverts() uses (evm: mut Evm) {
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let queue_addr = evm.create<LeashQueue>(value: Wei::zero(), args: (safe,))
+
+    let empty_words: [u256; 0] = [0; 0]
+    let dummy_data: Bytes = bytes_from_words(empty_words)
+    let id: u256 = evm
+        .call(
+            addr: queue_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: QueueMsg::Queue {
+                to: Address::new(0x2222),
+                value: 1000000000000000000,
+                data: dummy_data.clone(),
+                operation: 0,
+                delay_sec: 3600,
+                // 1 hour delay
+            },
+        )
+    assert(id == 1)
+
+    // Early execute at timestamp 0 (ready_at = 3600) must revert
+    evm.call(
+        addr: queue_addr,
+        gas: 500000,
+        value: Wei::zero(),
+        message: QueueMsg::ExecuteQueued { id: 1, data: dummy_data },
+    )
+}
+
+#[cfg(target = "evm")]
+#[test(should_revert)]
+fn test_override_expired_deadline_reverts() uses (evm: mut Evm) {
+    let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
+    let queue_addr = evm.create<LeashQueue>(value: Wei::zero(), args: (safe,))
+
+    let empty_words: [u256; 0] = [0; 0]
+    let dummy_data: Bytes = bytes_from_words(empty_words)
+    // Deadline 0 is expired relative to current block timestamp
+    evm.call(
+        addr: queue_addr,
+        gas: 500000,
+        value: Wei::zero(),
+        message: QueueMsg::ExecuteWithOverride {
+            to: Address::new(0x2222),
+            value: 1000000000000000000,
+            data: dummy_data,
+            operation: 0,
+            deadline: 0,
+            // expired
+            v: 27,
+            r: 1,
+            s: 1,
+        },
+    )
+}
+
+#[cfg(target = "evm")]
+#[test]
+fn test_queue_veto_by_safe_success() uses (evm: mut Evm) {
+    let safe = evm.address() // caller is safe
+    let queue_addr = evm.create<LeashQueue>(value: Wei::zero(), args: (safe,))
+
+    let empty_words: [u256; 0] = [0; 0]
+    let dummy_data: Bytes = bytes_from_words(empty_words)
+    let id: u256 = evm
+        .call(
+            addr: queue_addr,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: QueueMsg::Queue {
+                to: Address::new(0x2222),
+                value: 1000000000000000000,
+                data: dummy_data,
+                operation: 0,
+                delay_sec: 3600,
+            },
+        )
+    assert(id == 1)
+
+    // Caller is safe, so veto succeeds!
+    evm.call(
+        addr: queue_addr,
+        gas: 100000,
+        value: Wei::zero(),
+        message: QueueMsg::Veto { id: 1 },
+    )
+
+    let state: u8 = evm
+        .call(
+            addr: queue_addr,
+            gas: 50000,
+            value: Wei::zero(),
+            message: QueueMsg::StateOf { id: 1 },
+        )
+    assert(state == 2) // Vetoed
+}

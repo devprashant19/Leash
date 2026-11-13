@@ -1,0 +1,89 @@
+use std::evm::units::Timestamp
+
+pub enum QueueState {
+    Empty,
+    Queued,
+    Vetoed,
+    Executed,
+}
+
+impl Copy for QueueState {}
+impl Snapshot for QueueState {}
+
+pub enum QueueAction {
+    Queue,
+    Veto,
+    Execute,
+}
+
+impl Copy for QueueAction {}
+impl Snapshot for QueueAction {}
+
+pub enum QueueError {
+    EarlyExecutionNotAllowed,
+    AlreadyExecuted,
+    TxVetoed,
+    InvalidTransition,
+}
+
+impl Copy for QueueError {}
+impl Snapshot for QueueError {}
+
+pub fn queue_state_code(_ state: QueueState) -> u8 {
+    match state {
+        QueueState::Empty => 0,
+        QueueState::Queued => 1,
+        QueueState::Vetoed => 2,
+        QueueState::Executed => 3,
+    }
+}
+
+pub fn queue_error_code(_ err: QueueError) -> u8 {
+    match err {
+        QueueError::EarlyExecutionNotAllowed => 1,
+        QueueError::AlreadyExecuted => 2,
+        QueueError::TxVetoed => 3,
+        QueueError::InvalidTransition => 4,
+    }
+}
+
+pub fn next_queue_state(
+    _ current: QueueState,
+    _ action: QueueAction,
+    _ now: Timestamp,
+    _ ready_at: Timestamp,
+) -> Result<QueueError, QueueState> {
+    match current {
+        QueueState::Empty => {
+            match action {
+                QueueAction::Queue => Result::Ok(QueueState::Queued),
+                _ => Result::Err(QueueError::InvalidTransition),
+            }
+        },
+        QueueState::Queued => {
+            match action {
+                QueueAction::Veto => Result::Ok(QueueState::Vetoed),
+                QueueAction::Execute => {
+                    if now < ready_at {
+                        Result::Err(QueueError::EarlyExecutionNotAllowed)
+                    } else {
+                        Result::Ok(QueueState::Executed)
+                    }
+                },
+                _ => Result::Err(QueueError::InvalidTransition),
+            }
+        },
+        QueueState::Executed => {
+            match action {
+                QueueAction::Execute => Result::Err(QueueError::AlreadyExecuted),
+                _ => Result::Err(QueueError::InvalidTransition),
+            }
+        },
+        QueueState::Vetoed => {
+            match action {
+                QueueAction::Execute => Result::Err(QueueError::TxVetoed),
+                _ => Result::Err(QueueError::InvalidTransition),
+            }
+        },
+    }
+}

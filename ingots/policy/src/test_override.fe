@@ -1,0 +1,190 @@
+use ingot::config::default_policy
+use ingot::decode::{decode_erc20, selector_of}
+use ingot::override_hash::{
+    compute_domain_separator,
+    compute_override_digest,
+    compute_override_struct_hash,
+}
+use ingot::rules::{decide, decide_with_escalation, decide_with_override}
+use ingot::types::{
+    Address,
+    AgentState,
+    Calldata,
+    DenyReason,
+    Operation,
+    Policy,
+    TargetKind,
+    TargetRule,
+    TokenAmount,
+    TokenRule,
+    Tx,
+    Verdict,
+    Wei,
+    verdict_code,
+}
+use std::evm::units::{Timestamp, ether, seconds, wei}
+
+#[test]
+fn test_decide_with_override_bypasses_only_caps() {
+    var pol = default_policy()
+    let treasury = Address::new(0x2000000000000000000000000000000000000002)
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(1000)
+
+    // 1. ETH transfer of 5 ETH exceeds default 1 ETH per_tx cap
+    let large_eth_tx = Tx {
+        to: treasury,
+        value: ether(5),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    // Normal decide rejects with PerTxCapExceeded (code 7)
+    let normal_verdict = decide(tx: large_eth_tx, policy: pol, state)
+    assert(verdict_code(normal_verdict) == 7)
+
+    // decide_with_override allows it!
+    let override_verdict = decide_with_override(tx: large_eth_tx, policy: pol, state)
+    assert(verdict_code(override_verdict) == 0)
+
+    // 2. But DelegateCall is STILL denied (code 3) even with override
+    let delegate_tx = Tx {
+        to: treasury,
+        value: ether(5),
+        data: Calldata::empty(),
+        op: Operation::DelegateCall,
+        now,
+    }
+    let delegate_verdict = decide_with_override(tx: delegate_tx, policy: pol, state)
+    assert(verdict_code(delegate_verdict) == 3)
+
+    // 3. Unlisted target is STILL denied (code 4) even with override
+    let unlisted_tx = Tx {
+        to: Address::new(0x9999999999999999999999999999999999999999),
+        value: ether(5),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    let unlisted_verdict = decide_with_override(tx: unlisted_tx, policy: pol, state)
+    assert(verdict_code(unlisted_verdict) == 4)
+
+    // 4. Paused module is STILL denied (code 1) even with override
+    var paused_state = AgentState::empty()
+    paused_state.paused = true
+    let paused_verdict = decide_with_override(tx: large_eth_tx, policy: pol, state: paused_state)
+    assert(verdict_code(paused_verdict) == 1)
+
+    // 5. Tripped circuit breaker is STILL denied (code 15) even with override
+    var tripped_state = AgentState::empty()
+    tripped_state.tripped = true
+    let tripped_verdict = decide_with_override(tx: large_eth_tx, policy: pol, state: tripped_state)
+    assert(verdict_code(tripped_verdict) == 15)
+
+    // 6. Expired session is STILL denied (code 2) even with override
+    var expired_state = AgentState::empty()
+    expired_state.expiry = Timestamp::from_seconds(500)
+    let expired_verdict = decide_with_override(tx: large_eth_tx, policy: pol, state: expired_state)
+    assert(verdict_code(expired_verdict) == 2)
+}
+
+#[test]
+fn test_decide_with_escalation_lifecycle() {
+    let pol = default_policy()
+    let treasury = Address::new(0x2000000000000000000000000000000000000002)
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(1000)
+    // Default policy has max_per_tx = 0.1 ETH (ether(1) / 10)
+    let threshold = ether(1) / 20 // 0.05 ETH escalation threshold
+
+    // 1. Small spend below threshold: 0.02 ETH < 0.05 ETH threshold -> Allow
+    let small_tx = Tx {
+        to: treasury,
+        value: ether(1) / 50,
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    let v_small = decide_with_escalation(
+        tx: small_tx,
+        policy: pol,
+        state,
+        escalation_threshold: threshold,
+    )
+    assert(verdict_code(v_small) == 0) // Allow
+
+    // 2. Moderate spend above threshold but within per_tx cap:
+    // 0.066 ETH (ether(1) / 15) > 0.05 ETH threshold and < 0.1 ETH cap -> EscalationRequired (code 20)
+    let mid_tx = Tx {
+        to: treasury,
+        value: ether(1) / 15,
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    let v_mid = decide_with_escalation(
+        tx: mid_tx,
+        policy: pol,
+        state,
+        escalation_threshold: threshold,
+    )
+    assert(
+        verdict_code(v_mid) == 20,
+    ) // DenyReason::EscalationRequired
+
+    // 3. Large spend above per_tx cap: 0.2 ETH (ether(1) / 5) > 0.1 ETH cap
+    // Denied by PerTxCapExceeded (code 7), not EscalationRequired
+    let huge_tx = Tx {
+        to: treasury,
+        value: ether(1) / 5,
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    let v_huge = decide_with_escalation(
+        tx: huge_tx,
+        policy: pol,
+        state,
+        escalation_threshold: threshold,
+    )
+    assert(verdict_code(v_huge) == 7) // PerTxCapExceeded
+}
+
+#[test]
+fn test_eip712_override_hash_computation() {
+    let agent = Address::new(0x1111)
+    let to = Address::new(0x2222)
+    let module = Address::new(0x3333)
+    let chain_id: u256 = 11155111 // Sepolia
+
+    let dom = compute_domain_separator(chain_id, verifying_contract: module)
+    assert(dom != 0)
+
+    let struct_hash = compute_override_struct_hash(
+        agent,
+        to,
+        value: 1000000000000000000,
+        data_hash: 0,
+        op: 0,
+        nonce: 1,
+        deadline: 2000000000,
+    )
+    assert(struct_hash != 0)
+
+    let digest = compute_override_digest(domain_separator: dom, struct_hash)
+    assert(digest != 0)
+
+    // Determinism: recomputing produces the exact same digest
+    let dom2 = compute_domain_separator(chain_id, verifying_contract: module)
+    let struct_hash2 = compute_override_struct_hash(
+        agent,
+        to,
+        value: 1000000000000000000,
+        data_hash: 0,
+        op: 0,
+        nonce: 1,
+        deadline: 2000000000,
+    )
+    let digest2 = compute_override_digest(domain_separator: dom2, struct_hash: struct_hash2)
+    assert(digest == digest2)
+}

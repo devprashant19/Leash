@@ -1,0 +1,81 @@
+use ingot::queue::{
+    QueueAction,
+    QueueError,
+    QueueState,
+    next_queue_state,
+    queue_error_code,
+    queue_state_code,
+}
+use std::evm::units::Timestamp
+
+#[test]
+fn test_queue_lifecycle_transitions() {
+    let now = Timestamp::from_seconds(1000)
+    let ready_at = Timestamp::from_seconds(2000)
+
+    // 1. Initial Empty -> Queued
+    let q1 = next_queue_state(QueueState::Empty, QueueAction::Queue, now, ready_at)
+    match q1 {
+        Result::Ok(st) => assert(queue_state_code(st) == 1),
+        Result::Err(_) => assert(false),
+    }
+
+    // 2. Queued -> Early Execute should fail
+    let early = next_queue_state(QueueState::Queued, QueueAction::Execute, now, ready_at)
+    match early {
+        Result::Ok(_) => assert(false),
+        Result::Err(e) => assert(queue_error_code(e) == 1),
+        // EarlyExecutionNotAllowed
+    }
+
+    // 3. Queued -> Execute at or after ready_at should succeed
+    let later = Timestamp::from_seconds(2000)
+    let exec = next_queue_state(QueueState::Queued, QueueAction::Execute, later, ready_at)
+    match exec {
+        Result::Ok(st) => assert(queue_state_code(st) == 3),
+        // Executed
+        Result::Err(_) => assert(false),
+    }
+
+    // 4. Double execute should fail with AlreadyExecuted
+    let double_exec = next_queue_state(
+        QueueState::Executed,
+        QueueAction::Execute,
+        later,
+        ready_at,
+    )
+    match double_exec {
+        Result::Ok(_) => assert(false),
+        Result::Err(e) => assert(queue_error_code(e) == 2),
+        // AlreadyExecuted
+    }
+
+    // 5. Queued -> Veto should succeed
+    let veto = next_queue_state(QueueState::Queued, QueueAction::Veto, now, ready_at)
+    match veto {
+        Result::Ok(st) => assert(queue_state_code(st) == 2),
+        // Vetoed
+        Result::Err(_) => assert(false),
+    }
+
+    // 6. Execute after veto should fail with TxVetoed
+    let exec_after_veto = next_queue_state(
+        QueueState::Vetoed,
+        QueueAction::Execute,
+        later,
+        ready_at,
+    )
+    match exec_after_veto {
+        Result::Ok(_) => assert(false),
+        Result::Err(e) => assert(queue_error_code(e) == 3),
+        // TxVetoed
+    }
+
+    // 7. Invalid transition
+    let invalid = next_queue_state(QueueState::Empty, QueueAction::Execute, now, ready_at)
+    match invalid {
+        Result::Ok(_) => assert(false),
+        Result::Err(e) => assert(queue_error_code(e) == 4),
+        // InvalidTransition
+    }
+}

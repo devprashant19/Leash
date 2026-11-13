@@ -28,6 +28,7 @@ pub struct CheckArgs {
     pub now: Timestamp,
     pub state: AgentState,
     pub json: bool,
+    pub is_override: bool,
 }
 
 pub enum ParseResult {
@@ -78,6 +79,7 @@ pub fn parse_check_args() -> ParseResult uses (args: Args) {
     var op = Operation::Call
     var state = default_check_state()
     var json = false
+    var is_override = false
 
     let count = args.count()
     var i: usize = 2
@@ -198,6 +200,8 @@ pub fn parse_check_args() -> ParseResult uses (args: Args) {
             }
         } else if flag == "--json" {
             json = true
+        } else if flag == "--override" {
+            is_override = true
         } else {
             return ParseResult::Err(ParseError::UnknownFlag)
         }
@@ -212,6 +216,6 @@ pub fn parse_check_args() -> ParseResult uses (args: Args) {
     }
 
     ParseResult::Ok(
-        CheckArgs { to, value: val_wei, data, op, now, state, json },
+        CheckArgs { to, value: val_wei, data, op, now, state, json, is_override },
     )
 }

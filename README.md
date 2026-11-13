@@ -45,7 +45,7 @@ The automated demo launches an ephemeral local Anvil node, deploys `MockSafe`, `
 
 ### One-Command Full Build & Demo
 ```sh
-# Setup dependencies, run checks, execute 137 tests, and run local demo (< 15 seconds)
+# Setup dependencies, run checks, execute all tests, and run local demo (< 15 seconds)
 make setup && make all && make demo
 ```
 
@@ -57,7 +57,7 @@ fe fmt --check ingots; fe fmt --check test
 # 2. Type check entire workspace
 fe check
 
-# 3. Run all 137 tests on EVM backend
+# 3. Run all tests on EVM backend
 fe test
 
 # 4. Run tests on Native backend (Linux / macOS)
@@ -241,7 +241,7 @@ $$\text{PARITY\_GOLDEN\_DIGEST} = \mathtt{0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb8
 
 **Mutation Verification**: Flipping `>` to `>=` in `check_per_tx_cap` immediately failed 11 parity tests, verifying test sensitivity.
 
-### 28-Exploit Adversarial Attack Suite (E2)
+### 31-Exploit Adversarial Attack Suite (E2)
 Located in [`test/attacks/src/`](test/attacks/src/):
 - **Attack 01**: MultiSend DelegateCall Hijack → Rejected (`DelegateCallBlocked`)
 - **Attack 02**: Cap Evasion via Split Spends → Rejected (`WindowCapExceeded`)
@@ -262,6 +262,8 @@ Located in [`test/attacks/src/`](test/attacks/src/):
 - **Attack 18**: ERC-20 `increaseAllowance` Bypass Attack → Rejected (`UnlimitedApproval` / `RecipientNotAllowed`)
 - **Attack 19**: Uniswap V2/V3 Zero-Slippage MEV Sandwich Drain (`amountOutMin == 0`) → Rejected (`SwapNotAllowed`, code 16)
 - **Attack 20**: Swap Recipient Diversion & Slippage Verification → Validated against allowlist & minimum output
+- **Attack 21**: Owner Co-Signed Override Cap Exemption & Structural Security → Bypasses spend caps only; strictly enforces target allowlist, delegatecall block, and non-malleable signatures
+- **Attack 22**: Escalation Timelock Queue & Safe Veto Defense → Threshold violations queued with `EscalationRequired` (code 20); early execution blocked; Safe veto stops execution
 
 ### Bytecode Size & Headroom (E3)
 - **Runtime Code Size**: **24,362 bytes** (strictly below the 24,576-byte hard EIP-170 limit with 0 compiler warnings).
