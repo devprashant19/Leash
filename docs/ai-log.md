@@ -986,7 +986,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 - **Bugs fixed**:
   - `transferFrom` selector `0x23b87266` → `0x23b872dd` (TS mirror, DECLARATION.md).
   - `runScenario` was hard-wired to the Anvil chain (31337), so `agent:sepolia` could not run on Sepolia; the chain is now a parameter.
-  - The hard-coded `C:\Users\u\bin\anvil.exe` path is replaced by `anvil` on `PATH` / `$ANVIL_PATH`.
+  - The hard-coded home-folder path to `anvil.exe` is replaced by `anvil` on `PATH` / `$ANVIL_PATH`.
   - The default RPC `rpc.sepolia.org` is replaced by `ethereum-sepolia-rpc.publicnode.com`.
 - **Fe CLI**: `leash serve` printed a fixed "ready" JSON line and exited. It now points to `bin/leash-serve.ts`, which runs the binary for each check. The help line and golden `02-help` were updated to match.
 - **Removed** `demo/deployments/sepolia.json`: it held local Anvil addresses labelled as Sepolia. `deploy.ts` writes the real file on deployment.

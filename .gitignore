@@ -5,3 +5,8 @@ demo/.env
 demo/.env.local
 demo/.env.*.local
 
+
+# Environment files (keys, RPC URLs)
+.env
+.env.*
+!.env.example
