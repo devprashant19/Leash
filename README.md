@@ -16,6 +16,7 @@
 - **Video script**: scene-by-scene script and timings in [`docs/video-script.md`](docs/video-script.md).
 - **Interactive Visual Dashboard**: run `npx serve demo` and open `/dashboard/` (it reads `demo/run.json`), or open [`demo/dashboard/index.html`](demo/dashboard/index.html) directly to see the bundled run.
 - **Contract build metadata**: [`demo/deployments/LeashModule.metadata.json`](demo/deployments/LeashModule.metadata.json) (from `fe build --emit metadata`).
+- **Native CLI binaries**: [`cli-v0.1.0` release](https://github.com/devprashant19/Leash/releases/tag/cli-v0.1.0): `leash-linux-x86_64` and `leash-macos-arm64`, built and smoke-tested by [`.github/workflows/release.yml`](.github/workflows/release.yml).
 - **Deploying (free tier)**: Sepolia contracts, dashboard hosting and CLI release, step by step in [`docs/deployment.md`](docs/deployment.md).
 - **Full Submission Details**: [`docs/submission.md`](docs/submission.md).
 
