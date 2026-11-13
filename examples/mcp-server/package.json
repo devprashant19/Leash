@@ -1,0 +1,12 @@
+{
+  "name": "leash-mcp-server",
+  "version": "1.0.0",
+  "description": "Model Context Protocol (MCP) server for Leash Safe Spending Limits",
+  "main": "index.ts",
+  "scripts": {
+    "start": "tsx index.ts"
+  },
+  "keywords": ["mcp", "model-context-protocol", "safe", "ethereum", "ai-agents", "fe"],
+  "author": "Leash Engineering",
+  "license": "Apache-2.0"
+}

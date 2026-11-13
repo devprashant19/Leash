@@ -32,4 +32,16 @@ parity:
 demo:
 	cd demo && npm install && npm run demo
 
-all: check test build parity demo
+serve:
+	npm --prefix demo run serve
+
+test-session:
+	npm --prefix demo run test:session
+
+example-c:
+	gcc -Iexamples/c examples/c/main.c -o examples/c/test_c && ./examples/c/test_c
+
+example-rust:
+	cd examples/rust && cargo check
+
+all: check test build parity demo test-session

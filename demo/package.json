@@ -7,7 +7,9 @@
     "typecheck": "tsc --noEmit",
     "deploy:sepolia": "tsx deploy.ts",
     "agent:sepolia": "tsx agent.ts",
-    "wizard": "tsx wizard.ts"
+    "wizard": "tsx wizard.ts",
+    "serve": "tsx ../bin/leash-serve.ts",
+    "test:session": "tsx ../test/serve/session_test.ts"
   },
   "dependencies": {
     "viem": "^2.21.0"

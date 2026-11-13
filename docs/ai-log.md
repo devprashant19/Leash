@@ -909,7 +909,34 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 
 ---
 
-## 2026-11-26 — Stage 11 End-to-End Implementation: Aave v3 Guard (C3) and Chainlink Oracle USD Caps (C4)
+## 2026-11-27 — Stage 12 End-to-End Implementation: Agent Tooling, MCP Server, Skill, Benchmarks & Multi-Chain
+- **AI-assisted**: yes (Antigravity).
+- **Files**:
+  - `bin/leash-serve.ts`: Line-delimited JSON-RPC 2.0 daemon implementing `check`, `record`, `reset`, `fingerprint`, and `explain` with stateful simulation session.
+  - `ingots/cli/src/lib.fe`: Registered `serve` subcommand in Fe CLI help and execution dispatch.
+  - `test/serve/session_test.ts`: Automated 8-step integration test verifying fingerprinting, explanation, allowed/denied transaction evaluations, multi-tx session planning via `record`, rolling window limits across sequential spends, malformed JSON recovery, and session reset.
+  - `examples/agent-tool/leash_agent.ts`: TypeScript adapter with LangChain and Vercel AI SDK tool definitions.
+  - `examples/agent-tool/leash_agent.py`: Python adapter for CrewAI, LangGraph, and AutoGen.
+  - `examples/agent-tool/README.md`: Integration guide for AI agent developers.
+  - `examples/mcp-server/index.ts` & `package.json`: Model Context Protocol server exposing `leash_check_transaction`, `leash_get_budget`, and `leash_get_policy_fingerprint` to Claude Desktop, Cursor, and Antigravity.
+  - `examples/rust/src/main.rs` & `Cargo.toml`: Rust example binding to C FFI header.
+  - `.claude/skills/leash/SKILL.md`: Comprehensive skill defining architecture principles, TDD cycle, ActionGuard creation, and quality gates.
+  - `docs/GAS.md`: Comprehensive gas benchmarks vs Zodiac Roles Modifier (28% lower overhead) and analysis of Fe 26.6.0 abstractions.
+  - `demo/lib/chains.ts`: Multi-chain network configuration for Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and Optimism Sepolia.
+  - `demo/package.json` & `Makefile`: Added `serve` and `test-session` automation commands.
+  - `docs/adr/014-agent-tool-mode-and-mcp.md`: Authored ADR-014.
+  - `docs/handoff/2026-11-27.md`: Authored Stage 12 handoff.
+- **Verification Evidence**:
+  - `fe test`: **159 passed; 0 failed** across all 7 workspace inputs.
+  - `fe fmt --check ingots; fe fmt --check test`: Clean (0 diffs).
+  - `fe check`: Clean (0 errors).
+  - `fe build ingots/module --emit sizes`:
+    - `LeashModule`: 22,029 bytes runtime (+2,547 bytes headroom below 24,576 bytes EIP-170 limit; 0 warnings).
+    - `LeashQueue`: 8,610 bytes runtime.
+  - `npm --prefix demo run test:session`: All 8 scripted session steps PASS.
+  - `npm --prefix demo run typecheck`: Clean (0 errors).
+  - `fe test ingots/cli`: 3 passed, 0 failed; golden fingerprint `0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee` verified deterministic across Native and EVM.
+- **Reviewed by human**: pending confirmation.
 - **AI-assisted**: yes (Antigravity).
 - **Files**:
   - `ingots/policy/src/types.fe`: Added `TargetKind::AavePool`, Aave selectors (`SEL_AAVE_WITHDRAW`, `SEL_AAVE_SUPPLY`, `SEL_AAVE_REPAY`), `PriceQuote`, and deny reasons `PriceUnavailable` (code 18) and `UsdCapExceeded` (code 19).

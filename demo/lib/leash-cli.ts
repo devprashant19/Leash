@@ -36,6 +36,7 @@ export const GOLDEN_FINGERPRINT = '0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf
 export const ADDR_TOKEN = '0x1000000000000000000000000000000000000001'.toLowerCase();
 export const ADDR_TREASURY = '0x2000000000000000000000000000000000000002'.toLowerCase();
 export const ADDR_UNISWAP_ROUTER = '0x7a250d5630b4cf539739df2c5dacb4c659f2488d'.toLowerCase();
+export const ADDR_AAVE_POOL = '0x6ae43d3271ff6888e7fc43fd7321a503ff738951'.toLowerCase();
 
 export const SEL_APPROVE = '0x095ea7b3';
 export const SEL_TRANSFER = '0xa9059cbb';
@@ -44,6 +45,9 @@ export const SEL_INCREASE_ALLOWANCE = '0x39509351';
 export const SEL_DECREASE_ALLOWANCE = '0xa457c2d7';
 export const SEL_UNISWAP_V2_SWAP = '0x38ed1739';
 export const SEL_UNISWAP_V3_SWAP = '0x04e45aaf';
+export const SEL_AAVE_WITHDRAW = '0x69328dec';
+export const SEL_AAVE_SUPPLY = '0x617ba037';
+export const SEL_AAVE_REPAY = '0x573ade81';
 
 export const MAX_PER_TX_WEI = 100_000_000_000_000_000n; // 0.1 ETH
 export const MAX_PER_WINDOW_WEI = 500_000_000_000_000_000n; // 0.5 ETH
@@ -89,7 +93,8 @@ export function predictVerdict(opts: CheckOptions): LeashCheckResult {
   const isTreasury = to === ADDR_TREASURY;
   const isToken = to === ADDR_TOKEN;
   const isUniswap = to === ADDR_UNISWAP_ROUTER;
-  if (!isTreasury && !isToken && !isUniswap) {
+  const isAave = to === ADDR_AAVE_POOL;
+  if (!isTreasury && !isToken && !isUniswap && !isAave) {
     return makeResult('DENY', 4, 'TargetNotAllowed', 'Target contract is not allowlisted', now);
   }
 
@@ -100,6 +105,26 @@ export function predictVerdict(opts: CheckOptions): LeashCheckResult {
   if (isTreasury) {
     if (byteLen > 0) {
       return makeResult('DENY', 5, 'SelectorNotAllowed', 'Treasury allows pure transfers only', now);
+    }
+  } else if (isAave) {
+    if (byteLen < 4) {
+      return makeResult('DENY', 6, 'MalformedCalldata', 'Calldata shorter than 4-byte selector', now);
+    }
+    const sel = '0x' + dataBytes.slice(0, 8).toLowerCase();
+    if (sel !== SEL_AAVE_WITHDRAW) {
+      return makeResult('DENY', 17, 'LendingNotAllowed', 'Lending method not authorized on pool', now);
+    }
+    if (byteLen !== 100) {
+      return makeResult('DENY', 6, 'MalformedCalldata', 'Aave withdraw calldata must be exactly 100 bytes', now);
+    }
+    const asset = '0x' + dataBytes.slice(32, 72).toLowerCase();
+    const amount = BigInt('0x' + dataBytes.slice(72, 136));
+    const recipient = '0x' + dataBytes.slice(160, 200).toLowerCase();
+    if (asset !== ADDR_TOKEN) {
+      return makeResult('DENY', 17, 'LendingNotAllowed', 'Withdrawn asset is not an allowlisted token', now);
+    }
+    if (amount > TOKEN_MAX_PER_TX) {
+      return makeResult('DENY', 9, 'TokenCapExceeded', 'Aave withdraw amount exceeds token cap', now);
     }
   } else if (isUniswap) {
     if (byteLen < 4) {
