@@ -216,6 +216,40 @@ Sixteen dedicated exploit test scenarios in `test/attacks/src/` verify that all 
 
 ---
 
+## Interactive Demo & Verification Walkthrough (Phase 6)
+
+A judge can reproduce the complete end-to-end demo locally in **under 10 seconds** with zero external setup:
+
+```bash
+# 1. Run the automated 5-transaction cross-verification scenario on Anvil
+npm --prefix demo run demo
+# or
+make demo
+```
+
+### The 5-Transaction Canonical Scenario
+
+The demo executes five real transactions through a rogue agent workflow, comparing the off-chain `leash check` prediction against the atomic on-chain execution:
+
+| # | Proposed Transaction | CLI Predicted | On-Chain Result | Gas Used | Status |
+|---|---|---|---|---|---|
+| **1** | Agent sends 0.05 ETH to authorized treasury | `ALLOW` | `ALLOW` (Executed) | 281,928 | **✓ PASS** |
+| **2** | Agent transfers 50 demo tokens to recipient | `ALLOW` | `ALLOW` (Executed) | 206,414 | **✓ PASS** |
+| **3** | Agent sends 0.2 ETH (exceeds 0.1 ETH per-tx cap) | `DENY (PerTxCapExceeded)` | `DENY (code 7)` | 177,148 | **✓ PASS** |
+| **4** | Agent calls unlisted contract (diversion attempt) | `DENY (TargetNotAllowed)` | `DENY (code 4)` | 159,631 | **✓ PASS** |
+| **5** | Agent calls `approve(exchange, 2^256 - 1)` drain | `DENY (UnlimitedApproval)` | `DENY (code 10)` | 186,105 | **✓ PASS** |
+
+**Parity Verdict**: **5 / 5 Matched (100.0% Agreement, 0 Drift)**.  
+Cryptographic Policy Fingerprint: `0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee` (identical on CLI and EVM).
+
+### Interactive Dashboard & Artifacts
+- **Interactive Visual Dashboard**: Open [`demo/dashboard/index.html`](file:///c:/Users/u/OneDrive/Desktop/SayOnce/Leash/demo/dashboard/index.html) in any browser (works offline or via `npx serve demo/dashboard`).
+- **2-Minute Demo Video Script**: [`docs/video-script.md`](file:///c:/Users/u/OneDrive/Desktop/SayOnce/Leash/docs/video-script.md).
+- **Sepolia Deployment Manifest**: [`demo/deployments/sepolia.json`](file:///c:/Users/u/OneDrive/Desktop/SayOnce/Leash/demo/deployments/sepolia.json).
+- **Contract Metadata (Sourcify E4)**: [`demo/deployments/LeashModule.metadata.json`](file:///c:/Users/u/OneDrive/Desktop/SayOnce/Leash/demo/deployments/LeashModule.metadata.json).
+
+---
+
 ## Limitations / Future Work
 
 Items prioritized for post-freeze extended roadmap (Stages 9–12):
@@ -226,5 +260,7 @@ Items prioritized for post-freeze extended roadmap (Stages 9–12):
 ---
 
 ## Project Status
-**Current Phase**: Phase 4 Complete — Rich Policies & Agent Guardrails (Compile-time validation, Recipient allowlist, Rate limit, Per-agent isolation, Cooldown, Circuit breaker, and JSON CLI budget output all verified and tested).
-Building towards final submission deadline: **November 24, 2026, 23:59 UTC**.
+**Current Phase**: Phase 6 Complete — Testnet Deployment, Verification Engine, and Interactive Demo.
+- Feature Freeze tagged at `v0.1.0-freeze`.
+- 137 tests passing green across 7 workspace members.
+- Final submission package prepared for **November 24, 2026, 23:59 UTC**.

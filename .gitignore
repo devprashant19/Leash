@@ -1,2 +1,7 @@
 out/
 *.docx
+demo/node_modules/
+demo/.env
+demo/.env.local
+demo/.env.*.local
+

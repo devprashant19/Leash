@@ -5,10 +5,11 @@ setup:
 	@echo "Fe 26.6.0 verified"
 
 fmt:
-	fe fmt ingots
+	fe fmt ingots test
 
 check:
 	fe fmt --check ingots
+	fe fmt --check test
 	fe check
 
 test:
@@ -19,15 +20,15 @@ test-native:
 
 build:
 	fe build
-	fe build --emit sizes
+	fe build ingots/module --emit sizes
 
 golden:
 	bash scripts/golden.sh
 
 parity:
-	bash scripts/fixtures-to-golden.sh
+	fe test -i parity_tests
 
 demo:
-	@echo "Demo: no-op until Phase 6"
+	cd demo && npm install && npm run demo
 
-all: check test test-native build golden
+all: check test build parity demo

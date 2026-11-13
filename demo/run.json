@@ -1,0 +1,72 @@
+{
+  "network": "anvil-local",
+  "moduleAddress": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+  "safeAddress": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+  "feVersion": "26.6.0",
+  "fingerprintCli": "0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee",
+  "fingerprintChain": "0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee",
+  "fingerprintsMatch": true,
+  "allStepsMatched": true,
+  "steps": [
+    {
+      "i": 1,
+      "description": "Agent sends 0.05 ETH to authorized treasury",
+      "predicted": "ALLOW",
+      "predictedCode": 0,
+      "onchain": "ALLOW",
+      "onchainCode": 0,
+      "matched": true,
+      "txHash": "0x61189568c7e77b94fe6b8761e9f5e3eee4a46423f89dafa8d976e8e2110a7a6f",
+      "gasUsed": "281928",
+      "remainingEthWindowWei": "450000000000000000"
+    },
+    {
+      "i": 2,
+      "description": "Agent transfers 50 tokens to authorized recipient",
+      "predicted": "ALLOW",
+      "predictedCode": 0,
+      "onchain": "ALLOW",
+      "onchainCode": 0,
+      "matched": true,
+      "txHash": "0xa36fc47b1089005b65edce6369b1ea1121a8e4490cabb4670b51777280f1b7e8",
+      "gasUsed": "206414",
+      "remainingEthWindowWei": "450000000000000000"
+    },
+    {
+      "i": 3,
+      "description": "Agent sends 0.2 ETH (exceeds 0.1 ETH per-tx cap)",
+      "predicted": "DENY (PerTxCapExceeded)",
+      "predictedCode": 7,
+      "onchain": "DENY (code 7)",
+      "onchainCode": 7,
+      "matched": true,
+      "txHash": "0xb212782dc1554e777f9be3fc7f78299a3d1ebcd94321f5d9cbb2ba99d7b3edec",
+      "gasUsed": "177148",
+      "remainingEthWindowWei": "450000000000000000"
+    },
+    {
+      "i": 4,
+      "description": "Agent calls unlisted contract (malicious diversion)",
+      "predicted": "DENY (TargetNotAllowed)",
+      "predictedCode": 4,
+      "onchain": "DENY (code 4)",
+      "onchainCode": 4,
+      "matched": true,
+      "txHash": "0xab3bb9040cd276359263c6534efcfc0d2c76d3957bbb8d29fca32cb83842b39c",
+      "gasUsed": "159631",
+      "remainingEthWindowWei": "450000000000000000"
+    },
+    {
+      "i": 5,
+      "description": "Agent calls approve(exchange, 2^256 - 1) unlimited drain",
+      "predicted": "DENY (UnlimitedApproval)",
+      "predictedCode": 10,
+      "onchain": "DENY (code 10)",
+      "onchainCode": 10,
+      "matched": true,
+      "txHash": "0x73a412173191efdd1f324514fa328fce22419a9d883d304172f027d77718e892",
+      "gasUsed": "186105",
+      "remainingEthWindowWei": "450000000000000000"
+    }
+  ]
+}

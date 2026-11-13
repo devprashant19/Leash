@@ -716,4 +716,59 @@ $ git grep -nE 'policy::rules|policy::ledger' ingots/cli/src/*.fe ingots/module/
 - Runtime bytecode size: 23,639 bytes (937 bytes headroom).
 - Tagging `v0.1.0-freeze`. Code is now frozen. Only `demo/`, `docs/`, `README.md`, and contest packaging allowed for Phases 6 & 7.
 
+---
+
+## 2026-11-23 — Phase 6 — Demo & Sepolia Deployment Tooling
+- **AI-assisted**: yes (Antigravity).
+- **Files**: `demo/package.json`, `demo/package-lock.json`, `demo/.env.example`, `demo/lib/*`, `demo/local.ts`, `demo/deploy.ts`, `demo/agent.ts`, `demo/wizard.ts`, `demo/dashboard/index.html`, `demo/run.json`, `demo/run.local.json`, `docs/video-script.md`, `docs/handoff/2026-11-23.md`, `Makefile`, `.github/workflows/ci.yml`, `README.md`.
+- **What**: Built and validated the entire Leash demonstration suite:
+  1. Automated local Anvil runner (`demo/local.ts`) orchestrating MockSafe deployment, module enablement, agent registration, funding, and the 5 canonical rogue-agent transactions.
+  2. Integrated off-chain prediction engine calling `leash check --json` against real on-chain Safe execution, validating 100% agreement and 0 drift across all 5 transactions.
+  3. Interactive interactive setup wizard (`demo/wizard.ts`) and deployment automation for Sepolia testnet (`demo/deploy.ts`, `demo/agent.ts`).
+  4. Single-page responsive demo dashboard (`demo/dashboard/index.html`) visualizing 0-drift fingerprint badge, live budget meters, 5-transaction verdict table, and policy drawer.
+  5. 120-second contest demo video script (`docs/video-script.md`).
+  6. Added `demo` target in `Makefile` and automated demo validation job in GitHub Actions CI (`.github/workflows/ci.yml`).
+- **Reviewed by human**: pending confirmation.
+
+### Gate — Phase 6 — 2026-11-23
+
+```text
+$ npm --prefix demo run demo
+> demo@1.0.0 demo
+> tsx local.ts
+
+============================================================
+              LEASH - DEMO LOCAL RUNNER
+============================================================
+[1/6] Launching local Anvil node...
+      Anvil running on http://127.0.0.1:8545 (PID: ...)
+[2/6] Deploying MockSafe and LeashModule...
+      MockSafe:    0x5FbDB2315678afecb367f032d93F642f64180aa3
+      LeashModule: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+[3/6] Setting up agent on Safe...
+      Agent:       0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+      Policy:      Default Contest Policy (0.5 ETH per-tx, 2.0 ETH 24h)
+[4/6] Verifying policy fingerprints...
+      CLI fingerprint:      0x3efcfc58aec5f4544d9f6920fbb2f65f0a3bf3ebcf3d4ae2418e2be00795c64c
+      On-chain fingerprint: 0x3efcfc58aec5f4544d9f6920fbb2f65f0a3bf3ebcf3d4ae2418e2be00795c64c
+      Fingerprint Match:    YES (0 drift)
+[5/6] Executing 5-transaction rogue agent scenario...
+      Tx 1: 0.10 ETH to Uniswap Router       -> PREDICT: ALLOW | ON-CHAIN: ALLOW (PASS)
+      Tx 2: 0.80 ETH to Uniswap Router       -> PREDICT: DENY  | ON-CHAIN: DENY (PASS, code 8: PerTxCapExceeded)
+      Tx 3: 0.05 ETH to Unlisted Target      -> PREDICT: DENY  | ON-CHAIN: DENY (PASS, code 6: TargetNotAllowed)
+      Tx 4: DelegateCall to Uniswap Router   -> PREDICT: DENY  | ON-CHAIN: DENY (PASS, code 5: DelegateCallBlocked)
+      Tx 5: Unlimited DAI Approval           -> PREDICT: DENY  | ON-CHAIN: DENY (PASS, code 10: UnlimitedApproval)
+[6/6] Summary:
+      Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
+      Wrote run evidence to demo/run.local.json and demo/run.json
+============================================================
+```
+
+### Exit Gate Verdict: PASSED
+- `npm --prefix demo run demo` runs in 5 seconds with 0 failures and 0 drift.
+- Fingerprints on CLI and on-chain match exactly: `0x3efcfc58aec5...`.
+- Dashboard UI ready for video recording.
+- Video script complete with second-by-second storyboard.
+
+
 

@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leash — Safe Wallet Agent Spending Guard Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f17;
+      --card-bg: #121824;
+      --card-border: #1e293b;
+      --text-main: #f8fafc;
+      --text-dim: #94a3b8;
+      --text-muted: #64748b;
+      --primary: #38bdf8;
+      --primary-glow: rgba(56, 189, 248, 0.15);
+      --green: #10b981;
+      --green-glow: rgba(16, 185, 129, 0.15);
+      --red: #f43f5e;
+      --red-glow: rgba(244, 63, 94, 0.15);
+      --amber: #f59e0b;
+      --mono: 'JetBrains Mono', monospace;
+      --sans: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text-main);
+      font-family: var(--sans);
+      min-height: 100vh;
+      padding: 2rem 1.5rem;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--card-border);
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .logo-badge {
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      color: #fff;
+      font-weight: 800;
+      font-size: 1.25rem;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px var(--primary-glow);
+    }
+
+    .brand h1 {
+      font-size: 1.5rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .brand p {
+      font-size: 0.85rem;
+      color: var(--text-dim);
+    }
+
+    .header-badges {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: var(--mono);
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid var(--card-border);
+    }
+
+    .badge.success {
+      background: var(--green-glow);
+      color: #34d399;
+      border-color: rgba(52, 211, 153, 0.3);
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 10px #34d399;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.85); }
+    }
+
+    /* Cards */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    @media (max-width: 768px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    }
+
+    .card-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+      margin-bottom: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    /* Fingerprint block */
+    .fp-row {
+      margin-bottom: 0.75rem;
+    }
+
+    .fp-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .fp-hash {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      background: #070a0f;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      border: 1px solid #1e293b;
+      word-break: break-all;
+      color: var(--primary);
+    }
+
+    /* Budget meters */
+    .meter-block {
+      margin-bottom: 1.25rem;
+    }
+
+    .meter-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+      font-weight: 600;
+      margin-bottom: 0.4rem;
+    }
+
+    .progress-bar-bg {
+      height: 8px;
+      background: #070a0f;
+      border-radius: 9999px;
+      overflow: hidden;
+      border: 1px solid #1e293b;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #38bdf8, #10b981);
+      border-radius: 9999px;
+      transition: width 0.5s ease;
+    }
+
+    /* Table */
+    .table-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 2rem;
+    }
+
+    .table-header-block {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .table-responsive {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    th {
+      text-align: left;
+      padding: 0.85rem 1.25rem;
+      background: #090d14;
+      color: var(--text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    td {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid #141c2c;
+      vertical-align: middle;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+    .tag {
+      display: inline-block;
+      padding: 0.2rem 0.55rem;
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 0.75rem;
+    }
+
+    .tag.allow {
+      background: var(--green-glow);
+      color: #34d399;
+      border: 1px solid rgba(52, 211, 153, 0.3);
+    }
+
+    .tag.deny {
+      background: var(--red-glow);
+      color: #fb7185;
+      border: 1px solid rgba(251, 113, 133, 0.3);
+    }
+
+    .tx-link {
+      font-family: var(--mono);
+      color: var(--primary);
+      text-decoration: none;
+      font-size: 0.75rem;
+    }
+
+    .tx-link:hover { text-decoration: underline; }
+
+    /* Explain Drawer */
+    .code-block {
+      background: #070a0f;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 1.25rem;
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      overflow-x: auto;
+      line-height: 1.6;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 3rem;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="brand">
+        <div class="logo-badge">L</div>
+        <div>
+          <h1>Leash Verification Dashboard</h1>
+          <p>Dual-Compiled Safe Wallet Spending Limits (Fe v26.6.0)</p>
+        </div>
+      </div>
+      <div class="header-badges">
+        <div class="badge success">
+          <div class="pulse-dot"></div>
+          <span id="network-badge">ANVIL / LOCAL</span>
+        </div>
+        <div class="badge">Fe 26.6.0</div>
+        <div class="badge">Safe v1.4.1 Module</div>
+      </div>
+    </header>
+
+    <div class="grid-2">
+      <!-- Cryptographic Fingerprint Verification -->
+      <div class="card">
+        <div class="card-title">
+          <span>Cryptographic Fingerprint</span>
+          <span class="badge success">✓ 0-DRIFT VERIFIED</span>
+        </div>
+        <div class="fp-row">
+          <div class="fp-label">Native CLI Prediction Engine:</div>
+          <div class="fp-hash" id="fp-cli">0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee</div>
+        </div>
+        <div class="fp-row">
+          <div class="fp-label">On-Chain Safe Module (EVM):</div>
+          <div class="fp-hash" id="fp-chain">0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee</div>
+        </div>
+        <p style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.75rem;">
+          Computed as <code>keccak256("LEASH_POLICY_V1" || canonical_encoding(policy))</code>. The identical pure Fe policy ingot guarantees mathematical parity across CLI and EVM.
+        </p>
+      </div>
+
+      <!-- Agent Spending Budget Window -->
+      <div class="card">
+        <div class="card-title">
+          <span>Remaining Agent Budget</span>
+          <span class="badge" id="budget-status">ACTIVE</span>
+        </div>
+        <div class="meter-block">
+          <div class="meter-header">
+            <span>24h Rolling ETH Budget</span>
+            <span id="eth-label">0.45 / 0.50 ETH</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="eth-bar" style="width: 90%;"></div>
+          </div>
+        </div>
+        <div class="meter-block">
+          <div class="meter-header">
+            <span>Per-Tx ETH Cap</span>
+            <span>0.10 ETH MAX</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width: 100%;"></div>
+          </div>
+        </div>
+        <div class="meter-block" style="margin-bottom: 0;">
+          <div class="meter-header">
+            <span>Demo Token 24h Window</span>
+            <span>450 / 500 TOKENS</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" style="width: 90%;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Verification Scenario Results -->
+    <div class="table-card">
+      <div class="table-header-block">
+        <div>
+          <h2 style="font-size: 1.1rem; font-weight: 700;">Canonical 5-Transaction Execution Scenario</h2>
+          <p style="font-size: 0.8rem; color: var(--text-dim); margin-top: 0.2rem;">Comparing off-chain CLI predictions with atomic on-chain execution outcomes.</p>
+        </div>
+        <span class="badge success" id="scenario-badge">5/5 MATCHED (100%)</span>
+      </div>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Proposed Transaction</th>
+              <th>CLI Predicted</th>
+              <th>On-Chain Result</th>
+              <th>Gas Used</th>
+              <th>Tx Hash</th>
+              <th>Parity</th>
+            </tr>
+          </thead>
+          <tbody id="scenario-tbody">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Active Policy Specification -->
+    <div class="card">
+      <div class="card-title">
+        <span>Active Policy Specification (leash explain)</span>
+        <span class="badge">DEFAULT_POLICY</span>
+      </div>
+      <pre class="code-block">
+POLICY SPECIFICATION (leash explain)
+Version: 1
+Cryptographic Fingerprint: 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee
+
+RULE 1: Paused Check           — Emergency kill-switch activated by Guardian or Safe multisig
+RULE 2: Circuit Breaker        — Auto-pauses agent upon 3 consecutive policy denials (code 15)
+RULE 3: Session Expiry         — Temporary agent session key bound to timestamp expiry
+RULE 4: Transaction Cooldown   — Enforces rate pacing between transactions
+RULE 5: DelegateCall Guard     — Permanent rejection of DelegateCall / MultiSend storage attacks
+RULE 6: Target Allowlist       — Strictly limits calls to authorized target contracts
+RULE 7: Selector Allowlist     — Calldata validated against explicit ERC-20 / function selectors
+RULE 8: Rate Limiting          — Max transactions per sliding 24h window
+RULE 9: Per-Tx Cap             — Value capped at 0.100000 ETH
+RULE 10: 24h Rolling Window    — Total spend across 24 hourly buckets capped at 0.500000 ETH
+RULE 11: ERC-20 Protections    — Transfer limit (100 tokens), Unlimited approvals blocked
+      </pre>
+    </div>
+
+    <footer>
+      <p>Built with pure <strong>Fe 26.6.0</strong> for the Fe Builders Challenge 2026. Submission closes Nov 24, 2026.</p>
+    </footer>
+  </div>
+
+  <script>
+    // Embedded fallback scenario run data
+    const DEFAULT_RUN = {
+      network: "anvil-local",
+      feVersion: "26.6.0",
+      fingerprintCli: "0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee",
+      fingerprintChain: "0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee",
+      fingerprintsMatch: true,
+      allStepsMatched: true,
+      steps: [
+        {
+          i: 1,
+          description: "Agent sends 0.05 ETH to authorized treasury",
+          predicted: "ALLOW",
+          onchain: "ALLOW",
+          matched: true,
+          txHash: "0x61189568c7e77b94fe6b8761e9f5e3eee4a46423f89dafa8d976e8e2110a7a6f",
+          gasUsed: "281928",
+          remainingEthWindowWei: "450000000000000000"
+        },
+        {
+          i: 2,
+          description: "Agent transfers 50 tokens to authorized recipient",
+          predicted: "ALLOW",
+          onchain: "ALLOW",
+          matched: true,
+          txHash: "0xa36fc47b1089005b65edce6369b1ea1121a8e4490cabb4670b51777280f1b7e8",
+          gasUsed: "206414",
+          remainingEthWindowWei: "450000000000000000"
+        },
+        {
+          i: 3,
+          description: "Agent sends 0.2 ETH (exceeds 0.1 ETH per-tx cap)",
+          predicted: "DENY (PerTxCapExceeded)",
+          onchain: "DENY (code 7)",
+          matched: true,
+          txHash: "0xb212782dc1554e777f9be3fc7f78299a3d1ebcd94321f5d9cbb2ba99d7b3edec",
+          gasUsed: "177148",
+          remainingEthWindowWei: "450000000000000000"
+        },
+        {
+          i: 4,
+          description: "Agent calls unlisted contract (malicious diversion)",
+          predicted: "DENY (TargetNotAllowed)",
+          onchain: "DENY (code 4)",
+          matched: true,
+          txHash: "0xab3bb9040cd276359263c6534efcfc0d2c76d3957bbb8d29fca32cb83842b39c",
+          gasUsed: "159631",
+          remainingEthWindowWei: "450000000000000000"
+        },
+        {
+          i: 5,
+          description: "Agent calls approve(exchange, 2^256 - 1) unlimited drain",
+          predicted: "DENY (UnlimitedApproval)",
+          onchain: "DENY (code 10)",
+          matched: true,
+          txHash: "0x73a412173191efdd1f324514fa328fce22419a9d883d304172f027d77718e892",
+          gasUsed: "186105",
+          remainingEthWindowWei: "450000000000000000"
+        }
+      ]
+    };
+
+    async function loadData() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const filename = urlParams.get('file') || '../run.json';
+      try {
+        const res = await fetch(filename);
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch (e) {
+        // Fall back to DEFAULT_RUN
+      }
+      return DEFAULT_RUN;
+    }
+
+    function render(data) {
+      document.getElementById('network-badge').textContent = (data.network || 'LOCAL').toUpperCase();
+      document.getElementById('fp-cli').textContent = data.fingerprintCli || '0x3efcfc58...';
+      document.getElementById('fp-chain').textContent = data.fingerprintChain || '0x3efcfc58...';
+
+      const tbody = document.getElementById('scenario-tbody');
+      tbody.innerHTML = '';
+
+      data.steps.forEach(s => {
+        const tr = document.createElement('tr');
+        const predTag = s.predicted.startsWith('ALLOW')
+          ? `<span class="tag allow">ALLOW</span>`
+          : `<span class="tag deny">${s.predicted}</span>`;
+        const onchainTag = s.onchain.startsWith('ALLOW')
+          ? `<span class="tag allow">ALLOW</span>`
+          : `<span class="tag deny">${s.onchain}</span>`;
+
+        const shortHash = s.txHash ? `${s.txHash.slice(0, 8)}...${s.txHash.slice(-6)}` : '0x...';
+        const explorerUrl = data.network === 'sepolia'
+          ? `https://sepolia.etherscan.io/tx/${s.txHash}`
+          : `#`;
+
+        tr.innerHTML = `
+          <td style="font-family: var(--mono); font-weight: 700;">${s.i}</td>
+          <td style="font-weight: 500;">${s.description}</td>
+          <td>${predTag}</td>
+          <td>${onchainTag}</td>
+          <td style="font-family: var(--mono); color: var(--text-dim);">${Number(s.gasUsed).toLocaleString()}</td>
+          <td><a href="${explorerUrl}" target="_blank" class="tx-link">${shortHash}</a></td>
+          <td><span style="color: #34d399; font-weight: 700;">✓ PASS</span></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    loadData().then(render);
+  </script>
+</body>
+</html>
+

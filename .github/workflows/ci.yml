@@ -99,3 +99,28 @@ jobs:
             exit 1
           fi
           echo "Component isolation check passed."
+
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Fe
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/argotorg/fe/master/feup/feup.sh | bash -s -- --version "$FE_VERSION" --no-modify-path
+          echo "$HOME/.fe/bin" >> "$GITHUB_PATH"
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build contracts
+        run: |
+          fe build ingots/module
+          fe build ingots/testkit
+      - name: Run Demo End-to-End
+        run: |
+          cd demo
+          npm install
+          npm run demo
+

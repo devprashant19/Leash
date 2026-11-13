@@ -1,0 +1,20 @@
+{
+  "name": "leash-demo",
+  "version": "0.1.0",
+  "description": "Leash Safe Module & CLI verification demo",
+  "scripts": {
+    "demo": "tsx local.ts",
+    "deploy:sepolia": "tsx deploy.ts",
+    "agent:sepolia": "tsx agent.ts",
+    "wizard": "tsx wizard.ts"
+  },
+  "dependencies": {
+    "viem": "^2.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
+
