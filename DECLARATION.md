@@ -21,10 +21,11 @@
   - Uniswap V3 `exactInputSingle((address,address,uint24,address,uint256,uint256,uint160))` (`0x04e45aaf`)
 - **Standard Library**: Fe standard library modules (`core`, `std`) from `argotorg/fe` tag `v26.6.0`.
 - **Foundry Tools**: Anvil local testnet and Cast CLI from Foundry v1.9.0.
+- **Web demo libraries** (Vercel page only, not the Fe code): `@ethereumjs/vm`, `@ethereumjs/tx`, `@ethereumjs/block`, `@ethereumjs/common`, `@ethereumjs/util` 10.1.3 (in-memory EVM that runs the Fe-compiled contracts) and `viem` (ABI encoding), as pinned in `package.json`.
 
 ## 3. AI Assistance Declaration
 - Development of the Leash codebase was assisted by agentic AI engineering workflows (Google DeepMind Antigravity / Claude Code) following strict engineering rules (`AGENTS.md`).
-- **Total Logged AI Milestones**: 12 verified engineering milestones logged across Phases 0 through 7.
+- **Logged AI-assisted entries**: 18 entries in `docs/ai-log.md` (as of 2026-11-13), covering Phases 0–7, roadmap Stages 9–12, the release fixes and the Vercel page.
 - **Audit Log**: Every AI-assisted code change, test execution, architectural decision, and raw compiler/test verification output is permanently recorded in [`docs/ai-log.md`](docs/ai-log.md).
 - **Human Steering**: The human engineer provided the project vision, high-level requirements, contest registration, cryptographic and security constraints, review gating, and final sign-off. The AI acted as the lead implementation engineer executing strictly test-driven development (TDD), writing failing tests first, implementing minimal passing code, running cross-backend verification, and assembling deliverables.
 
