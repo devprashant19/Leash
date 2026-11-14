@@ -75,9 +75,9 @@ export function findLeashBinary(): string | null {
   return candidates.find((p) => fs.existsSync(p)) ?? null;
 }
 
-/** LEASH_REQUIRE_NATIVE=1 (set in CI) forbids the TypeScript fallback. */
+/** LEASH_REQUIRE_NATIVE=1 (set in CI) forbids the TypeScript fallback, but on Vercel resilience is prioritized. */
 function requireNative(): boolean {
-  return process.env.LEASH_REQUIRE_NATIVE === '1';
+  return process.env.LEASH_REQUIRE_NATIVE === '1' && !process.env.VERCEL;
 }
 
 export function predictionSource(): PredictionSource {
