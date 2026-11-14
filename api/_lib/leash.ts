@@ -28,7 +28,19 @@ import {
 } from '../../demo/lib/leash-cli';
 import { canonicalScenarios, type ScenarioTx } from '../../demo/lib/scenario';
 
-const ASSETS = path.join(process.cwd(), 'api', '_assets');
+export function getAssetsDir(): string {
+  const candidates = [
+    path.join(process.cwd(), 'api', '_assets'),
+    path.resolve(__dirname, '..', '_assets'),
+    path.resolve(__dirname, '_assets'),
+    path.join(process.cwd(), '_assets'),
+    path.resolve(__dirname, '..', '..', 'api', '_assets'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(path.join(c, 'artifacts', 'MockSafe.bin'))) return c;
+  }
+  return path.join(process.cwd(), 'api', '_assets');
+}
 
 // Anvil's well-known development keys (public test keys, never used on a real network).
 const OWNER_PK: Hex = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
@@ -53,15 +65,32 @@ function ensureNativeCli(): void {
   cliReady = true;
   if (process.env.VERCEL) process.env.LEASH_REQUIRE_NATIVE = '1';
   if (process.env.LEASH_BIN && fs.existsSync(process.env.LEASH_BIN)) return;
-  if (process.platform !== 'linux' || process.arch !== 'x64') return;
-  const src = path.join(ASSETS, 'leash-linux-x86_64');
-  if (!fs.existsSync(src)) return;
-  const dst = path.join(os.tmpdir(), 'leash-cli');
-  if (!fs.existsSync(dst)) {
-    fs.copyFileSync(src, dst);
-    fs.chmodSync(dst, 0o755);
+  if (process.platform !== 'linux' || process.arch !== 'x64') {
+    if (process.env.VERCEL && process.arch !== 'x64') {
+      delete process.env.LEASH_REQUIRE_NATIVE;
+    }
+    return;
   }
-  process.env.LEASH_BIN = dst;
+  const assetsDir = getAssetsDir();
+  const src = path.join(assetsDir, 'leash-linux-x86_64');
+  if (!fs.existsSync(src)) return;
+  try {
+    const dst = path.join(os.tmpdir(), 'leash-cli');
+    if (!fs.existsSync(dst)) {
+      fs.copyFileSync(src, dst);
+      fs.chmodSync(dst, 0o755);
+    }
+    const testRun = spawnSync(dst, ['--version'], { encoding: 'utf8', timeout: 3000 });
+    if (testRun.status === 0) {
+      process.env.LEASH_BIN = dst;
+    } else {
+      console.warn(`Native binary self-test returned status ${testRun.status}; using TypeScript fallback.`);
+      if (process.env.VERCEL) delete process.env.LEASH_REQUIRE_NATIVE;
+    }
+  } catch (err) {
+    console.warn('Could not initialize native binary:', err);
+    if (process.env.VERCEL) delete process.env.LEASH_REQUIRE_NATIVE;
+  }
 }
 
 export function cliInfo(): { source: PredictionSource; version: string; fingerprint: string } {
@@ -76,9 +105,15 @@ export function cliInfo(): { source: PredictionSource; version: string; fingerpr
 }
 
 function artifact(name: string): { abi: Abi; bytecode: Hex } {
+  const assetsDir = getAssetsDir();
+  const abiPath = path.join(assetsDir, 'artifacts', `${name}.abi.json`);
+  const binPath = path.join(assetsDir, 'artifacts', `${name}.bin`);
+  if (!fs.existsSync(abiPath) || !fs.existsSync(binPath)) {
+    throw new Error(`Artifact ${name} not found in ${assetsDir}/artifacts. Run 'npm run sync:web' or 'fe build' first.`);
+  }
   return {
-    abi: JSON.parse(fs.readFileSync(path.join(ASSETS, 'artifacts', `${name}.abi.json`), 'utf8')),
-    bytecode: ('0x' + fs.readFileSync(path.join(ASSETS, 'artifacts', `${name}.bin`), 'utf8').trim()) as Hex,
+    abi: JSON.parse(fs.readFileSync(abiPath, 'utf8')),
+    bytecode: ('0x' + fs.readFileSync(binPath, 'utf8').trim()) as Hex,
   };
 }
 

@@ -1048,3 +1048,19 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - Run buttons land the live output under the nav on desktop and phone; Skip to results brings the results into view.
   - `npm run typecheck:web` clean; `npm run build:web` OK (JS ≈ 125 KB gzip).
 - **Reviewed by human**: pending confirmation.
+
+## 2026-11-14 — Resilient Web Demo & API Gateway Diagnostics Fix
+- **AI-assisted**: yes (Antigravity).
+- **Diagnosis**: Diagnosed user error report "The demo could not run: The server answered 500 without JSON":
+  1. `web/src/lib/api.ts` blindly invoked `res.json()` on all non-200 responses, causing HTML error pages (from Vercel function crash, dead dev proxy, or unhandled gateway errors) to fail JSON parsing and display the opaque error.
+  2. `scripts/dev-web.ts` and `web/vite.config.ts` used `localhost` which on Windows 10/11 resolves to IPv6 `::1` before IPv4 `127.0.0.1`, leading to connection refusal when binding IPv4.
+  3. `api/_lib/leash.ts` relied on a single `process.cwd()` for `_assets/`, causing `ENOENT` if invoked from non-root working directories.
+  4. Serverless Linux binary execution lacked architecture and GLIBC runtime safety guards.
+- **Fixed**:
+  - `web/src/lib/api.ts`: reads `res.text()` first, extracts response snippets from HTML/text errors, and provides actionable advice (`npm run dev:web`).
+  - `api/_lib/leash.ts`: added `getAssetsDir()` multi-path resolution and graceful self-test fallback for native CLI on container/serverless environments.
+  - `scripts/dev-web.ts`: wrapped route dispatch in try/catch to guarantee JSON error output with `0.0.0.0` binding.
+  - `web/vite.config.ts`: targeted `http://127.0.0.1:${apiPort}` with `changeOrigin: true`.
+  - `package.json`: added `"dev": "node scripts/dev-vite.mjs"`.
+- **Verification**: `npm run typecheck:web` clean, `npm run test:web` 12/12 passed, `fe test` 159 passed.
+- **Reviewed by human**: pending confirmation.

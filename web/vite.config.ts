@@ -6,7 +6,8 @@ const apiPort = process.env.LEASH_API_PORT || '3001';
 
 // If the local API is not running, answer /api calls with a readable JSON error instead of an empty 500.
 const api: ProxyOptions = {
-  target: `http://localhost:${apiPort}`,
+  target: `http://127.0.0.1:${apiPort}`,
+  changeOrigin: true,
   configure(proxy) {
     proxy.on('error', (_err, _req, res) => {
       const r = res as import('node:http').ServerResponse;

@@ -31,20 +31,41 @@ const types: Record<string, string> = {
 const port = Number(process.env.PORT || 3000);
 http
   .createServer(async (req, res) => {
-    const url = new URL(req.url || '/', `http://localhost:${port}`);
-    const fn = routes[url.pathname];
-    if (fn) return fn(req, res);
-    let file = path.join(root, decodeURIComponent(url.pathname));
-    if (!file.startsWith(root)) {
-      res.statusCode = 403;
-      return res.end('forbidden');
+    try {
+      const url = new URL(req.url || '/', `http://127.0.0.1:${port}`);
+      const fn = routes[url.pathname];
+      if (fn) {
+        try {
+          return await fn(req, res);
+        } catch (routeErr) {
+          console.error(`Error handling ${url.pathname}:`, routeErr);
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify({ error: routeErr instanceof Error ? routeErr.message : String(routeErr) }));
+          }
+          return;
+        }
+      }
+      let file = path.join(root, decodeURIComponent(url.pathname));
+      if (!file.startsWith(root)) {
+        res.statusCode = 403;
+        return res.end('forbidden');
+      }
+      if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
+      if (!fs.existsSync(file)) {
+        res.statusCode = 404;
+        return res.end('not found');
+      }
+      res.setHeader('Content-Type', types[path.extname(file)] || 'application/octet-stream');
+      fs.createReadStream(file).pipe(res);
+    } catch (serverErr) {
+      console.error('Unhandled server error:', serverErr);
+      if (!res.headersSent) {
+        res.statusCode = 500;
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.end(JSON.stringify({ error: serverErr instanceof Error ? serverErr.message : String(serverErr) }));
+      }
     }
-    if (fs.existsSync(file) && fs.statSync(file).isDirectory()) file = path.join(file, 'index.html');
-    if (!fs.existsSync(file)) {
-      res.statusCode = 404;
-      return res.end('not found');
-    }
-    res.setHeader('Content-Type', types[path.extname(file)] || 'application/octet-stream');
-    fs.createReadStream(file).pipe(res);
   })
-  .listen(port, () => console.log(`Leash web on http://localhost:${port}`));
+  .listen(port, '0.0.0.0', () => console.log(`Leash web on http://localhost:${port}`));
