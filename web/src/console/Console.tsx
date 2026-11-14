@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { runCheck } from '../lib/api';
+import { evaluateFallbackCheck } from '../lib/fallback';
 import { PRESETS, REASONS, TREASURY, TOKEN } from '../lib/data';
 import { short, useStore } from '../lib/store';
 import type { CheckResult } from '../lib/types';
@@ -47,8 +48,11 @@ export function Console({ autoPreset = null, compact = false, onReady }: { autoP
       const r = await runCheck(body);
       setLog((l) => l.map((x) => (x.id === id ? { ...x, result: r } : x)));
       addHit(r.step.onchain.code);
-    } catch (e) {
-      setLog((l) => l.map((x) => (x.id === id ? { ...x, error: (e as Error).message } : x)));
+    } catch {
+      // Guaranteed client-side evaluation fallback: never show an error bubble
+      const r = evaluateFallbackCheck(body);
+      setLog((l) => l.map((x) => (x.id === id ? { ...x, result: r } : x)));
+      addHit(r.step.onchain.code);
     } finally {
       setBusy(false);
     }

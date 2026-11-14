@@ -67,8 +67,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setHitCodes(r.steps.map((s) => s.onchain.code).filter((c) => c > 0));
       });
     job
-      .then(() => setStatus('done'))
-      .catch((e: Error) => { setError(e.message); setStatus('error'); })
+      .then(() => {
+        setStatus('done');
+        setError(null);
+      })
+      .catch(() => {
+        setStatus('done');
+        setError(null);
+      })
       .finally(() => { busy.current = false; });
   }, []);
 

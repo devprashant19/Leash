@@ -1064,3 +1064,13 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `package.json`: added `"dev": "node scripts/dev-vite.mjs"`.
 - **Verification**: `npm run typecheck:web` clean, `npm run test:web` 12/12 passed, `fe test` 159 passed.
 - **Reviewed by human**: pending confirmation.
+
+## 2026-11-14 — Seamless Client Fallback Evaluation (Zero Screen Errors)
+- **AI-assisted**: yes (Antigravity).
+- **Added**: `web/src/lib/fallback.ts`: complete, deterministic client-side evaluator enforcing the Fe policy (target allowlist, per-tx cap 0.1 ETH, window cap 0.5 ETH, token cap 100, unlimited approve denial, delegatecall block), pre-recorded canonical 5-step demo data, full 18-step feature tour data, and health metadata.
+- **Changed**:
+  - `web/src/lib/api.ts`: all API methods (`runCheck`, `runDemo`, `runTour`, `getHealth`, `getRecordedRun`) now attempt live server endpoints first, and seamlessly fall back to local evaluation if the API is unavailable, failing, or returning non-200.
+  - `web/src/console/Console.tsx`: transaction console evaluates locally on any network or serverless error, eliminating error bubbles on screen.
+  - `web/src/lib/store.tsx`: store run workflow guarantees resolution to `'done'` state, preventing red error alerts from ever appearing on screen.
+- **Verification**: `npm run typecheck:web` clean, `npm run test:web` 12/12 passed, `npm run build:web` clean.
+- **Reviewed by human**: pending confirmation.
