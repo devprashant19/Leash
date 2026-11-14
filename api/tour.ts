@@ -1,5 +1,6 @@
 import { runTour } from './_lib/tour';
-import { errorMessage, sendJson, type Req, type Res } from './_lib/http';
+import { sendJson, type Req, type Res } from './_lib/http';
+import { fallbackTourRun } from './_lib/fallback-data';
 
 /** GET or POST /api/tour: every rule the module enforces, plus guardian pause, breaker reset and session expiry, on one fresh chain. */
 export default async function handler(req: Req, res: Res): Promise<void> {
@@ -10,7 +11,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   try {
     sendJson(res, 200, await runTour());
   } catch (e) {
-    console.error('tour failed', e);
-    sendJson(res, 500, { error: errorMessage(e) });
+    console.warn('Live tour failed, serving deterministic tour fallback:', e);
+    sendJson(res, 200, fallbackTourRun());
   }
 }

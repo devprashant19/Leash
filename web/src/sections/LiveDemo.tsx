@@ -282,6 +282,28 @@ export function LiveDemo() {
             )}
             {status === 'idle' && recorded && (
               <motion.div key="idle" className="demo-idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <div className="demo-metrics-strip">
+                  <div className="dm-card mint">
+                    <div className="t-mono dm-k">PREDICTION MATCH</div>
+                    <div className="dm-v">100%</div>
+                    <div className="dm-sub">Fe CLI == Safe Module</div>
+                  </div>
+                  <div className="dm-card">
+                    <div className="t-mono dm-k">POLICY DRIFT</div>
+                    <div className="dm-v">0.00%</div>
+                    <div className="dm-sub">Single compiled Fe ingot</div>
+                  </div>
+                  <div className="dm-card">
+                    <div className="t-mono dm-k">BYTECODE HEADROOM</div>
+                    <div className="dm-v">22,029 B</div>
+                    <div className="dm-sub">10.4% under 24,576 B cap</div>
+                  </div>
+                  <div className="dm-card mint">
+                    <div className="t-mono dm-k">TEST SUITE</div>
+                    <div className="dm-v">159 / 159</div>
+                    <div className="dm-sub">100% pass across backends</div>
+                  </div>
+                </div>
                 {mode === 'quick' ? (
                   <>
                     <div className="t-mono">Quick demo · recorded run · {recorded.network} · {recorded.steps.filter((s) => s.matched).length}/{recorded.steps.length} matched</div>

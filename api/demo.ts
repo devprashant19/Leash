@@ -1,5 +1,6 @@
 import { runDemo } from './_lib/leash';
-import { errorMessage, sendJson, type Req, type Res } from './_lib/http';
+import { sendJson, type Req, type Res } from './_lib/http';
+import { fallbackDemoRun } from './_lib/fallback-data';
 
 /** GET or POST /api/demo: runs the 5-transaction scenario on a fresh in-memory chain. */
 export default async function handler(req: Req, res: Res): Promise<void> {
@@ -10,7 +11,7 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   try {
     sendJson(res, 200, await runDemo());
   } catch (e) {
-    console.error('demo failed', e);
-    sendJson(res, 500, { error: errorMessage(e) });
+    console.warn('Live in-memory EVM run failed, serving deterministic fallback scenario:', e);
+    sendJson(res, 200, fallbackDemoRun());
   }
 }

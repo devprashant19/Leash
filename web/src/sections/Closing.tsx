@@ -226,7 +226,8 @@ export function Footer() {
             <a href="#demo" onClick={(e) => { e.preventDefault(); scrollToId('demo'); }}>Demo</a>
             <a href="#rules" onClick={(e) => { e.preventDefault(); scrollToId('rules'); }}>Rules</a>
             <a href="#how" onClick={(e) => { e.preventDefault(); scrollToId('how'); }}>How it works</a>
-            <a href="/dashboard/">Recorded run</a>
+            <a href="#demo" onClick={(e) => { e.preventDefault(); scrollToId('demo'); }}>Recorded run</a>
+            <a href="/dashboard/">Dashboard</a>
             <a href={REPO} target="_blank" rel="noreferrer">GitHub</a>
             <a href={`${REPO}/releases/tag/cli-v0.1.0`} target="_blank" rel="noreferrer">CLI release</a>
           </nav>
