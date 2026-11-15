@@ -91,13 +91,22 @@ async function main() {
   });
 
   await step('plan simulator validates multi-step batch executions correctly', () => {
-    const { PlanSimulator } = require('../../demo/lib/plan-simulator');
-    const rep = PlanSimulator.simulatePlan([
+    const { PlanSimulator: ServerSimulator } = require('../../demo/lib/plan-simulator');
+    const rep = ServerSimulator.simulatePlan([
       { id: 1, description: 'Step 1', to: TREASURY, valueWei: 50000000000000000n },
       { id: 2, description: 'Step 2', to: TREASURY, valueWei: 50000000000000000n },
     ]);
     assert.equal(rep.allStepsPassed, true);
     assert.equal(rep.passedSteps, 2);
+
+    const { PlanSimulator: ClientSimulator } = require('../../web/src/lib/plan-simulator');
+    const clientRep = ClientSimulator.simulatePlan([
+      { id: 1, description: 'Step 1', to: TREASURY, valueWei: 50000000000000000n },
+      { id: 2, description: 'Step 2', to: TREASURY, valueWei: 50000000000000000n },
+    ]);
+    assert.equal(clientRep.allStepsPassed, true);
+    assert.equal(clientRep.passedSteps, 2);
+    assert.equal(rep.fingerprint, clientRep.fingerprint);
   });
 
   await step('input validation rejects bad addresses, values and calldata', () => {
