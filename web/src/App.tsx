@@ -6,6 +6,7 @@ import { Hero, Nav } from './sections/Top';
 import { Checks, Intro, Stats } from './sections/Story';
 import { DenyCodes, Rules } from './sections/Rules';
 import { RuleMatrix } from './sections/RuleMatrix';
+import { PlanSimulatorSection } from './sections/PlanSimulatorSection';
 import { LiveDemo } from './sections/LiveDemo';
 import { HowItWorks, Proof } from './sections/How';
 import { Compare, FailureModes, FinalCta, Footer, Statement, UseFor, Where } from './sections/Closing';
@@ -38,6 +39,7 @@ export function App() {
           <DenyCodes />
           <RuleMatrix />
           <LiveDemo />
+          <PlanSimulatorSection />
           <HowItWorks />
           <Proof />
           <Statement />
