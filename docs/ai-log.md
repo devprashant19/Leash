@@ -1094,3 +1094,21 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm run build:web` clean (static dashboard bundled to `web/dist/dashboard/index.html`).
   - `fe test` 159/159 passed (0 failed).
 - **Reviewed by human**: pending confirmation.
+
+## 2026-11-16 — Ecosystem Expansion: Agent SDKs, Plan Simulation, Multi-Chain Tooling, and Formal Audit
+- **AI-assisted**: yes (Antigravity).
+- **Milestone Overview**: Comprehensive ecosystem expansion across Nov 14–16, delivering:
+  1. **TypeScript Agent SDK (`@leash/sdk`)**: Safe transaction packaging, LangChain tool adapter, Eliza action provider, and EIP-712 typed override hashing.
+  2. **Python Agent SDK (`leash-agent-sdk`)**: Pydantic models, CrewAI tool integration, and AutoGen pre-send guardrail hooks.
+  3. **Plan Simulation Engine (`PlanSimulator`)**: Batch transaction validator tracking rolling 24-hour budget consumption, hourly bucket rollovers, and multi-step circuit breaker trips before on-chain broadcast.
+  4. **WASM Browser Simulator (`@leash/wasm-simulator`)**: Zero-dependency embedded policy evaluator for browser extensions, mobile wallets, and edge environments.
+  5. **Visual Rule Matrix & Plan Simulator UI**: Interactive components embedded into the web app visualizing the 21-rule security hierarchy and live batch execution.
+  6. **Deterministic Multi-Chain CREATE2 Tooling**: Deployment registry and verification scripts covering Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and OP Sepolia with uniform `0x3efcfc58...` fingerprint.
+  7. **Stateful Property Fuzzing Engine**: 10,000-iteration random sequence test verifying no panics, no memory leakage, and invariant preservation.
+  8. **Comprehensive Security Audit & Mathematical Specification**: Full review of 25 threat model claims, gas comparison against Zodiac Roles (12.5%–23.5% savings), and formal proofs of sliding window semantics.
+- **Verification**:
+  - `fe test`: 159/159 passed (0 failed).
+  - `npm run test:web`: 13/13 passed.
+  - `npm run typecheck:web`: clean (0 errors).
+  - SDK unit tests & fuzz tests: 100% pass across TS, Python, and CLI suites.
+- **Reviewed by human**: pending confirmation.

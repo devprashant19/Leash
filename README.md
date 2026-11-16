@@ -32,6 +32,14 @@ Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run
 - **Deploying (free tier)**: Sepolia contracts, dashboard hosting and CLI release, step by step in [`docs/deployment.md`](docs/deployment.md).
 - **Full Submission Details**: [`docs/submission.md`](docs/submission.md).
 
+### Ecosystem & Developer Tooling
+- **TypeScript Agent SDK**: [`packages/leash-sdk`](packages/leash-sdk/) — pre-flight verification & Safe transaction packager with LangChain & Eliza adapters.
+- **Python Agent SDK**: [`packages/python-sdk`](packages/python-sdk/) — Python client with CrewAI tools and AutoGen guardrail hooks.
+- **WASM Client Simulator**: [`packages/wasm-simulator`](packages/wasm-simulator/) — zero-dependency embedded policy evaluator for browser extensions & edge bots.
+- **Multi-Step Plan Simulator**: [`scripts/leash-plan.ts`](scripts/leash-plan.ts) — simulates sequential multi-transaction agent plans, predicting cumulative 24h budget consumption and breaker trips before broadcast.
+- **Multi-Chain Deployment Registry**: [`demo/deployments/registry.json`](demo/deployments/registry.json) — deterministic CREATE2 deployments across Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and OP Sepolia.
+- **Security Audit & Invariant Proofs**: [`docs/audit/2026-11-16-security-audit.md`](docs/audit/2026-11-16-security-audit.md) and [`docs/FORMAL_SPEC.md`](docs/FORMAL_SPEC.md).
+
 ### The 5-Transaction Canonical Scenario (Reproduce in 7 Seconds)
 
 The automated demo launches an ephemeral local Anvil node, deploys `MockSafe`, `LeashModule`, and an ERC-20 token, registers an agent session key, and executes five canonical rogue agent transactions comparing off-chain CLI predictions against atomic on-chain execution:
