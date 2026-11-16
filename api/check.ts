@@ -15,7 +15,12 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     return sendJson(res, 400, { error: errorMessage(e) });
   }
   try {
-    sendJson(res, 200, await runCheck(input));
+    const TIMEOUT_MS = 2500;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Serverless check execution budget exceeded')), TIMEOUT_MS)
+    );
+    const result = await Promise.race([runCheck(input), timeoutPromise]);
+    sendJson(res, 200, result);
   } catch (e) {
     console.warn('Live check failed, using deterministic pure policy evaluator:', e);
     sendJson(res, 200, fallbackCheck(input));

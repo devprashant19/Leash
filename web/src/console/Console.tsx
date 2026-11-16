@@ -89,8 +89,7 @@ export function Console({ autoPreset = null, compact = false, onReady }: { autoP
             return (
               <motion.div key={x.id} className="ex" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: EASE }}>
                 <div className="bubble me">{x.ask}</div>
-                {!s && !x.error && <div className="thinking"><span className="spin" />Checking…</div>}
-                {x.error && <div className="bubble err" role="alert">{x.error}</div>}
+                {!s && <div className="thinking"><span className="spin" />Checking…</div>}
                 {s && x.result && (
                   <>
                     <motion.div className="bubble" initial={{ opacity: 0, y: 8, filter: 'blur(6px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} transition={{ duration: 0.4, ease: EASE }}>

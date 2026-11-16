@@ -2,11 +2,16 @@ import type { CheckResult, DemoResult, Health, RecordedRun, TourResult } from '.
 import { evaluateFallbackCheck, getFallbackDemo, getFallbackHealth, getFallbackTour } from './fallback';
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3500);
   let res: Response;
   try {
-    res = await fetch(path, init);
+    res = await fetch(path, { ...init, signal: controller.signal });
   } catch {
+    clearTimeout(timer);
     throw new Error('The server could not be reached.');
+  } finally {
+    clearTimeout(timer);
   }
 
   const rawText = await res.text();

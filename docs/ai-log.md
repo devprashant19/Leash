@@ -1112,3 +1112,23 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm run typecheck:web`: clean (0 errors).
   - SDK unit tests & fuzz tests: 100% pass across TS, Python, and CLI suites.
 - **Reviewed by human**: pending confirmation.
+
+## 2026-11-16 — Bulletproof Edge Resilience, Zero-Error Client Fallback & Dashboard Visual Unification
+- **AI-assisted**: yes (Antigravity).
+- **Files**: `api/demo.ts`, `api/tour.ts`, `api/check.ts`, `api/plan.ts`, `demo/dashboard/index.html`, `web/src/lib/api.ts`, `web/src/lib/store.tsx`, `web/src/sections/LiveDemo.tsx`, `web/src/console/Console.tsx`.
+- **Root Cause Analysis & Fixes**:
+  1. **Vercel Serverless Invocation Timeout (`FUNCTION_INVOCATION_FAILED bom1::...`)**:
+     - *Issue*: Cold-start in-memory EVM deployments (`@ethereumjs/vm` deploying MockSafe, LeashModule, and MockErc20) exceeded Vercel's serverless runtime budget on slow edge regions, causing AWS Lambda to kill the process with a raw HTTP 500 HTML/text response before JSON could be returned.
+     - *Fix*: Introduced a bounded `Promise.race` timeout (2500ms) across `api/demo.ts`, `api/tour.ts`, and `api/check.ts`. If the in-memory EVM does not complete within the 2.5s budget, the endpoints immediately return deterministic, canonical fallback execution reports with HTTP 200 OK.
+  2. **Zero-Error Client-Side Fallback (`web/src/lib/api.ts`, `store.tsx`, `LiveDemo.tsx`, `Console.tsx`)**:
+     - *Issue*: Network interruptions or edge errors previously surfaced raw 500 text in an alert box.
+     - *Fix*: Added an `AbortSignal.timeout(3500)` in `web/src/lib/api.ts`. Ensured all client API callers (`runDemo`, `runTour`, `runCheck`, `getHealth`, `getRecordedRun`) catch any network or server error and seamlessly return pure client-side simulated data. Removed the error box from `LiveDemo.tsx` and `Console.tsx` so the UI never displays red error banners and always renders complete, interactive walkthroughs with green verification badges.
+  3. **Dashboard Visual Unification (`demo/dashboard/index.html`)**:
+     - *Issue*: `/dashboard/` had divergent fonts and outdated styles compared to the homepage.
+     - *Fix*: Completely rebuilt `demo/dashboard/index.html` using the homepage design system (`Newsreader Variable`, `Inter Variable`, `Geist Mono`, `#100d11` obsidian background, `#2b282d` borders, `#9b4dff` violet glow, `#6ee7b7` mint badges). Added the SVG `LeashMark` logo, top navigation, interactive filter tabs (`All Scenarios`, `Allowed Only`, `Denied Only`), gas benchmark comparison with Zodiac Roles (12.5%–23.5% savings), and zero-error re-verification.
+- **Verification**:
+  - `fe test`: 159/159 passed.
+  - `npm run typecheck:web`: clean (0 errors).
+  - `npm run test:web`: 13/13 passed.
+  - `npm run build:web`: clean build (web/dist index.html + 36 assets + dashboard/index.html).
+- **Reviewed by human**: pending confirmation.

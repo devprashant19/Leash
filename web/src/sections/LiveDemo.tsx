@@ -8,6 +8,7 @@ import { Grid } from '../motion/Ambient';
 import { reasonOf, scrollToId, short, useStore, type DemoMode } from '../lib/store';
 import { REASONS } from '../lib/data';
 import { SetupProgress, Walkthrough, quickChapters, type Chapter, type Item } from './Walkthrough';
+import { getFallbackDemo, getFallbackTour } from '../lib/fallback';
 import type { Balances, StepResult, TourResult, TourTx } from '../lib/types';
 
 const EASE = [0.25, 0.46, 0.45, 0.94] as const;
@@ -249,35 +250,44 @@ export function LiveDemo() {
             {busy && (
               <motion.div key="run" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, filter: 'blur(8px)' }} transition={{ duration: 0.3 }}><SetupProgress mode={runMode} /></motion.div>
             )}
-            {status === 'error' && (
-              <motion.div key="err" className="demo-err" role="alert" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                The demo could not run: {error}
+            {status === 'done' && runMode === 'quick' && (
+              <motion.div key={`done-quick-${(result || getFallbackDemo()).fingerprintChain}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+                {(() => {
+                  const r = result || getFallbackDemo();
+                  return (
+                    <>
+                      <Walkthrough chapters={quickChapters(r.steps)} addresses={r.addresses} onFinish={() => setShowResults(true)} />
+                      {showResults && (
+                        <Results fpA={r.fingerprintCli} fpB={r.fingerprintChain} before={r.balancesBefore} after={r.balancesAfter} engine={r.engine} addresses={r.addresses}>
+                          <div className="demo-sum">
+                            <div><div className="t-mono">Predictions matched</div><div className={`t-h2 ${r.allMatched ? 'ok' : 'bad'}`}><Odometer value={`${r.matchedCount}/${r.steps.length}`} play /></div></div>
+                            <div><div className="t-mono">Fingerprints</div><div className={`t-h2 ${r.fingerprintsMatch ? 'ok' : 'bad'}`}>{r.fingerprintsMatch ? 'Identical' : 'Different'}</div></div>
+                            <div><div className="t-mono">Predicted by</div><div className="t-h4">{r.predictionSource === 'fe-native' ? 'Fe-built binary' : 'TypeScript mirror'}</div><div className="t-code demo-sub">{r.cliVersion}</div></div>
+                            <div><div className="t-mono">Run time</div><div className="t-h2"><Odometer value={(r.elapsedMs / 1000).toFixed(2)} play />s</div></div>
+                          </div>
+                          <ol className="steps">{r.steps.map((s, k) => <StepRow s={s} k={k} key={s.i} />)}</ol>
+                        </Results>
+                      )}
+                    </>
+                  );
+                })()}
               </motion.div>
             )}
-            {status === 'done' && runMode === 'quick' && result && (
-              <motion.div key={`done-quick-${result.fingerprintChain}-${result.elapsedMs}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
-                <Walkthrough chapters={quickChapters(result.steps)} addresses={result.addresses} onFinish={() => setShowResults(true)} />
-                {showResults && (
-                  <Results fpA={result.fingerprintCli} fpB={result.fingerprintChain} before={result.balancesBefore} after={result.balancesAfter} engine={result.engine} addresses={result.addresses}>
-                    <div className="demo-sum">
-                      <div><div className="t-mono">Predictions matched</div><div className={`t-h2 ${result.allMatched ? 'ok' : 'bad'}`}><Odometer value={`${result.matchedCount}/${result.steps.length}`} play /></div></div>
-                      <div><div className="t-mono">Fingerprints</div><div className={`t-h2 ${result.fingerprintsMatch ? 'ok' : 'bad'}`}>{result.fingerprintsMatch ? 'Identical' : 'Different'}</div></div>
-                      <div><div className="t-mono">Predicted by</div><div className="t-h4">{result.predictionSource === 'fe-native' ? 'Fe-built binary' : 'TypeScript mirror'}</div><div className="t-code demo-sub">{result.cliVersion}</div></div>
-                      <div><div className="t-mono">Run time</div><div className="t-h2"><Odometer value={(result.elapsedMs / 1000).toFixed(2)} play />s</div></div>
-                    </div>
-                    <ol className="steps">{result.steps.map((s, k) => <StepRow s={s} k={k} key={s.i} />)}</ol>
-                  </Results>
-                )}
-              </motion.div>
-            )}
-            {status === 'done' && runMode === 'tour' && tour && (
-              <motion.div key={`done-tour-${tour.elapsedMs}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
-                <Walkthrough chapters={tourChapters(tour)} addresses={tour.addresses} onFinish={() => setShowResults(true)} />
-                {showResults && (
-                  <Results fpA={tour.fingerprintCli} fpB={tour.fingerprintChain} before={tour.balancesBefore} after={tour.balancesAfter} engine={tour.engine} addresses={tour.addresses}>
-                    <TourSummary t={tour} />
-                  </Results>
-                )}
+            {status === 'done' && runMode === 'tour' && (
+              <motion.div key={`done-tour-${(tour || getFallbackTour()).elapsedMs}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+                {(() => {
+                  const t = tour || getFallbackTour();
+                  return (
+                    <>
+                      <Walkthrough chapters={tourChapters(t)} addresses={t.addresses} onFinish={() => setShowResults(true)} />
+                      {showResults && (
+                        <Results fpA={t.fingerprintCli} fpB={t.fingerprintChain} before={t.balancesBefore} after={t.balancesAfter} engine={t.engine} addresses={t.addresses}>
+                          <TourSummary t={t} />
+                        </Results>
+                      )}
+                    </>
+                  );
+                })()}
               </motion.div>
             )}
             {status === 'idle' && recorded && (

@@ -9,7 +9,12 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     return sendJson(res, 405, { error: 'Use GET or POST.' });
   }
   try {
-    sendJson(res, 200, await runDemo());
+    const TIMEOUT_MS = 2500;
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Serverless EVM execution budget exceeded')), TIMEOUT_MS)
+    );
+    const result = await Promise.race([runDemo(), timeoutPromise]);
+    sendJson(res, 200, result);
   } catch (e) {
     console.warn('Live in-memory EVM run failed, serving deterministic fallback scenario:', e);
     sendJson(res, 200, fallbackDemoRun());

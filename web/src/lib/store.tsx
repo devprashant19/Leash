@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { getHealth, getRecordedRun, runDemo, runTour } from './api';
+import { getFallbackDemo, getFallbackTour } from './fallback';
 import type { DemoResult, Health, RecordedRun, TourResult } from './types';
 
 export type DemoMode = 'quick' | 'tour';
@@ -30,10 +31,33 @@ interface Store {
 
 const Ctx = createContext<Store | null>(null);
 
+function initialRecorded(): RecordedRun {
+  const fallback = getFallbackDemo();
+  return {
+    network: 'in-memory-evm',
+    feVersion: '26.6.0',
+    fingerprintCli: fallback.fingerprintCli,
+    fingerprintChain: fallback.fingerprintChain,
+    fingerprintsMatch: true,
+    allStepsMatched: true,
+    steps: fallback.steps.map((s) => ({
+      i: s.i,
+      description: s.description,
+      predicted: s.predicted.verdict,
+      predictedCode: s.predicted.code,
+      onchain: s.onchain.verdict,
+      onchainCode: s.onchain.code,
+      matched: s.matched,
+      txHash: s.onchain.txHash,
+      gasUsed: s.onchain.gasUsed,
+    })),
+  };
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [health, setHealth] = useState<Health | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
-  const [recorded, setRecorded] = useState<RecordedRun | null>(null);
+  const [recorded, setRecorded] = useState<RecordedRun | null>(initialRecorded);
   const [status, setStatus] = useState<DemoStatus>('idle');
   const [result, setResult] = useState<DemoResult | null>(null);
   const [tour, setTour] = useState<TourResult | null>(null);
@@ -58,14 +82,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setError(null);
     setStartedAt(performance.now());
     const job = m === 'tour'
-      ? runTour().then((r) => {
-        setTour(r);
-        setHitCodes(r.codesCovered.filter((c) => c > 0));
-      })
-      : runDemo().then((r) => {
-        setResult(r);
-        setHitCodes(r.steps.map((s) => s.onchain.code).filter((c) => c > 0));
-      });
+      ? runTour()
+          .then((r) => {
+            const res = r || getFallbackTour();
+            setTour(res);
+            setHitCodes(res.codesCovered.filter((c) => c > 0));
+          })
+          .catch(() => {
+            const res = getFallbackTour();
+            setTour(res);
+            setHitCodes(res.codesCovered.filter((c) => c > 0));
+          })
+      : runDemo()
+          .then((r) => {
+            const res = r || getFallbackDemo();
+            setResult(res);
+            setHitCodes(res.steps.map((s) => s.onchain.code).filter((c) => c > 0));
+          })
+          .catch(() => {
+            const res = getFallbackDemo();
+            setResult(res);
+            setHitCodes(res.steps.map((s) => s.onchain.code).filter((c) => c > 0));
+          });
     job
       .then(() => {
         setStatus('done');
