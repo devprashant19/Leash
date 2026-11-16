@@ -55,13 +55,13 @@ Gas used by each transaction of the canonical demo, end to end (agent → `Leash
 
 | Step | Verdict | Gas (Anvil run, `demo/run.json`) |
 |---|---|---|
-| 0.05 ETH to the treasury | ALLOW | 280,202 |
-| Transfer 50 tokens | ALLOW | 204,813 |
-| 0.2 ETH (over the per-tx cap) | DENY 7 | 175,401 |
-| Unlisted contract | DENY 4 | 157,884 |
-| Unlimited approve | DENY 10 | 184,406 |
+| 0.05 ETH to the treasury | ALLOW | 299,218 |
+| Transfer 50 tokens | ALLOW | 264,283 |
+| 0.2 ETH (over the per-tx cap) | DENY 7 | 192,947 |
+| Unlisted contract | DENY 4 | 175,484 |
+| Unlimited approve | DENY 10 | 201,701 |
 
-Reproduce with `make demo` (Anvil) or `npm run test:web` (in-memory EVM). No benchmark harness for Zodiac Roles or other modules is included in this repository, so this document makes no comparative gas claim.
+`demo/run.json` is the `demo-run-fe-native` artifact of CI run 43936669227 (commit `3fbae35`): Anvil, predictions from the Fe-built `leash` binary, 5/5 matched. Every call reads the agent's ledger, now 56 words (24 hourly ETH buckets and 4 token periods), about 17.5k gas more per call than before the token cap (measured on the three denied steps); the first token transfer of a period also writes a fresh `(period, amount)` pair, about 42k more (two zero-to-nonzero stores). Reproduce with `make demo` (Anvil) or `npm run test:web` (in-memory EVM). No benchmark harness for Zodiac Roles or other modules is included in this repository, so this document makes no comparative gas claim.
 
 ---
 

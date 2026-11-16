@@ -3,6 +3,7 @@
   "moduleAddress": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
   "safeAddress": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
   "feVersion": "26.6.0",
+  "predictionSource": "fe-native",
   "fingerprintCli": "0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee",
   "fingerprintChain": "0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee",
   "fingerprintsMatch": true,
@@ -16,8 +17,8 @@
       "onchain": "ALLOW",
       "onchainCode": 0,
       "matched": true,
-      "txHash": "0xc8e3e74ceb0b8df37d4f20268061737b4072679fc6cf50713f5c68207bbd694e",
-      "gasUsed": "280202",
+      "txHash": "0x9e08fd87b959d8cf6ddfc9ed7f98cfb1dd808104bdecfee74df413fe4e88425e",
+      "gasUsed": "299218",
       "remainingEthWindowWei": "450000000000000000"
     },
     {
@@ -28,8 +29,8 @@
       "onchain": "ALLOW",
       "onchainCode": 0,
       "matched": true,
-      "txHash": "0x1fa58098f541dcdd1cdc04f09a61c3cdccf5ce6e8dfc8c5df1a882be02c07f89",
-      "gasUsed": "204813",
+      "txHash": "0xf1ca45825c7052db496b6926758f7ec82cfc6f32dc182bc61d52ef91857d27f3",
+      "gasUsed": "264283",
       "remainingEthWindowWei": "450000000000000000"
     },
     {
@@ -40,8 +41,8 @@
       "onchain": "DENY (code 7)",
       "onchainCode": 7,
       "matched": true,
-      "txHash": "0xade21934880a96735e639e9f379fba1e671643d678f8d0da570c10ad6d5050d1",
-      "gasUsed": "175401",
+      "txHash": "0x52818cc4daf29c64bd10d531abda26a42e2580ccc7edf68dccd781b99326f931",
+      "gasUsed": "192947",
       "remainingEthWindowWei": "450000000000000000"
     },
     {
@@ -52,8 +53,8 @@
       "onchain": "DENY (code 4)",
       "onchainCode": 4,
       "matched": true,
-      "txHash": "0xb27308a1dd70762c51e9ad19cbaab31ec8ca82b9397677083d724f0b7affa8ab",
-      "gasUsed": "157884",
+      "txHash": "0x5ac0e59f01054d9bac4fc0e282f6ec46d4521558974665d3d79ee08df1a8b554",
+      "gasUsed": "175484",
       "remainingEthWindowWei": "450000000000000000"
     },
     {
@@ -64,8 +65,8 @@
       "onchain": "DENY (code 10)",
       "onchainCode": 10,
       "matched": true,
-      "txHash": "0x1a23a8ca59c6bde889cfd758ac1d5868061d4ea344e944ae1978bc90f5888c27",
-      "gasUsed": "184406",
+      "txHash": "0x38e3d51d30416f04cffb94a1e5c85a6da9ce33a30788782587b7d87db3e07177",
+      "gasUsed": "201701",
       "remainingEthWindowWei": "450000000000000000"
     }
   ]

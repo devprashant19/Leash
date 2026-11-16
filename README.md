@@ -45,11 +45,11 @@ The automated demo launches an ephemeral local Anvil node, deploys `MockSafe`, `
 
 | # | Proposed Transaction | CLI Prediction | On-Chain Result | Gas Used | Status |
 |---|---|---|---|---|---|
-| **1** | Agent sends 0.05 ETH to authorized treasury | `ALLOW` | `ALLOW` (Executed) | 281,928 | **✓ PASS** |
-| **2** | Agent transfers 50 tokens to authorized recipient | `ALLOW` | `ALLOW` (Executed) | 206,414 | **✓ PASS** |
-| **3** | Agent sends 0.2 ETH (exceeds 0.1 ETH per-tx cap) | `DENY (PerTxCapExceeded)` | `DENY (code 7)` | 177,148 | **✓ PASS** |
-| **4** | Agent calls unlisted contract (malicious diversion) | `DENY (TargetNotAllowed)` | `DENY (code 4)` | 159,631 | **✓ PASS** |
-| **5** | Agent calls `approve(exchange, 2^256 - 1)` unlimited drain | `DENY (UnlimitedApproval)` | `DENY (code 10)` | 186,105 | **✓ PASS** |
+| **1** | Agent sends 0.05 ETH to authorized treasury | `ALLOW` | `ALLOW` (Executed) | 299,218 | **✓ PASS** |
+| **2** | Agent transfers 50 tokens to authorized recipient | `ALLOW` | `ALLOW` (Executed) | 264,283 | **✓ PASS** |
+| **3** | Agent sends 0.2 ETH (exceeds 0.1 ETH per-tx cap) | `DENY (PerTxCapExceeded)` | `DENY (code 7)` | 192,947 | **✓ PASS** |
+| **4** | Agent calls unlisted contract (malicious diversion) | `DENY (TargetNotAllowed)` | `DENY (code 4)` | 175,484 | **✓ PASS** |
+| **5** | Agent calls `approve(exchange, 2^256 - 1)` unlimited drain | `DENY (UnlimitedApproval)` | `DENY (code 10)` | 201,701 | **✓ PASS** |
 
 **Parity Verdict**: **5 / 5 Matched (100.0% Agreement, Zero Drift)**.  
 **Prediction source**: in CI the predictions come from the real Fe-built `leash` binary (`out/cli`): the `demo` job builds it with `fe build --backend native` and runs with `LEASH_REQUIRE_NATIVE=1`, which fails the run if any prediction comes from anywhere else. The result is recorded as `"predictionSource": "fe-native"` in `demo/run.local.json`, which each CI run uploads as the `demo-run-fe-native` artifact. Fe links native binaries only on x86-64 Linux and AArch64 macOS, so on Windows the demo uses a TypeScript mirror of the rules and prints `Prediction source: ts-mirror`.  
