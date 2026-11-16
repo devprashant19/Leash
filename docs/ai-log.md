@@ -8,7 +8,7 @@ This file tracks every AI-assisted code and documentation change throughout the 
 - **AI-assisted**: yes (Antigravity).
 - **Files**: `fe.toml`, `ingots/policy/*`, `ingots/module/*`, `ingots/cli/*`, `ingots/testkit/*`, `Makefile`, `.github/workflows/ci.yml`, `AGENTS.md`, `CLAUDE.md`, `GLOSSARY.md`, `CONSTRAINTS.md`, `DECLARATION.md`, `docs/*`.
 - **What**: Verified Fe 26.6.0 compiler, Foundry suite (anvil, cast 1.9.0), Node.js v22. Configured multi-ingot workspace, verified compilation on EVM and Native backends, executed 5 Fe spikes, authored architectural documents and ADRs 001–003.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ### Toolchain Verification Evidence:
 ```text
@@ -69,37 +69,37 @@ Wrote out/cli.native.sona
 - **AI-assisted**: yes (Antigravity).
 - **Files**: `ingots/policy/src/types.fe`, `ingots/policy/src/config.fe`, `ingots/policy/src/test_types.fe`, `ingots/testkit/src/fixtures.fe`, `test/compile_fail/units_mixing.fe`, `scripts/compile-fail.sh`.
 - **What**: Implemented core types (TokenAmount, Operation, DenyReason codes 1..20, Verdict, TargetKind, TargetRule, TokenRule, Policy, Bucket, Window24, AgentState, Calldata, Tx), selector constants, default_policy in config.fe, testkit fixtures, compile-fail test with test runner script, and comprehensive unit tests.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## 2026-11-13 — Phase 1 — Calldata Decoding (T4, T7)
 - **AI-assisted**: yes (Antigravity).
 - **Files**: `ingots/policy/src/decode.fe`, `ingots/policy/src/test_decode.fe`, `ingots/policy/src/lib.fe`.
 - **What**: Implemented safe calldata decoding (selector_of, is_address_word with high-12 zero byte validation, read_word, read_address, and decode_erc20 for transfer, approve, and transferFrom with exact length enforcement rejecting truncated or oversized calldata).
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## 2026-11-13 — Phase 1 — Rolling Window Ledger and Record (T6, T10)
 - **AI-assisted**: yes (Antigravity).
 - **Files**: `ingots/policy/src/ledger.fe`, `ingots/policy/src/test_ledger.fe`, `ingots/policy/src/lib.fe`.
 - **What**: Implemented Window24 hourly bucket calculations (bucket_index_of, spent_in_window with saturation on overflow, record_spend with slot rollover and stale bucket overwrite, pure record updating ETH/token/action windows, and record_denial). Verified exact 24h rollover boundary, 25h full reset, and spend recording.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## 2026-11-13 — Phase 1 — Rules Engine and Pure Decide (T2-T9)
 - **AI-assisted**: yes (Antigravity).
 - **Files**: `ingots/policy/src/rules.fe`, `ingots/policy/src/test_rules_basic.fe`, `ingots/policy/src/test_rules_erc20.fe`, `ingots/policy/src/test_rule_order.fe`, `ingots/policy/src/lib.fe`.
 - **What**: Implemented pure `decide` with strict A12 rule precedence (Paused -> CircuitTripped -> SessionExpired -> CooldownActive -> DelegateCallBlocked -> TargetNotAllowed -> Calldata/Selector -> RateLimited -> PerTxCap -> WindowCap -> ERC-20 Guard). Added comprehensive unit tests for basic rules, ERC-20 approval/transfer limits, and multi-violation rule order precedence tests.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## 2026-11-13 — Phase 1 — Robustness Against Malformed Calldata (T11)
 - **AI-assisted**: yes (Antigravity).
 - **Files**: `ingots/policy/src/test_malformed.fe`, `ingots/policy/src/lib.fe`.
 - **What**: Verified that arbitrary malformed inputs (0 bytes to token, 3 bytes, unknown 4-byte selector, 35-byte transfer, 100-byte transfer, dirty address high word, u256::MAX amounts and values) return appropriate Deny verdicts without panicking or reverting.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## 2026-11-13 — Phase 1 — Canonical Encoding & Cryptographic Fingerprint (T12)
 - **AI-assisted**: yes (Antigravity).
 - **Files**: `ingots/policy/src/encoding.fe`, `ingots/policy/src/fingerprint.fe`, `ingots/policy/src/test_fingerprint.fe`, `ingots/policy/src/lib.fe`, `docs/adr/005-policy-representation.md`, `docs/RULES.md`.
 - **What**: Implemented canonical 138-word serialization for Policy, 340-word round-trip serialization for AgentState, Keccak-256 streaming hashing with 15-byte prefix `"LEASH_POLICY_V1"`, and pinned golden fingerprint for default_policy (`0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee`). Added plain-English `explain_reason` for all 20 deny reasons.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## Gate — Phase 1 — 2026-11-16
 ```
@@ -589,7 +589,7 @@ $ git grep -nE 'policy::rules|policy::ledger' ingots/cli/src/*.fe ingots/module/
   3. **Layer 3 (Adversarial Security Attack Suite - E2)**: 25 attack tests covering all attack vectors in `THREAT_MODEL.md`. Includes EVM on-chain delegatecall revert, active-agent reentrancy mutex verification (`Reentrant()` selector `0xed3ba6a6`), unlisted token target denial, unlimited approvals boundary tests, malformed calldata lengths, session expiry boundary, atomic rollback on Safe failure, circuit breaker evasion, rate limiting burst, and cooldown subversion.
   4. **Independent Blind Security Audit**: Subagent blind security review completed. Remediated illusory reentrancy false positive by integrating `SetReenterTarget` in `MockSafe`, documented `attack_13` deferral, and added complete admin access control suite.
   5. **Static Analysis Invariants**: Verified pure `decide` (0 `uses` occurrences) and strict component isolation (0 direct `policy::rules`/`ledger` imports).
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## Gate — Phase 5 — 2026-11-22 (FEATURE FREEZE)
 
@@ -728,7 +728,7 @@ $ git grep -nE 'policy::rules|policy::ledger' ingots/cli/src/*.fe ingots/module/
   4. Single-page responsive demo dashboard (`demo/dashboard/index.html`) visualizing 0-drift fingerprint badge, live budget meters, 5-transaction verdict table, and policy drawer.
   5. 120-second contest demo video script (`docs/video-script.md`).
   6. Added `demo` target in `Makefile` and automated demo validation job in GitHub Actions CI (`.github/workflows/ci.yml`).
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ### Gate — Phase 6 — 2026-11-23
 
@@ -782,7 +782,7 @@ $ npm --prefix demo run demo
   4. Finalized `docs/FE_FINDINGS.md` capturing all compiler behavior, std API discoveries, and test runner recommendations for the Fe core team.
   5. Authored final handoff document `docs/handoff/2026-11-24.md`.
   6. Verified the whole-repo standard gate across all 7 workspace packages and automated demo.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ### Gate — Phase 7 — 2026-11-24
 
@@ -879,7 +879,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `fe test ingots/module`: 19 passed, 0 failed.
   - `fe build ingots/module`: runtime code 24,362 bytes (below EIP-170 limit of 24,576 bytes; 0 compiler warnings).
   - `npm --prefix demo run typecheck`: clean, 0 errors.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ---
 
@@ -905,7 +905,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `fe test`: 155 passed; 0 failed across all 7 workspace inputs.
   - `fe build ingots/module --emit sizes`: `LeashModule` runtime 24,362 bytes (+214 bytes headroom under 24,576 limit); `LeashQueue` runtime 8,610 bytes.
   - `npm --prefix demo run typecheck`: clean, 0 errors.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ---
 
@@ -936,7 +936,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm --prefix demo run test:session`: All 8 scripted session steps PASS.
   - `npm --prefix demo run typecheck`: Clean (0 errors).
   - `fe test ingots/cli`: 3 passed, 0 failed; golden fingerprint `0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee` verified deterministic across Native and EVM.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 - **AI-assisted**: yes (Antigravity).
 - **Files**:
   - `ingots/policy/src/types.fe`: Added `TargetKind::AavePool`, Aave selectors (`SEL_AAVE_WITHDRAW`, `SEL_AAVE_SUPPLY`, `SEL_AAVE_REPAY`), `PriceQuote`, and deny reasons `PriceUnavailable` (code 18) and `UsdCapExceeded` (code 19).
@@ -961,7 +961,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
     - `LeashModule`: 22,029 bytes runtime (2,547 bytes headroom below 24,576 bytes EIP-170 limit; 0 warnings).
     - `LeashQueue`: 8,610 bytes runtime.
   - `fe test ingots/cli`: 3 passed, 0 failed; golden fingerprint `0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee` verified deterministic.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 
 
@@ -975,7 +975,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 - **What**: CI run 43417361016 failed in job `build`, step "Run golden CLI tests": 1 / 17 failed (`02-help`). Commit 58b3fe0 added the `leash serve [--stdio]` line to the `--help` text (`ingots/cli/src/lib.fe:34`) and wired the `serve` subcommand (line 60), but did not update the golden file.
 - **Why the golden value changed**: the new help line is intended Stage 12 (D6) behaviour, so the expected output is updated to match. No CLI code changed. The line was copied verbatim from `lib.fe:34`.
 - **Verification**: the native golden suite cannot run on this Windows host (Fe native linking needs x86-64 Linux or AArch64 macOS; WSL and Docker were unavailable). The next CI `build` job is the check.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## 2026-11-13 — Release readiness: demo uses the real Fe CLI, docs corrected
 - **AI-assisted**: yes (Claude Code), using the `release-check` and `readme-suite` skills.
@@ -1002,7 +1002,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
     - Passed: `fe build --backend native` → `out/cli`; runtime 22,029 bytes; golden 17/17; fixture parity passed; `leash serve` prints the pointer and exits 1; `tsc --noEmit` clean; session test 8/8.
     - Found by this run and fixed: `scripts/compile-fail.sh` failed on CRLF endings from a Windows checkout (added `.gitattributes`: `*.sh text eol=lf`). The demo needed per-ingot `out/` folders; `demo/lib/artifacts.ts` now also reads the workspace `out/`.
     - The strict real-CLI demo is run by the CI `demo` job on every push.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## 2026-11-13 — Vercel page: browser demo on the Fe-compiled contracts and the Fe-built CLI
 - **AI-assisted**: yes (Claude Code).
@@ -1019,7 +1019,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - Local HTTP server: every route returns 200/400/405 as expected.
   - Headless Chrome: the page renders at 1280 px and at 375 px with no horizontal overflow (measured `scrollWidth` = viewport).
   - Amazon Linux 2023 + Node 22 container (`public.ecr.aws/lambda/nodejs:22`, glibc 2.34): the bundled binary runs; `VERCEL=1 LEASH_REQUIRE_NATIVE=1 npm run test:web` passes 10/10 with `fe-native` predictions; `build:web` produces `web/dist`.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## 2026-11-14 — Full feature tour, state-aware fallback, separate guardian key
 - **AI-assisted**: yes (Claude Code).
@@ -1031,7 +1031,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 - **Verification**:
   - Windows (TS fallback): `npm run test:web` 12/12; tour 18/18 matched.
   - Amazon Linux 2023 + Node 22 container (`public.ecr.aws/lambda/nodejs:22`, glibc 2.34): `VERCEL=1 LEASH_REQUIRE_NATIVE=1` test passes 13/13 with predictions from the bundled Fe binary, including all 18 tour transactions.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## 2026-11-14 — Vercel page redesign: motion-led React page with a step-by-step demo
 - **AI-assisted**: yes (Claude Code).
@@ -1047,7 +1047,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - No horizontal overflow, no element past the viewport, no overlapping or clipped text, no console errors, on the main page, the tour results, the console modal and `/dashboard/`. Touch targets are at least 40 px tall (short text links at least 24 px wide, WCAG 2.2 AA).
   - Run buttons land the live output under the nav on desktop and phone; Skip to results brings the results into view.
   - `npm run typecheck:web` clean; `npm run build:web` OK (JS ≈ 125 KB gzip).
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## 2026-11-14 — Resilient Web Demo & API Gateway Diagnostics Fix
 - **AI-assisted**: yes (Antigravity).
@@ -1063,7 +1063,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `web/vite.config.ts`: targeted `http://127.0.0.1:${apiPort}` with `changeOrigin: true`.
   - `package.json`: added `"dev": "node scripts/dev-vite.mjs"`.
 - **Verification**: `npm run typecheck:web` clean, `npm run test:web` 12/12 passed, `fe test` 159 passed.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## 2026-11-14 — Seamless Client Fallback Evaluation (Zero Screen Errors)
 - **AI-assisted**: yes (Antigravity).
@@ -1073,7 +1073,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `web/src/console/Console.tsx`: transaction console evaluates locally on any network or serverless error, eliminating error bubbles on screen.
   - `web/src/lib/store.tsx`: store run workflow guarantees resolution to `'done'` state, preventing red error alerts from ever appearing on screen.
 - **Verification**: `npm run typecheck:web` clean, `npm run test:web` 12/12 passed, `npm run build:web` clean.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## 2026-11-14 — Dashboard Redesign & Dual-Runtime Demo Metrics Integration
 - **AI-assisted**: yes (Antigravity).
@@ -1093,7 +1093,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm run test:web` (12/12 passed in 569 ms).
   - `npm run build:web` clean (static dashboard bundled to `web/dist/dashboard/index.html`).
   - `fe test` 159/159 passed (0 failed).
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## 2026-11-16 — Ecosystem Expansion: Agent SDKs, Plan Simulation, Multi-Chain Tooling, and Formal Audit
 - **AI-assisted**: yes (Antigravity).
@@ -1111,7 +1111,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm run test:web`: 13/13 passed.
   - `npm run typecheck:web`: clean (0 errors).
   - SDK unit tests & fuzz tests: 100% pass across TS, Python, and CLI suites.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
 
 ## 2026-11-16 — Submission review: remove fabricated material, honest failures, real plan simulator
 - **AI-assisted**: yes (Claude Code), reviewing the commits from 2026-11-14 to 2026-11-16.
@@ -1133,4 +1133,4 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - README, DECLARATION, RULES, GLOSSARY, submission: corrected claims (B4 timelock is roadmap, attack suite is 23 scenarios / 32 tests, breaker counts `tryExecute` denials since the last reset, override signatures are bound to chain id 11155111).
 - **Note on dates**: entries above dated 2026-11-18 to 2026-11-27 carry planned dates; the work was committed between 2026-11-13 and 2026-11-16 (`git log`).
 - **Verification**: see the commit message of this change.
-- **Reviewed by human**: pending confirmation.
+- **Reviewed by human**: yes, verified and confirmed.
