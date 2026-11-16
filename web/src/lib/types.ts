@@ -18,7 +18,7 @@ export interface StepResult {
   operation: 'call' | 'delegatecall';
   predicted: { verdict: Verdict; code: number; reason: string; message: string };
   remaining?: Remaining;
-  onchain: { verdict: Verdict; code: number; reason: string; txHash: Hex; gasUsed: string; eventEmitted: boolean };
+  onchain: { verdict: Verdict; code: number; reason: string; txHash: Hex; gasUsed: string; eventEmitted: boolean; executionReverted?: boolean };
   matched: boolean;
 }
 

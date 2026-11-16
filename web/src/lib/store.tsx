@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { getHealth, getRecordedRun, runDemo, runTour } from './api';
-import { getFallbackDemo, getFallbackTour } from './fallback';
+import { getHealth, getRecordedDemo, getRecordedRun, getRecordedTour, runDemo, runTour, type RecordingInfo } from './api';
 import type { DemoResult, Health, RecordedRun, TourResult } from './types';
 
 export type DemoMode = 'quick' | 'tour';
@@ -20,6 +19,10 @@ interface Store {
   /** ms since the current run started (for the streaming log). */
   startedAt: number;
   run: (mode?: DemoMode) => void;
+  /** Set when the result on screen is a saved recording, not a live run. */
+  replayed: RecordingInfo | null;
+  /** After a failed live run: show a real recording instead, clearly labelled. */
+  replayRecorded: () => void;
   consoleOpen: boolean;
   consolePreset: number | null;
   openConsole: (preset?: number | null) => void;
@@ -31,33 +34,10 @@ interface Store {
 
 const Ctx = createContext<Store | null>(null);
 
-function initialRecorded(): RecordedRun {
-  const fallback = getFallbackDemo();
-  return {
-    network: 'in-memory-evm',
-    feVersion: '26.6.0',
-    fingerprintCli: fallback.fingerprintCli,
-    fingerprintChain: fallback.fingerprintChain,
-    fingerprintsMatch: true,
-    allStepsMatched: true,
-    steps: fallback.steps.map((s) => ({
-      i: s.i,
-      description: s.description,
-      predicted: s.predicted.verdict,
-      predictedCode: s.predicted.code,
-      onchain: s.onchain.verdict,
-      onchainCode: s.onchain.code,
-      matched: s.matched,
-      txHash: s.onchain.txHash,
-      gasUsed: s.onchain.gasUsed,
-    })),
-  };
-}
-
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [health, setHealth] = useState<Health | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
-  const [recorded, setRecorded] = useState<RecordedRun | null>(initialRecorded);
+  const [recorded, setRecorded] = useState<RecordedRun | null>(null);
   const [status, setStatus] = useState<DemoStatus>('idle');
   const [result, setResult] = useState<DemoResult | null>(null);
   const [tour, setTour] = useState<TourResult | null>(null);
@@ -67,6 +47,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [consolePreset, setConsolePreset] = useState<number | null>(null);
   const [hitCodes, setHitCodes] = useState<number[]>([]);
+  const [replayed, setReplayed] = useState<RecordingInfo | null>(null);
   const busy = useRef(false);
 
   useEffect(() => {
@@ -74,45 +55,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     getRecordedRun().then(setRecorded).catch(() => undefined);
   }, []);
 
+  const modeRef = useRef<DemoMode>('quick');
   const run = useCallback((m: DemoMode = 'quick') => {
     if (busy.current) return;
     busy.current = true;
+    modeRef.current = m;
     setMode(m);
     setStatus('running');
     setError(null);
+    setReplayed(null);
     setStartedAt(performance.now());
     const job = m === 'tour'
-      ? runTour()
-          .then((r) => {
-            const res = r || getFallbackTour();
-            setTour(res);
-            setHitCodes(res.codesCovered.filter((c) => c > 0));
-          })
-          .catch(() => {
-            const res = getFallbackTour();
-            setTour(res);
-            setHitCodes(res.codesCovered.filter((c) => c > 0));
-          })
-      : runDemo()
-          .then((r) => {
-            const res = r || getFallbackDemo();
-            setResult(res);
-            setHitCodes(res.steps.map((s) => s.onchain.code).filter((c) => c > 0));
-          })
-          .catch(() => {
-            const res = getFallbackDemo();
-            setResult(res);
-            setHitCodes(res.steps.map((s) => s.onchain.code).filter((c) => c > 0));
-          });
+      ? runTour().then((r) => { setTour(r); setHitCodes(r.codesCovered.filter((c) => c > 0)); })
+      : runDemo().then((r) => { setResult(r); setHitCodes(r.steps.map((s) => s.onchain.code).filter((c) => c > 0)); });
     job
-      .then(() => {
-        setStatus('done');
-        setError(null);
-      })
-      .catch(() => {
-        setStatus('done');
-        setError(null);
-      })
+      .then(() => setStatus('done'))
+      .catch((e: Error) => { setError(e.message); setStatus('error'); })
+      .finally(() => { busy.current = false; });
+  }, []);
+
+  const replayRecorded = useCallback(() => {
+    if (busy.current) return;
+    busy.current = true;
+    const m = modeRef.current;
+    const job = m === 'tour'
+      ? getRecordedTour().then((r) => { setTour(r); setReplayed(r.recorded); setHitCodes(r.codesCovered.filter((c) => c > 0)); })
+      : getRecordedDemo().then((r) => { setResult(r); setReplayed(r.recorded); setHitCodes(r.steps.map((s) => s.onchain.code).filter((c) => c > 0)); });
+    job
+      .then(() => { setStatus('done'); })
+      .catch((e: Error) => { setError(`The recording could not be loaded either: ${e.message}`); setStatus('error'); })
       .finally(() => { busy.current = false; });
   }, []);
 
@@ -121,9 +92,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const closeConsole = useCallback(() => setConsoleOpen(false), []);
 
   const value = useMemo<Store>(() => ({
-    health, healthError, recorded, status, result, tour, mode, error, startedAt, run,
+    health, healthError, recorded, status, result, tour, mode, error, startedAt, run, replayed, replayRecorded,
     consoleOpen, consolePreset, openConsole, closeConsole, hitCodes, addHit,
-  }), [health, healthError, recorded, status, result, tour, mode, error, startedAt, run, consoleOpen, consolePreset, openConsole, closeConsole, hitCodes, addHit]);
+  }), [health, healthError, recorded, status, result, tour, mode, error, startedAt, run, replayed, replayRecorded, consoleOpen, consolePreset, openConsole, closeConsole, hitCodes, addHit]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 

@@ -68,6 +68,7 @@ function askText(s: StepResult) {
 
 function outcome(s: StepResult) {
   if (s.onchain.verdict === 'DENY') return 'Nothing moved. The module refused, so the Safe never executed the call.';
+  if (s.onchain.executionReverted) return 'The policy allowed it, but the call itself reverted (for example, no allowance), so nothing moved.';
   const sel = s.data.slice(0, 10).toLowerCase();
   if (sel === '0xa9059cbb') return `${tokenAmount(s.data, sel)} tokens moved from the Safe to the treasury.`;
   if (sel === '0x095ea7b3') return `The Safe approved the spender for ${tokenAmount(s.data, sel)} tokens. No funds moved yet.`;

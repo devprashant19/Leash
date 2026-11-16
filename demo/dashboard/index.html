@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Leash — Dual-Runtime Verification Dashboard</title>
-  <meta name="description" content="Dual-runtime verification dashboard: 100% prediction match between Fe CLI and on-chain Safe module with zero policy drift." />
+  <meta name="description" content="A recorded Leash run: for each transaction, the Fe CLI prediction next to the on-chain LeashModule decision." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500;1,6..72,600&display=swap" rel="stylesheet">
@@ -297,7 +297,11 @@
     /* Table */
     .table-container {
       overflow-x: auto;
+      max-width: 100%;
     }
+    main, .section-card, .metrics-grid, .compare-grid { min-width: 0; }
+    .section-card { max-width: 100%; overflow: hidden; }
+    table { min-width: 720px; }
     table {
       width: 100%;
       border-collapse: collapse;
@@ -439,10 +443,13 @@
     @media (max-width: 600px) {
       .metrics-grid { grid-template-columns: 1fr; }
       header { padding: 14px 20px; }
+      .nav-links a { display: none; }
+      .section-header { flex-wrap: wrap; gap: 8px; }
       main { padding: 0 16px; margin-top: 28px; }
       .fp-bar { flex-direction: column; align-items: flex-start; gap: 8px; }
     }
   </style>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23100d11'/%3E%3Cpath d='M21.5 4.5C27 2.5 30.5 6.5 27.5 10.5 25.5 13 21 12.5 20.5 9.5 20.2 7.5 20.6 5.5 21.5 4.5Z' fill='none' stroke='%23efedf0' stroke-width='2.4'/%3E%3Cpath d='M21.2 11.2C18 16 13 13.5 10.5 18.5 9 21.5 9.5 23.5 8.5 25' fill='none' stroke='%239b4dff' stroke-width='2.6'/%3E%3Crect x='4.8' y='24.6' width='6' height='5' rx='1' fill='%23ea5d56'/%3E%3C/svg%3E" />
 </head>
 <body>
 
@@ -461,44 +468,44 @@
     </a>
     <div class="nav-links">
       <a href="/">← Return to Main App</a>
-      <a href="/#demo">Interactive Sandbox</a>
-      <a href="/#rules">Rules Matrix</a>
+      <a href="/#demo">Live demo</a>
+      <a href="/#matrix">Deny codes</a>
       <a href="https://github.com/devprashant19/Leash" target="_blank" rel="noreferrer">GitHub</a>
       <button class="btn-action" onclick="runRefresh()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-        Re-verify
+        Reload
       </button>
     </div>
   </header>
 
   <main>
     <div class="hero-banner">
-      <div class="hero-eyebrow">Production Attestation Dashboard</div>
-      <h1>Dual-Runtime Verification Dashboard</h1>
-      <p>Independent Fe compilation produces zero policy drift. The pure native Fe CLI (<span class="code-pill">leash</span>) and the on-chain Safe module (<span class="code-pill">LeashModule</span>) compute identical verdicts for every state transition.</p>
+      <div class="hero-eyebrow">Recorded run</div>
+      <h1>Prediction vs decision, step by step</h1>
+      <p>One Fe policy is compiled twice: into the native CLI (<span class="code-pill">leash</span>) and into the Safe module (<span class="code-pill">LeashModule</span>). This page shows a recorded run (<span class="code-pill">run.json</span>): for each transaction the CLI predicted the verdict, then the module decided on-chain.</p>
     </div>
 
     <!-- Live Metrics Grid -->
     <div class="metrics-grid">
       <div class="metric-card mint">
         <div class="metric-label">Prediction Match</div>
-        <div class="metric-val" id="val-match">100%</div>
-        <div class="metric-sub">5 of 5 canonical steps identical</div>
+        <div class="metric-val" id="val-match">–</div>
+        <div class="metric-sub" id="sub-match">loading run.json…</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Policy Drift</div>
-        <div class="metric-val" id="val-drift">0.00%</div>
-        <div class="metric-sub">Single compiled Fe policy</div>
+        <div class="metric-label">Policy fingerprints</div>
+        <div class="metric-val" id="val-drift">–</div>
+        <div class="metric-sub">CLI and on-chain module</div>
       </div>
       <div class="metric-card">
-        <div class="metric-label">Bytecode Headroom</div>
+        <div class="metric-label">Contract size</div>
         <div class="metric-val">22,029 B</div>
-        <div class="metric-sub">10.4% under 24,576 B cap</div>
+        <div class="metric-sub">2,547 B (10.4%) under the 24,576 B limit</div>
       </div>
       <div class="metric-card mint">
-        <div class="metric-label">Test Suite</div>
-        <div class="metric-val">159 / 159</div>
-        <div class="metric-sub">100% pass across backends</div>
+        <div class="metric-label">Tests in CI</div>
+        <div class="metric-val">159 + 119</div>
+        <div class="metric-sub">EVM + native, plus 77 shared vectors</div>
       </div>
     </div>
 
@@ -507,15 +514,15 @@
       <div class="section-header">
         <h2>
           <span>Canonical Execution Log</span>
-          <span class="tag">Simulated In-Memory EVM · Prague</span>
+          <span class="tag" id="network-tag">network: –</span>
         </h2>
         <span class="code-pill" id="engine-badge">Fe v26.6.0 · Prague Rules</span>
       </div>
 
       <div class="filters">
-        <button class="filter-btn active" onclick="setFilter('all', this)">All Scenarios (5)</button>
-        <button class="filter-btn" onclick="setFilter('allow', this)">Allowed Only (2)</button>
-        <button class="filter-btn" onclick="setFilter('deny', this)">Denied Only (3)</button>
+        <button class="filter-btn active" onclick="setFilter('all', this)">All</button>
+        <button class="filter-btn" onclick="setFilter('allow', this)">Allowed</button>
+        <button class="filter-btn" onclick="setFilter('deny', this)">Denied</button>
       </div>
 
       <div class="table-container">
@@ -539,7 +546,7 @@
       <div class="fp-bar">
         <div class="fp-tag">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--mint)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-          Pinned Canonical Policy Fingerprint:
+          Policy fingerprint (from the run):
         </div>
         <span class="fp-hash" id="fp-display">0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee</span>
       </div>
@@ -550,167 +557,100 @@
       <div class="compare-card">
         <h3>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--violet-2)" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-          Gas Efficiency vs Zodiac Roles
+          Gas in this run
         </h3>
-        <p>Leash executes with <strong>12.5% to 23.5% less gas</strong> than existing Zodiac Roles v1 modules. By evaluating pure policy rules without redundant external storage reads and caching bucket state, Leash achieves optimal EVM execution.</p>
+        <p id="gas-note">Loading…</p>
       </div>
       <div class="compare-card">
         <h3>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--mint)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          Formal Invariant Guarantee
+          Why the two sides agree
         </h3>
-        <p>Pure policy functions have <strong>no <code>uses</code> clause</strong> and are strictly deterministic. State mutation only occurs in <code>record()</code> after allowlist verification. Denied transactions never alter ledger state or advance bucket counts.</p>
+        <p><code>decide()</code> has <strong>no <code>uses</code> clause</strong>, so it cannot read or write storage: given the same transaction, state and time, the CLI and the contract compute the same verdict. Spending is recorded only by <code>record()</code>, after an allowed call; a denial updates only the agent's last-action time and denial count.</p>
       </div>
     </div>
   </main>
 
   <script>
-    const CANONICAL_STEPS = [
-      {
-        i: 1,
-        desc: "0.05 ETH transfer to treasury",
-        why: "Legitimate payment under the 0.1 ETH per-tx cap",
-        target: "0x2000...0002",
-        val: "0.05 ETH",
-        pred: { verdict: "ALLOW", code: 0, reason: "None" },
-        exec: { verdict: "ALLOW", code: 0, reason: "None", gas: "42,180" },
-        matched: true
-      },
-      {
-        i: 2,
-        desc: "Transfer 50 tokens to treasury",
-        why: "Legitimate ERC-20 transfer under the 100-token cap",
-        target: "0x1000...0001",
-        val: "50 TOK",
-        pred: { verdict: "ALLOW", code: 0, reason: "None" },
-        exec: { verdict: "ALLOW", code: 0, reason: "None", gas: "58,420" },
-        matched: true
-      },
-      {
-        i: 3,
-        desc: "0.2 ETH transfer to treasury",
-        why: "Adversarial or runaway prompt exceeding 0.1 ETH cap",
-        target: "0x2000...0002",
-        val: "0.20 ETH",
-        pred: { verdict: "DENY", code: 7, reason: "PerTxCapExceeded" },
-        exec: { verdict: "DENY", code: 7, reason: "PerTxCapExceeded", gas: "24,110" },
-        matched: true
-      },
-      {
-        i: 4,
-        desc: "Transfer to unlisted contract",
-        why: "Malicious contract diversion outside Safe allowlist",
-        target: "0x3000...0003",
-        val: "0.01 ETH",
-        pred: { verdict: "DENY", code: 4, reason: "TargetNotAllowed" },
-        exec: { verdict: "DENY", code: 4, reason: "TargetNotAllowed", gas: "23,980" },
-        matched: true
-      },
-      {
-        i: 5,
-        desc: "Unlimited approve(exchange, 2^256 - 1)",
-        why: "Prohibited token drain vulnerability pattern",
-        target: "0x1000...0001",
-        val: "2^256 - 1",
-        pred: { verdict: "DENY", code: 10, reason: "UnlimitedApproval" },
-        exec: { verdict: "DENY", code: 10, reason: "UnlimitedApproval", gas: "25,640" },
-        matched: true
-      }
-    ];
-
-    let currentSteps = [...CANONICAL_STEPS];
+    // Data: the recorded run in run.json (written by the Anvil demo), or ?file=<path>. Nothing is invented here.
+    let currentSteps = [];
     let activeFilter = 'all';
+    const esc = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    const reasonOf = (v) => (String(v).match(/\(([^)]+)\)/) || [])[1] || '';
+    const verdictOf = (v) => (String(v).startsWith('ALLOW') ? 'ALLOW' : 'DENY');
 
     function setFilter(filter, el) {
       activeFilter = filter;
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.filter-btn').forEach((b) => b.classList.remove('active'));
       el.classList.add('active');
       renderRows();
     }
 
     function renderRows() {
       const tbody = document.getElementById('scenario-rows');
-      const filtered = currentSteps.filter(s => {
-        if (activeFilter === 'allow') return s.pred.verdict === 'ALLOW';
-        if (activeFilter === 'deny') return s.pred.verdict === 'DENY';
-        return true;
-      });
-
-      tbody.innerHTML = filtered.map(s => `
+      const filtered = currentSteps.filter((s) => activeFilter === 'all' || (activeFilter === 'allow') === (s.exec === 'ALLOW'));
+      tbody.innerHTML = filtered.map((s) => `
         <tr>
           <td><span class="code-pill">#${s.i}</span></td>
+          <td><div class="tx-desc">${esc(s.desc)}</div></td>
+          <td><div class="code-pill">${esc(s.tx)}</div></td>
           <td>
-            <div class="tx-desc">${s.desc}</div>
-            <div class="tx-meta">${s.why}</div>
+            <span class="badge-verdict ${s.pred.toLowerCase()}">${s.pred}</span>
+            <div class="tx-meta" style="margin-top:4px;">${esc(s.predReason || 'every rule passed')} · code ${s.predCode}</div>
           </td>
           <td>
-            <div class="code-pill">${s.target}</div>
-            <div class="tx-meta" style="margin-top:2px;">${s.val}</div>
+            <span class="badge-verdict ${s.exec.toLowerCase()}">${s.exec}</span>
+            <div class="tx-meta" style="margin-top:4px;">code ${s.execCode} · gas ${s.gas}</div>
           </td>
-          <td>
-            <span class="badge-verdict ${s.pred.verdict.toLowerCase()}">${s.pred.verdict}</span>
-            <div class="tx-meta" style="margin-top:4px;">${s.pred.reason}</div>
-          </td>
-          <td>
-            <span class="badge-verdict ${s.exec.verdict.toLowerCase()}">${s.exec.verdict}</span>
-            <div class="tx-meta" style="margin-top:4px;">Gas: ${s.exec.gas || '32,000'}</div>
-          </td>
-          <td>
-            <span class="badge-match">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-              MATCH
-            </span>
-          </td>
-        </tr>
-      `).join('');
+          <td>${s.matched
+            ? '<span class="badge-match"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>MATCH</span>'
+            : '<span class="badge-verdict deny">MISMATCH</span>'}</td>
+        </tr>`).join('');
+    }
+
+    function showError(msg) {
+      document.getElementById('scenario-rows').innerHTML = `<tr><td colspan="6"><div class="tx-meta">Could not load the recorded run: ${esc(msg)}</div></td></tr>`;
+      document.getElementById('sub-match').textContent = 'no data';
+      document.getElementById('gas-note').textContent = 'No data loaded.';
     }
 
     async function loadData() {
+      const file = new URLSearchParams(location.search).get('file') || '../run.json';
+      let data;
       try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 2500);
-        const res = await fetch('/api/demo', { signal: controller.signal });
-        clearTimeout(timer);
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.steps && data.steps.length > 0) {
-            currentSteps = data.steps.map(s => ({
-              i: s.i,
-              desc: s.description,
-              why: s.predicted.message || 'Pure deterministic policy validation',
-              target: s.to ? (s.to.slice(0, 6) + '...' + s.to.slice(-4)) : '0x2000...0002',
-              val: s.valueEth > 0 ? s.valueEth + ' ETH' : '0 ETH',
-              pred: { verdict: s.predicted.verdict, code: s.predicted.code, reason: s.predicted.reason },
-              exec: { verdict: s.onchain.verdict, code: s.onchain.code, reason: s.onchain.reason, gas: Number(s.onchain.gasUsed || 0).toLocaleString() },
-              matched: s.matched
-            }));
-            renderRows();
-            if (data.fingerprintChain) {
-              document.getElementById('fp-display').textContent = data.fingerprintChain;
-            }
-            return;
-          }
-        }
+        const res = await fetch(file, { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status + ' for ' + file);
+        data = await res.json();
+        if (!data || !Array.isArray(data.steps) || !data.steps.length) throw new Error('no steps in ' + file);
       } catch (e) {
-        console.warn('Live API request gracefully handled with deterministic canonical data:', e);
+        return showError(e.message || String(e));
       }
-      currentSteps = [...CANONICAL_STEPS];
+      currentSteps = data.steps.map((s) => ({
+        i: s.i,
+        desc: s.description,
+        tx: s.txHash ? s.txHash.slice(0, 10) + '…' + s.txHash.slice(-6) : '–',
+        pred: verdictOf(s.predicted), predReason: reasonOf(s.predicted), predCode: s.predictedCode,
+        exec: verdictOf(s.onchain), execCode: s.onchainCode,
+        gas: Number(s.gasUsed || 0).toLocaleString('en-US'),
+        matched: !!s.matched,
+      }));
+      const matched = currentSteps.filter((s) => s.matched).length;
+      document.getElementById('val-match').textContent = matched + '/' + currentSteps.length;
+      document.getElementById('sub-match').textContent = 'predictions matched the module';
+      document.getElementById('val-drift').textContent = data.fingerprintsMatch ? 'Identical' : 'Different';
+      document.getElementById('network-tag').textContent = 'network: ' + (data.network || 'unknown');
+      if (data.fingerprintChain) document.getElementById('fp-display').textContent = data.fingerprintChain;
+      const gas = data.steps.map((s) => Number(s.gasUsed || 0)).filter(Boolean);
+      document.getElementById('gas-note').textContent = gas.length
+        ? 'Each transaction here is a full call through the test Safe and LeashModule: ' + Math.min(...gas).toLocaleString('en-US') + '–' + Math.max(...gas).toLocaleString('en-US') + ' gas. Denied calls cost gas too; the point of the CLI is to catch them before they are sent.'
+        : 'This run has no gas figures.';
       renderRows();
     }
 
     function runRefresh() {
-      const btn = document.querySelector('.btn-action');
-      btn.textContent = 'Verifying…';
-      setTimeout(() => {
-        loadData();
-        btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg> Verified`;
-        setTimeout(() => {
-          btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Re-verify`;
-        }, 1500);
-      }, 350);
+      loadData();
     }
 
-    renderRows();
     loadData();
   </script>
 </body>

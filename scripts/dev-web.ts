@@ -9,6 +9,7 @@ import demo from '../api/demo';
 import check from '../api/check';
 import healthFn from '../api/health';
 import tour from '../api/tour';
+import plan from '../api/plan';
 
 const root = path.resolve(__dirname, '..', 'web', 'dist');
 const routes: Record<string, (req: any, res: any) => Promise<void>> = {
@@ -16,6 +17,7 @@ const routes: Record<string, (req: any, res: any) => Promise<void>> = {
   '/api/check': check,
   '/api/health': healthFn,
   '/api/tour': tour,
+  '/api/plan': plan,
 };
 const types: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',

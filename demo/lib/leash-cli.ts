@@ -144,9 +144,10 @@ export function predictVerdict(opts: CheckOptions): LeashCheckResult {
   // 2. Target check
   const isTreasury = to === ADDR_TREASURY;
   const isToken = to === ADDR_TOKEN;
-  const isUniswap = to === ADDR_UNISWAP_ROUTER;
-  const isAave = to === ADDR_AAVE_POOL;
-  if (!isTreasury && !isToken && !isUniswap && !isAave) {
+  // The deployed default policy (policy/src/config.fe policy_for_agent) lists exactly two targets.
+  const isUniswap = false;
+  const isAave = false;
+  if (!isTreasury && !isToken) {
     return makeResult('DENY', 4, 'TargetNotAllowed', 'Target contract is not allowlisted', now);
   }
 
@@ -209,7 +210,7 @@ export function predictVerdict(opts: CheckOptions): LeashCheckResult {
     // approve: 0x095ea7b3, increaseAllowance: 0x39509351, decreaseAllowance: 0xa457c2d7
     // transfer: 0xa9059cbb
     // transferFrom: 0x23b872dd
-    if (sel === SEL_APPROVE || sel === SEL_INCREASE_ALLOWANCE) {
+    if (sel === SEL_APPROVE) {
       if (byteLen !== 68) {
         return makeResult('DENY', 6, 'MalformedCalldata', 'Invalid approve calldata length', now);
       }
@@ -219,11 +220,6 @@ export function predictVerdict(opts: CheckOptions): LeashCheckResult {
       } else if (rawAmt > TOKEN_MAX_APPROVE) {
         return makeResult('DENY', 10, 'UnlimitedApproval', 'Approval exceeds max approval limit', now);
       }
-    } else if (sel === SEL_DECREASE_ALLOWANCE) {
-      if (byteLen !== 68) {
-        return makeResult('DENY', 6, 'MalformedCalldata', 'Invalid decreaseAllowance calldata length', now);
-      }
-      // Decrease allowance is always allowed within shape bounds
     } else if (sel === SEL_TRANSFER) {
       if (byteLen !== 68) {
         return makeResult('DENY', 6, 'MalformedCalldata', 'Invalid transfer calldata length', now);

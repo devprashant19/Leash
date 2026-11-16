@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { runCheck } from '../lib/api';
-import { evaluateFallbackCheck } from '../lib/fallback';
 import { PRESETS, REASONS, TREASURY, TOKEN } from '../lib/data';
 import { short, useStore } from '../lib/store';
 import type { CheckResult } from '../lib/types';
@@ -48,11 +47,8 @@ export function Console({ autoPreset = null, compact = false, onReady }: { autoP
       const r = await runCheck(body);
       setLog((l) => l.map((x) => (x.id === id ? { ...x, result: r } : x)));
       addHit(r.step.onchain.code);
-    } catch {
-      // Guaranteed client-side evaluation fallback: never show an error bubble
-      const r = evaluateFallbackCheck(body);
-      setLog((l) => l.map((x) => (x.id === id ? { ...x, result: r } : x)));
-      addHit(r.step.onchain.code);
+    } catch (e) {
+      setLog((l) => l.map((x) => (x.id === id ? { ...x, error: (e as Error).message } : x)));
     } finally {
       setBusy(false);
     }
@@ -89,7 +85,8 @@ export function Console({ autoPreset = null, compact = false, onReady }: { autoP
             return (
               <motion.div key={x.id} className="ex" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: EASE }}>
                 <div className="bubble me">{x.ask}</div>
-                {!s && <div className="thinking"><span className="spin" />Checking…</div>}
+                {!s && !x.error && <div className="thinking"><span className="spin" />Checking…</div>}
+                {x.error && <div className="bubble err" role="alert">The check did not complete: {x.error}</div>}
                 {s && x.result && (
                   <>
                     <motion.div className="bubble" initial={{ opacity: 0, y: 8, filter: 'blur(6px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} transition={{ duration: 0.4, ease: EASE }}>
@@ -100,6 +97,7 @@ export function Console({ autoPreset = null, compact = false, onReady }: { autoP
                     <motion.div className="bubble" initial={{ opacity: 0, y: 8, filter: 'blur(6px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} transition={{ duration: 0.4, delay: 0.25, ease: EASE }}>
                       <span className="t-mono">LeashModule decided</span>
                       <span className={`verdict ${oa ? 'allow' : 'deny'}`}>{s.onchain.verdict}{!oa && <em>{s.onchain.reason}</em>}</span>
+                      {s.onchain.executionReverted && <span className="t-small">The policy allowed it, but the call itself reverted (for example, no allowance), so nothing moved.</span>}
                       <span className="t-code bubble-meta">code {s.onchain.code} · tx {short(s.onchain.txHash)} · {Number(s.onchain.gasUsed).toLocaleString('en-US')} gas</span>
                     </motion.div>
                     <motion.div className={`match ${s.matched ? 'ok' : 'bad'}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>

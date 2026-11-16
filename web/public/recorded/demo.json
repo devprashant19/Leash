@@ -1,0 +1,212 @@
+{
+ "recorded": {
+  "capturedAt": "2026-11-16T14:15:00.702Z",
+  "runtime": "Amazon Linux 2023 (public.ecr.aws/lambda/nodejs:22), Node v22.23.5",
+  "note": "A real run of /api on this runtime with the bundled Fe-built leash binary, saved so the page can replay it if the live server is unavailable."
+ },
+ "engine": "In-memory EVM (ethereumjs, Prague rules) running the Fe-compiled contracts",
+ "predictionSource": "fe-native",
+ "cliVersion": "leash 0.1.0 (fe 26.6.0)",
+ "fingerprintCli": "0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee",
+ "fingerprintChain": "0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee",
+ "fingerprintsMatch": true,
+ "allMatched": true,
+ "matchedCount": 5,
+ "steps": [
+  {
+   "i": 1,
+   "description": "Agent sends 0.05 ETH to authorized treasury",
+   "to": "0x2000000000000000000000000000000000000002",
+   "valueEth": "0.05",
+   "data": "0x",
+   "operation": "call",
+   "predicted": {
+    "verdict": "ALLOW",
+    "code": 0,
+    "reason": "None",
+    "message": "Transaction allowed by policy"
+   },
+   "remaining": {
+    "eth_per_tx_wei": "100000000000000000",
+    "eth_window_wei": "500000000000000000",
+    "actions_in_window": 0,
+    "tokens": [
+     {
+      "token": "0x1000000000000000000000000000000000000001",
+      "per_tx": "100000000000000000000",
+      "window": "500000000000000000000"
+     }
+    ]
+   },
+   "onchain": {
+    "verdict": "ALLOW",
+    "code": 0,
+    "reason": "None",
+    "txHash": "0x9d5e0e324e3591efe46ebee1bbd35abbfd658df32a462a76e1ab1b8536f69244",
+    "gasUsed": "314214",
+    "eventEmitted": true
+   },
+   "matched": true
+  },
+  {
+   "i": 2,
+   "description": "Agent transfers 50 tokens to authorized recipient",
+   "to": "0x1000000000000000000000000000000000000001",
+   "valueEth": "0",
+   "data": "0xa9059cbb0000000000000000000000002000000000000000000000000000000000000002000000000000000000000000000000000000000000000002b5e3af16b1880000",
+   "operation": "call",
+   "predicted": {
+    "verdict": "ALLOW",
+    "code": 0,
+    "reason": "None",
+    "message": "Transaction allowed by policy"
+   },
+   "remaining": {
+    "eth_per_tx_wei": "100000000000000000",
+    "eth_window_wei": "450000000000000000",
+    "actions_in_window": 0,
+    "tokens": [
+     {
+      "token": "0x1000000000000000000000000000000000000001",
+      "per_tx": "100000000000000000000",
+      "window": "500000000000000000000"
+     }
+    ]
+   },
+   "onchain": {
+    "verdict": "ALLOW",
+    "code": 0,
+    "reason": "None",
+    "txHash": "0xe1457e5053eff2ec335796078ad487ce7a02929fd7a415834b146bf800e145ca",
+    "gasUsed": "234921",
+    "eventEmitted": true
+   },
+   "matched": true
+  },
+  {
+   "i": 3,
+   "description": "Agent sends 0.2 ETH (exceeds 0.1 ETH per-tx cap)",
+   "to": "0x2000000000000000000000000000000000000002",
+   "valueEth": "0.2",
+   "data": "0x",
+   "operation": "call",
+   "predicted": {
+    "verdict": "DENY",
+    "code": 7,
+    "reason": "PerTxCapExceeded",
+    "message": "ETH per-tx cap exceeded"
+   },
+   "remaining": {
+    "eth_per_tx_wei": "100000000000000000",
+    "eth_window_wei": "450000000000000000",
+    "actions_in_window": 0,
+    "tokens": [
+     {
+      "token": "0x1000000000000000000000000000000000000001",
+      "per_tx": "100000000000000000000",
+      "window": "500000000000000000000"
+     }
+    ]
+   },
+   "onchain": {
+    "verdict": "DENY",
+    "code": 7,
+    "reason": "PerTxCapExceeded",
+    "txHash": "0xbd79ccea92dd7559c10374dc75ed28436a4d0a7744f0e361c844b5018ddad576",
+    "gasUsed": "174925",
+    "eventEmitted": true
+   },
+   "matched": true
+  },
+  {
+   "i": 4,
+   "description": "Agent calls unlisted contract (malicious diversion)",
+   "to": "0xdead00000000000000000000000000000000beef",
+   "valueEth": "0",
+   "data": "0x",
+   "operation": "call",
+   "predicted": {
+    "verdict": "DENY",
+    "code": 4,
+    "reason": "TargetNotAllowed",
+    "message": "Target not allowlisted"
+   },
+   "remaining": {
+    "eth_per_tx_wei": "100000000000000000",
+    "eth_window_wei": "450000000000000000",
+    "actions_in_window": 0,
+    "tokens": [
+     {
+      "token": "0x1000000000000000000000000000000000000001",
+      "per_tx": "100000000000000000000",
+      "window": "500000000000000000000"
+     }
+    ]
+   },
+   "onchain": {
+    "verdict": "DENY",
+    "code": 4,
+    "reason": "TargetNotAllowed",
+    "txHash": "0x550e8d0aca446d6efe5c7900e9317467af1800ccacc86ce4e5beee73c975df5e",
+    "gasUsed": "157455",
+    "eventEmitted": true
+   },
+   "matched": true
+  },
+  {
+   "i": 5,
+   "description": "Agent calls approve(exchange, 2^256 - 1) unlimited drain",
+   "to": "0x1000000000000000000000000000000000000001",
+   "valueEth": "0",
+   "data": "0x095ea7b30000000000000000000000002000000000000000000000000000000000000002ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+   "operation": "call",
+   "predicted": {
+    "verdict": "DENY",
+    "code": 10,
+    "reason": "UnlimitedApproval",
+    "message": "Unlimited approval blocked"
+   },
+   "remaining": {
+    "eth_per_tx_wei": "100000000000000000",
+    "eth_window_wei": "450000000000000000",
+    "actions_in_window": 0,
+    "tokens": [
+     {
+      "token": "0x1000000000000000000000000000000000000001",
+      "per_tx": "100000000000000000000",
+      "window": "500000000000000000000"
+     }
+    ]
+   },
+   "onchain": {
+    "verdict": "DENY",
+    "code": 10,
+    "reason": "UnlimitedApproval",
+    "txHash": "0xb5200681356e50b236602cfe0bc9ea0620f5fa6dbab139043c16d2ccf875337f",
+    "gasUsed": "184102",
+    "eventEmitted": true
+   },
+   "matched": true
+  }
+ ],
+ "balancesBefore": {
+  "safeEth": "10",
+  "treasuryEth": "0",
+  "safeTokens": "1000",
+  "treasuryTokens": "0"
+ },
+ "balancesAfter": {
+  "safeEth": "9.95",
+  "treasuryEth": "0.05",
+  "safeTokens": "950",
+  "treasuryTokens": "50"
+ },
+ "addresses": {
+  "safe": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+  "module": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+  "token": "0x1000000000000000000000000000000000000001",
+  "treasury": "0x2000000000000000000000000000000000000002",
+  "agent": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
+ },
+ "elapsedMs": 678
+}

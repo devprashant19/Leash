@@ -1,0 +1,905 @@
+{
+ "recorded": {
+  "capturedAt": "2026-11-16T14:15:00.702Z",
+  "runtime": "Amazon Linux 2023 (public.ecr.aws/lambda/nodejs:22), Node v22.23.5",
+  "note": "A real run of /api on this runtime with the bundled Fe-built leash binary, saved so the page can replay it if the live server is unavailable."
+ },
+ "engine": "In-memory EVM (ethereumjs, Prague rules) running the Fe-compiled contracts",
+ "predictionSource": "fe-native",
+ "cliVersion": "leash 0.1.0 (fe 26.6.0)",
+ "fingerprintCli": "0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee",
+ "fingerprintChain": "0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee",
+ "fingerprintsMatch": true,
+ "chapters": [
+  {
+   "title": "Everyday spending is allowed",
+   "intro": "Calls inside every limit go straight through: the CLI says ALLOW, the module agrees, and the Safe executes.",
+   "items": [
+    {
+     "i": 1,
+     "description": "Send 0.05 ETH to the treasury",
+     "to": "0x2000000000000000000000000000000000000002",
+     "valueEth": "0.05",
+     "data": "0x",
+     "operation": "call",
+     "predicted": {
+      "verdict": "ALLOW",
+      "code": 0,
+      "reason": "None",
+      "message": "Transaction allowed by policy"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "500000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "ALLOW",
+      "code": 0,
+      "reason": "None",
+      "txHash": "0x9d5e0e324e3591efe46ebee1bbd35abbfd658df32a462a76e1ab1b8536f69244",
+      "gasUsed": "314214",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "ETH payment",
+     "why": "Under the 0.1 ETH per-transaction cap and the 0.5 ETH daily budget, to an allowed ETH target.",
+     "expected": {
+      "verdict": "ALLOW",
+      "code": 0
+     },
+     "asExpected": true
+    },
+    {
+     "i": 2,
+     "description": "Transfer 50 tokens to the treasury",
+     "to": "0x1000000000000000000000000000000000000001",
+     "valueEth": "0",
+     "data": "0xa9059cbb0000000000000000000000002000000000000000000000000000000000000002000000000000000000000000000000000000000000000002b5e3af16b1880000",
+     "operation": "call",
+     "predicted": {
+      "verdict": "ALLOW",
+      "code": 0,
+      "reason": "None",
+      "message": "Transaction allowed by policy"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "450000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "ALLOW",
+      "code": 0,
+      "reason": "None",
+      "txHash": "0xe1457e5053eff2ec335796078ad487ce7a02929fd7a415834b146bf800e145ca",
+      "gasUsed": "234921",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Token transfer",
+     "why": "transfer() on the allowlisted token, under the 100-token cap.",
+     "expected": {
+      "verdict": "ALLOW",
+      "code": 0
+     },
+     "asExpected": true
+    },
+    {
+     "i": 3,
+     "description": "Approve the treasury to spend 50 tokens",
+     "to": "0x1000000000000000000000000000000000000001",
+     "valueEth": "0",
+     "data": "0x095ea7b30000000000000000000000002000000000000000000000000000000000000002000000000000000000000000000000000000000000000002b5e3af16b1880000",
+     "operation": "call",
+     "predicted": {
+      "verdict": "ALLOW",
+      "code": 0,
+      "reason": "None",
+      "message": "Transaction allowed by policy"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "450000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "ALLOW",
+      "code": 0,
+      "reason": "None",
+      "txHash": "0x1b78ba70b0d08e902a2a8dec86cd1b7a7227a819de8769cdf72d0f95ee724ddc",
+      "gasUsed": "228570",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Bounded approval",
+     "why": "A normal, bounded approval, under the 100-token approval cap.",
+     "expected": {
+      "verdict": "ALLOW",
+      "code": 0
+     },
+     "asExpected": true
+    }
+   ]
+  },
+  {
+   "title": "Each guard refuses, then the breaker trips",
+   "intro": "Three refused calls in a row trip the circuit breaker, which stops the agent completely, even for harmless calls.",
+   "items": [
+    {
+     "i": 4,
+     "description": "Send 0.2 ETH to the treasury",
+     "to": "0x2000000000000000000000000000000000000002",
+     "valueEth": "0.2",
+     "data": "0x",
+     "operation": "call",
+     "predicted": {
+      "verdict": "DENY",
+      "code": 7,
+      "reason": "PerTxCapExceeded",
+      "message": "ETH per-tx cap exceeded"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "450000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "DENY",
+      "code": 7,
+      "reason": "PerTxCapExceeded",
+      "txHash": "0x705ec453f5d883ceec1aa2f2773e2059db8dd0a51f2b260f1d7aa35d9aee55bf",
+      "gasUsed": "174925",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Per-transaction cap",
+     "why": "0.2 ETH is over the 0.1 ETH per-transaction cap.",
+     "expected": {
+      "verdict": "DENY",
+      "code": 7
+     },
+     "asExpected": true
+    },
+    {
+     "i": 5,
+     "description": "Call an unlisted contract",
+     "to": "0xdead00000000000000000000000000000000beef",
+     "valueEth": "0",
+     "data": "0x",
+     "operation": "call",
+     "predicted": {
+      "verdict": "DENY",
+      "code": 4,
+      "reason": "TargetNotAllowed",
+      "message": "Target not allowlisted"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "450000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "DENY",
+      "code": 4,
+      "reason": "TargetNotAllowed",
+      "txHash": "0xb27a4d37937b2d9a9df820693fce5f7f289126000ab454de0b5001f02a15c2ba",
+      "gasUsed": "157455",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Target allowlist",
+     "why": "Only the token and the treasury are allowed targets, so a prompt-injected “send it here” goes nowhere.",
+     "expected": {
+      "verdict": "DENY",
+      "code": 4
+     },
+     "asExpected": true
+    },
+    {
+     "i": 6,
+     "description": "approve(treasury, 2^256 − 1)",
+     "to": "0x1000000000000000000000000000000000000001",
+     "valueEth": "0",
+     "data": "0x095ea7b30000000000000000000000002000000000000000000000000000000000000002ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+     "operation": "call",
+     "predicted": {
+      "verdict": "DENY",
+      "code": 10,
+      "reason": "UnlimitedApproval",
+      "message": "Unlimited approval blocked"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "450000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "DENY",
+      "code": 10,
+      "reason": "UnlimitedApproval",
+      "txHash": "0xd736ac533978c62a08cb39c7625438d32a68f1f4ac35e1b5d6a53d04d6dfce15",
+      "gasUsed": "184102",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Unlimited approval",
+     "why": "An unlimited approval would hand over the whole balance. This is the third denial, so the breaker trips.",
+     "expected": {
+      "verdict": "DENY",
+      "code": 10
+     },
+     "asExpected": true
+    },
+    {
+     "i": 7,
+     "description": "Send 0.01 ETH to the treasury",
+     "to": "0x2000000000000000000000000000000000000002",
+     "valueEth": "0.01",
+     "data": "0x",
+     "operation": "call",
+     "predicted": {
+      "verdict": "DENY",
+      "code": 15,
+      "reason": "CircuitTripped",
+      "message": "Circuit breaker tripped"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "450000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "DENY",
+      "code": 15,
+      "reason": "CircuitTripped",
+      "txHash": "0x43db00b3859d0d552f45806012800c9ab1e4a91edcedc46be60c4dc3fe3e7a5b",
+      "gasUsed": "43471",
+      "eventEmitted": false
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Circuit breaker",
+     "why": "A harmless payment, but the breaker tripped after three denials: everything is refused until the owner resets it.",
+     "expected": {
+      "verdict": "DENY",
+      "code": 15
+     },
+     "asExpected": true
+    },
+    {
+     "kind": "event",
+     "actor": "owner",
+     "title": "Owner resets the breaker",
+     "detail": "The Safe calls resetBreaker(agent). Only the Safe can do this; the agent cannot.",
+     "txHash": "0xbce6dbb34e0e512a8a214a31915af9505bf225d05bcf61f7f87d6c1199e2996e"
+    }
+   ]
+  },
+  {
+   "title": "Calldata is decoded, not trusted",
+   "intro": "Token calls are decoded by selector and checked field by field. Unknown or malformed calls are refused.",
+   "items": [
+    {
+     "i": 8,
+     "description": "Transfer 101 tokens to the treasury",
+     "to": "0x1000000000000000000000000000000000000001",
+     "valueEth": "0",
+     "data": "0xa9059cbb000000000000000000000000200000000000000000000000000000000000000200000000000000000000000000000000000000000000000579a814e10a740000",
+     "operation": "call",
+     "predicted": {
+      "verdict": "DENY",
+      "code": 9,
+      "reason": "TokenCapExceeded",
+      "message": "Token cap exceeded"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "450000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "DENY",
+      "code": 9,
+      "reason": "TokenCapExceeded",
+      "txHash": "0x4067b761e0c1d855643e6d6c836acb4990dc9436ef427900602944a6a7117100",
+      "gasUsed": "199972",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Token cap",
+     "why": "101 tokens is over the 100-token per-transfer cap.",
+     "expected": {
+      "verdict": "DENY",
+      "code": 9
+     },
+     "asExpected": true
+    },
+    {
+     "i": 9,
+     "description": "Call mint() on the token",
+     "to": "0x1000000000000000000000000000000000000001",
+     "valueEth": "0",
+     "data": "0x40c10f1900000000000000000000000020000000000000000000000000000000000000020000000000000000000000000000000000000000000000000de0b6b3a7640000",
+     "operation": "call",
+     "predicted": {
+      "verdict": "DENY",
+      "code": 5,
+      "reason": "SelectorNotAllowed",
+      "message": "Selector not allowlisted"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "450000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "DENY",
+      "code": 5,
+      "reason": "SelectorNotAllowed",
+      "txHash": "0x11c5370a4257f32f2778ac04623c16d6916d9977562e1955c5af0d2f8e144baa",
+      "gasUsed": "166328",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Selector allowlist",
+     "why": "Only transfer, approve and transferFrom are allowed on the token; mint (0x40c10f19) is not.",
+     "expected": {
+      "verdict": "DENY",
+      "code": 5
+     },
+     "asExpected": true
+    },
+    {
+     "kind": "event",
+     "actor": "owner",
+     "title": "Owner resets the breaker",
+     "detail": "Two denials so far. Resetting keeps the next lessons about calldata, not the breaker.",
+     "txHash": "0x7fa71d74aacd9ece6cb2956a7d001a5c01ca3ca8daef9d576136afb34fcd1a47"
+    },
+    {
+     "i": 10,
+     "description": "transfer() with its arguments cut off",
+     "to": "0x1000000000000000000000000000000000000001",
+     "valueEth": "0",
+     "data": "0xa9059cbb00000000",
+     "operation": "call",
+     "predicted": {
+      "verdict": "DENY",
+      "code": 6,
+      "reason": "MalformedCalldata",
+      "message": "Calldata malformed"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "450000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "DENY",
+      "code": 6,
+      "reason": "MalformedCalldata",
+      "txHash": "0x9bdf21961381ca4b672b7d839c7c4c8b6f1644fb6b7c264489d7e3ba2f8b0354",
+      "gasUsed": "183682",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Malformed calldata",
+     "why": "The transfer selector with only 4 bytes after it cannot be decoded, so it is refused instead of guessed.",
+     "expected": {
+      "verdict": "DENY",
+      "code": 6
+     },
+     "asExpected": true
+    },
+    {
+     "i": 11,
+     "description": "Delegatecall into the treasury",
+     "to": "0x2000000000000000000000000000000000000002",
+     "valueEth": "0",
+     "data": "0x",
+     "operation": "delegatecall",
+     "predicted": {
+      "verdict": "DENY",
+      "code": 3,
+      "reason": "DelegateCallBlocked",
+      "message": "DelegateCall not allowed"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "450000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "DENY",
+      "code": 3,
+      "reason": "DelegateCallBlocked",
+      "txHash": "0x2b2f95cbc1c4af11d386cb4d363ebf18f31a452cebc3c9faa2b35cb983e90be1",
+      "gasUsed": "157076",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Delegatecall",
+     "why": "Delegatecall would run foreign code with the Safe’s own storage. It is always refused.",
+     "expected": {
+      "verdict": "DENY",
+      "code": 3
+     },
+     "asExpected": true
+    },
+    {
+     "kind": "event",
+     "actor": "owner",
+     "title": "Owner resets the breaker",
+     "detail": "Back to zero denials before the budget test.",
+     "txHash": "0xc3a2e07f65839096b259c394fc43debd77e74ee378ec85b3adc7b0de4c796a19"
+    }
+   ]
+  },
+  {
+   "title": "The 24-hour budget adds up",
+   "intro": "Each call is small, but the rolling window counts them all. 0.05 ETH is already spent from the first chapter.",
+   "items": [
+    {
+     "i": 12,
+     "description": "Send 0.1 ETH (0.15 ETH spent today)",
+     "to": "0x2000000000000000000000000000000000000002",
+     "valueEth": "0.1",
+     "data": "0x",
+     "operation": "call",
+     "predicted": {
+      "verdict": "ALLOW",
+      "code": 0,
+      "reason": "None",
+      "message": "Transaction allowed by policy"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "450000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "ALLOW",
+      "code": 0,
+      "reason": "None",
+      "txHash": "0x6b7a777b86f4b1edb54839be2bd6721c68b3e6d28518503eef255a51584e2b34",
+      "gasUsed": "218145",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Rolling window",
+     "why": "Exactly at the per-transaction cap, and the day’s total stays under 0.5 ETH.",
+     "expected": {
+      "verdict": "ALLOW",
+      "code": 0
+     },
+     "asExpected": true
+    },
+    {
+     "i": 13,
+     "description": "Send 0.1 ETH (0.25 ETH spent today)",
+     "to": "0x2000000000000000000000000000000000000002",
+     "valueEth": "0.1",
+     "data": "0x",
+     "operation": "call",
+     "predicted": {
+      "verdict": "ALLOW",
+      "code": 0,
+      "reason": "None",
+      "message": "Transaction allowed by policy"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "350000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "ALLOW",
+      "code": 0,
+      "reason": "None",
+      "txHash": "0xadc5a0849aea950b21f4740ce460a62821579aaed4da2c49cd10a94083cadbeb",
+      "gasUsed": "195445",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Rolling window",
+     "why": "Still inside the 0.5 ETH daily budget.",
+     "expected": {
+      "verdict": "ALLOW",
+      "code": 0
+     },
+     "asExpected": true
+    },
+    {
+     "i": 14,
+     "description": "Send 0.1 ETH (0.35 ETH spent today)",
+     "to": "0x2000000000000000000000000000000000000002",
+     "valueEth": "0.1",
+     "data": "0x",
+     "operation": "call",
+     "predicted": {
+      "verdict": "ALLOW",
+      "code": 0,
+      "reason": "None",
+      "message": "Transaction allowed by policy"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "250000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "ALLOW",
+      "code": 0,
+      "reason": "None",
+      "txHash": "0x934859400107839cd37e430cd24bd977457355d91fd2de56675babfd24ed6ac9",
+      "gasUsed": "195445",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Rolling window",
+     "why": "Still inside the 0.5 ETH daily budget.",
+     "expected": {
+      "verdict": "ALLOW",
+      "code": 0
+     },
+     "asExpected": true
+    },
+    {
+     "i": 15,
+     "description": "Send 0.1 ETH (0.45 ETH spent today)",
+     "to": "0x2000000000000000000000000000000000000002",
+     "valueEth": "0.1",
+     "data": "0x",
+     "operation": "call",
+     "predicted": {
+      "verdict": "ALLOW",
+      "code": 0,
+      "reason": "None",
+      "message": "Transaction allowed by policy"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "150000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "ALLOW",
+      "code": 0,
+      "reason": "None",
+      "txHash": "0xb20ce79d5b747c53c2933ad8f90a9bc36cc708f16e21fcd0f6e67e83d6adf5ff",
+      "gasUsed": "195445",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Rolling window",
+     "why": "Still inside the 0.5 ETH daily budget.",
+     "expected": {
+      "verdict": "ALLOW",
+      "code": 0
+     },
+     "asExpected": true
+    },
+    {
+     "i": 16,
+     "description": "Send 0.1 ETH (would make 0.55 ETH today)",
+     "to": "0x2000000000000000000000000000000000000002",
+     "valueEth": "0.1",
+     "data": "0x",
+     "operation": "call",
+     "predicted": {
+      "verdict": "DENY",
+      "code": 8,
+      "reason": "WindowCapExceeded",
+      "message": "ETH window cap exceeded"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "50000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "DENY",
+      "code": 8,
+      "reason": "WindowCapExceeded",
+      "txHash": "0xd46d4fbd0c734d37076ba0662c2a67ccd5b937904d0b4b2b24747ac8bd62ce92",
+      "gasUsed": "179427",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Window cap",
+     "why": "Each call is under the per-transaction cap, but together they would pass 0.5 ETH in 24 hours.",
+     "expected": {
+      "verdict": "DENY",
+      "code": 8
+     },
+     "asExpected": true
+    }
+   ]
+  },
+  {
+   "title": "Humans stay in control",
+   "intro": "A separate guardian key can stop the agent instantly, and agent sessions expire on their own.",
+   "items": [
+    {
+     "kind": "event",
+     "actor": "guardian",
+     "title": "Guardian pauses the module",
+     "detail": "A separate guardian key calls pause(). It needs no owner signature.",
+     "txHash": "0x740a6c7c811d4bb660f9d0ea5b1224eb59708fb04c69be358302117a25d6c9d7"
+    },
+    {
+     "i": 17,
+     "description": "Send 0.01 ETH while paused",
+     "to": "0x2000000000000000000000000000000000000002",
+     "valueEth": "0.01",
+     "data": "0x",
+     "operation": "call",
+     "predicted": {
+      "verdict": "DENY",
+      "code": 1,
+      "reason": "Paused",
+      "message": "Safe module is paused"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "50000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "DENY",
+      "code": 1,
+      "reason": "Paused",
+      "txHash": "0xc01e35d0f585901cdcea1e4868edaf299f9c31acf707b286b9ed70225e86b8c6",
+      "gasUsed": "156911",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Guardian pause",
+     "why": "The guardian paused the module, so every agent call is refused until the Safe unpauses it.",
+     "expected": {
+      "verdict": "DENY",
+      "code": 1
+     },
+     "asExpected": true
+    },
+    {
+     "kind": "event",
+     "actor": "owner",
+     "title": "Owner unpauses",
+     "detail": "Only the Safe can lift a pause. The guardian can stop the agent but never move money.",
+     "txHash": "0x1654cb53f1466eb075734344e1c5c416fd1949fae1aff008f2baeebfc44fe566"
+    },
+    {
+     "kind": "event",
+     "actor": "owner",
+     "title": "Owner renews the agent with a 60-second session",
+     "detail": "setAgent sets a new expiry and clears the denial count.",
+     "txHash": "0xdca918bd9494260d1249cc1efe111e230f3ae8d47af433ffb19c70330fba16c8"
+    },
+    {
+     "kind": "event",
+     "actor": "clock",
+     "title": "Two minutes pass",
+     "detail": "The 60-second session has expired."
+    },
+    {
+     "i": 18,
+     "description": "Send 0.01 ETH after the session ended",
+     "to": "0x2000000000000000000000000000000000000002",
+     "valueEth": "0.01",
+     "data": "0x",
+     "operation": "call",
+     "predicted": {
+      "verdict": "DENY",
+      "code": 2,
+      "reason": "SessionExpired",
+      "message": "Agent session expired"
+     },
+     "remaining": {
+      "eth_per_tx_wei": "100000000000000000",
+      "eth_window_wei": "50000000000000000",
+      "actions_in_window": 0,
+      "tokens": [
+       {
+        "token": "0x1000000000000000000000000000000000000001",
+        "per_tx": "100000000000000000000",
+        "window": "500000000000000000000"
+       }
+      ]
+     },
+     "onchain": {
+      "verdict": "DENY",
+      "code": 2,
+      "reason": "SessionExpired",
+      "txHash": "0x075ce6adf115cacbf019d6190eb4feb351c86db605bdf7bd413157b30c96326b",
+      "gasUsed": "174128",
+      "eventEmitted": true
+     },
+     "matched": true,
+     "kind": "tx",
+     "feature": "Session expiry",
+     "why": "Agent keys are time-boxed. Once the session expires, the agent can do nothing until the owner renews it.",
+     "expected": {
+      "verdict": "DENY",
+      "code": 2
+     },
+     "asExpected": true
+    }
+   ]
+  }
+ ],
+ "txCount": 18,
+ "matchedCount": 18,
+ "expectedCount": 18,
+ "codesCovered": [
+  0,
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  15
+ ],
+ "balancesBefore": {
+  "safeEth": "10",
+  "treasuryEth": "0",
+  "safeTokens": "1000",
+  "treasuryTokens": "0"
+ },
+ "balancesAfter": {
+  "safeEth": "9.55",
+  "treasuryEth": "0.45",
+  "safeTokens": "950",
+  "treasuryTokens": "50"
+ },
+ "addresses": {
+  "safe": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+  "module": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+  "token": "0x1000000000000000000000000000000000000001",
+  "treasury": "0x2000000000000000000000000000000000000002",
+  "agent": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
+  "guardian": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
+ },
+ "elapsedMs": 1392
+}

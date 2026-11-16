@@ -6,6 +6,7 @@
 import assert from 'node:assert/strict';
 import { parseCheckInput, runCheck, runDemo } from '../../api/_lib/leash';
 import { runTour } from '../../api/_lib/tour';
+import { parsePlan, runPlan } from '../../api/_lib/plan';
 
 const TREASURY = '0x2000000000000000000000000000000000000002';
 const TOKEN = '0x1000000000000000000000000000000000000001';
@@ -90,23 +91,26 @@ async function main() {
     assert.equal(tour.balancesAfter.treasuryTokens, '50');
   });
 
-  await step('plan simulator validates multi-step batch executions correctly', () => {
-    const { PlanSimulator: ServerSimulator } = require('../../demo/lib/plan-simulator');
-    const rep = ServerSimulator.simulatePlan([
-      { id: 1, description: 'Step 1', to: TREASURY, valueWei: 50000000000000000n },
-      { id: 2, description: 'Step 2', to: TREASURY, valueWei: 50000000000000000n },
-    ]);
-    assert.equal(rep.allStepsPassed, true);
-    assert.equal(rep.passedSteps, 2);
-
-    const { PlanSimulator: ClientSimulator } = require('../../web/src/lib/plan-simulator');
-    const clientRep = ClientSimulator.simulatePlan([
-      { id: 1, description: 'Step 1', to: TREASURY, valueWei: 50000000000000000n },
-      { id: 2, description: 'Step 2', to: TREASURY, valueWei: 50000000000000000n },
-    ]);
-    assert.equal(clientRep.allStepsPassed, true);
-    assert.equal(clientRep.passedSteps, 2);
-    assert.equal(rep.fingerprint, clientRep.fingerprint);
+  const drain = await runPlan(parsePlan({ steps: Array.from({ length: 6 }, () => ({ to: TREASURY, valueEth: '0.09' })) }));
+  await step('plan: six 0.09 ETH payments, the sixth is refused by the 24 h window, every prediction matched', () => {
+    assert.deepEqual(drain.steps.map((s) => s.onchain.code), [0, 0, 0, 0, 0, 8]);
+    assert.equal(drain.firstDenied, 6);
+    assert.ok(drain.allMatched);
+  });
+  const trip = await runPlan(parsePlan({ steps: [
+    { to: '0xdead000000000000000000000000000000000001', valueEth: '0' },
+    { to: TREASURY, valueEth: '0.2' },
+    { to: TREASURY, valueEth: '0', operation: 'delegatecall' },
+    { to: TREASURY, valueEth: '0.01' },
+  ] }));
+  await step('plan: three refusals trip the breaker, the fourth (harmless) step gets code 15, every prediction matched', () => {
+    assert.deepEqual(trip.steps.map((s) => s.onchain.code), [4, 7, 3, 15]);
+    assert.ok(trip.allMatched);
+  });
+  await step('plan: input validation', () => {
+    assert.throws(() => parsePlan({ steps: [] }), /steps/);
+    assert.throws(() => parsePlan({ steps: Array.from({ length: 13 }, () => ({ to: TREASURY })) }), /at most 12/);
+    assert.throws(() => parsePlan({ steps: [{ to: '0x12' }] }), /Step 1/);
   });
 
   await step('input validation rejects bad addresses, values and calldata', () => {

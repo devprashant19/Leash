@@ -8,7 +8,6 @@ import { Grid } from '../motion/Ambient';
 import { reasonOf, scrollToId, short, useStore, type DemoMode } from '../lib/store';
 import { REASONS } from '../lib/data';
 import { SetupProgress, Walkthrough, quickChapters, type Chapter, type Item } from './Walkthrough';
-import { getFallbackDemo, getFallbackTour } from '../lib/fallback';
 import type { Balances, StepResult, TourResult, TourTx } from '../lib/types';
 
 const EASE = [0.25, 0.46, 0.45, 0.94] as const;
@@ -210,7 +209,7 @@ function Results({ fpA, fpB, before, after, engine, addresses, children }: {
 }
 
 export function LiveDemo() {
-  const { status, result, tour, mode: runMode, error, run, recorded, openConsole } = useStore();
+  const { status, result, tour, mode: runMode, error, run, recorded, openConsole, replayed, replayRecorded } = useStore();
   const [mode, setMode] = useState<DemoMode>('quick');
   const [showResults, setShowResults] = useState(false);
   useEffect(() => { if (status === 'running') { setShowResults(false); setMode(runMode); } }, [status, runMode]);
@@ -250,10 +249,25 @@ export function LiveDemo() {
             {busy && (
               <motion.div key="run" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, filter: 'blur(8px)' }} transition={{ duration: 0.3 }}><SetupProgress mode={runMode} /></motion.div>
             )}
-            {status === 'done' && runMode === 'quick' && (
-              <motion.div key={`done-quick-${(result || getFallbackDemo()).fingerprintChain}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+            {status === 'error' && (
+              <motion.div key="err" className="demo-err" role="alert" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                <p><b>The live run did not complete.</b> {error}</p>
+                <p className="t-small">You can retry, or replay a real run of the same code that was recorded earlier with the Fe-built binary. It will be labelled as a recording.</p>
+                <div className="demo-err-actions">
+                  <Button label="Retry the live run" onClick={() => run(runMode)} />
+                  <Button label="Replay the recorded run" variant="ghost" onClick={replayRecorded} />
+                </div>
+              </motion.div>
+            )}
+            {status === 'done' && replayed && (
+              <div className="replay-banner" role="note">
+                <b>Recorded run, not live.</b> Captured {new Date(replayed.capturedAt).toUTCString()} on {replayed.runtime} with the bundled Fe binary. <button type="button" className="linkish" onClick={() => run(runMode)}>Try the live run again</button>
+              </div>
+            )}
+            {status === 'done' && runMode === 'quick' && result && (
+              <motion.div key={`done-quick-${result.fingerprintChain}-${result.elapsedMs}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
                 {(() => {
-                  const r = result || getFallbackDemo();
+                  const r = result;
                   return (
                     <>
                       <Walkthrough chapters={quickChapters(r.steps)} addresses={r.addresses} onFinish={() => setShowResults(true)} />
@@ -273,10 +287,10 @@ export function LiveDemo() {
                 })()}
               </motion.div>
             )}
-            {status === 'done' && runMode === 'tour' && (
-              <motion.div key={`done-tour-${(tour || getFallbackTour()).elapsedMs}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
+            {status === 'done' && runMode === 'tour' && tour && (
+              <motion.div key={`done-tour-${tour.elapsedMs}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}>
                 {(() => {
-                  const t = tour || getFallbackTour();
+                  const t = tour;
                   return (
                     <>
                       <Walkthrough chapters={tourChapters(t)} addresses={t.addresses} onFinish={() => setShowResults(true)} />
@@ -294,24 +308,19 @@ export function LiveDemo() {
               <motion.div key="idle" className="demo-idle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                 <div className="demo-metrics-strip">
                   <div className="dm-card mint">
-                    <div className="t-mono dm-k">PREDICTION MATCH</div>
-                    <div className="dm-v">100%</div>
-                    <div className="dm-sub">Fe CLI == Safe Module</div>
+                    <div className="t-mono dm-k">Recorded run</div>
+                    <div className="dm-v">{recorded.steps.filter((x) => x.matched).length}/{recorded.steps.length}</div>
+                    <div className="dm-sub">predictions matched the module ({recorded.network})</div>
                   </div>
                   <div className="dm-card">
-                    <div className="t-mono dm-k">POLICY DRIFT</div>
-                    <div className="dm-v">0.00%</div>
-                    <div className="dm-sub">Single compiled Fe ingot</div>
-                  </div>
-                  <div className="dm-card">
-                    <div className="t-mono dm-k">BYTECODE HEADROOM</div>
+                    <div className="t-mono dm-k">Contract size</div>
                     <div className="dm-v">22,029 B</div>
-                    <div className="dm-sub">10.4% under 24,576 B cap</div>
+                    <div className="dm-sub">2,547 B (10.4%) under the 24,576 B limit</div>
                   </div>
-                  <div className="dm-card mint">
-                    <div className="t-mono dm-k">TEST SUITE</div>
-                    <div className="dm-v">159 / 159</div>
-                    <div className="dm-sub">100% pass across backends</div>
+                  <div className="dm-card">
+                    <div className="t-mono dm-k">Tests</div>
+                    <div className="dm-v">159 + 119</div>
+                    <div className="dm-sub">EVM + native, plus 77 shared vectors</div>
                   </div>
                 </div>
                 {mode === 'quick' ? (

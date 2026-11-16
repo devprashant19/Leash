@@ -227,7 +227,7 @@ export interface StepResult {
   operation: 'call' | 'delegatecall';
   predicted: { verdict: 'ALLOW' | 'DENY'; code: number; reason: string; message: string };
   remaining: LeashCheckResult['remaining'];
-  onchain: { verdict: 'ALLOW' | 'DENY'; code: number; reason: string; txHash: Hex; gasUsed: string; eventEmitted: boolean };
+  onchain: { verdict: 'ALLOW' | 'DENY'; code: number; reason: string; txHash: Hex; gasUsed: string; eventEmitted: boolean; executionReverted?: boolean };
   matched: boolean;
 }
 
@@ -248,7 +248,25 @@ export async function runStep(env: Env, s: ScenarioTx): Promise<StepResult> {
     env.module,
     encodeFunctionData({ abi: env.moduleAbi, functionName: 'tryExecute', args: [s.to, s.value, s.data, s.operation] } as never)
   );
-  if (!res.success) throw new Error(`tryExecute reverted for step ${s.i}: ${res.error}`);
+  if (!res.success) {
+    // The policy allowed the call but the call itself failed (e.g. transferFrom without an allowance),
+    // so the Safe execution reverted. Read the module's own policy decision with its preview() view.
+    const [pCode] = (await read(env, env.module, env.moduleAbi, 'preview', [env.agent.address, s.to, s.value, s.data, s.operation])) as unknown as [number | bigint];
+    const code = Number(pCode);
+    const verdict: 'ALLOW' | 'DENY' = code === 0 ? 'ALLOW' : 'DENY';
+    return {
+      i: s.i,
+      description: s.description,
+      to: s.to,
+      valueEth: formatEther(s.value),
+      data: s.data,
+      operation: op,
+      predicted: { verdict: prediction.verdict, code: prediction.code, reason: prediction.reason, message: prediction.message },
+      remaining: prediction.remaining,
+      onchain: { verdict, code, reason: REASONS[code] ?? `Code${code}`, txHash: res.hash, gasUsed: res.gasUsed.toString(), eventEmitted: false, executionReverted: true },
+      matched: prediction.verdict === verdict && prediction.code === code,
+    };
+  }
 
   // tryExecute returns (bool ok, uint8 code); it also emits Allowed or Denied (not when the breaker is already tripped).
   const [ok, rawCode] = decodeFunctionResult({

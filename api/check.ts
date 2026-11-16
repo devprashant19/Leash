@@ -1,6 +1,5 @@
 import { parseCheckInput, runCheck } from './_lib/leash';
 import { errorMessage, readBody, sendJson, type Req, type Res } from './_lib/http';
-import { fallbackCheck } from './_lib/fallback-data';
 
 /** POST /api/check { to, valueEth, data, operation }: one transaction, predicted by the Fe CLI and executed on-chain. */
 export default async function handler(req: Req, res: Res): Promise<void> {
@@ -15,14 +14,9 @@ export default async function handler(req: Req, res: Res): Promise<void> {
     return sendJson(res, 400, { error: errorMessage(e) });
   }
   try {
-    const TIMEOUT_MS = 2500;
-    const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('Serverless check execution budget exceeded')), TIMEOUT_MS)
-    );
-    const result = await Promise.race([runCheck(input), timeoutPromise]);
-    sendJson(res, 200, result);
+    sendJson(res, 200, await runCheck(input));
   } catch (e) {
-    console.warn('Live check failed, using deterministic pure policy evaluator:', e);
-    sendJson(res, 200, fallbackCheck(input));
+    console.error('check failed', e);
+    sendJson(res, 500, { error: errorMessage(e) });
   }
 }

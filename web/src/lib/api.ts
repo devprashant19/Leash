@@ -1,96 +1,64 @@
 import type { CheckResult, DemoResult, Health, RecordedRun, TourResult } from './types';
-import { evaluateFallbackCheck, getFallbackDemo, getFallbackHealth, getFallbackTour } from './fallback';
 
-async function call<T>(path: string, init?: RequestInit): Promise<T> {
+/**
+ * Typed fetch. A failure is reported as an error, never replaced by invented results.
+ * Timeouts are generous: a cold serverless function needs a few seconds to boot the EVM
+ * (measured 2.4–4.5 s on Vercel's runtime), and the functions may run for up to 60 s.
+ */
+async function call<T>(path: string, init?: RequestInit, timeoutMs = 58_000): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 3500);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   let res: Response;
   try {
     res = await fetch(path, { ...init, signal: controller.signal });
-  } catch {
-    clearTimeout(timer);
-    throw new Error('The server could not be reached.');
+  } catch (e) {
+    throw new Error((e as Error).name === 'AbortError'
+      ? `The server did not answer within ${Math.round(timeoutMs / 1000)} s.`
+      : 'The server could not be reached. Check your connection and try again.');
   } finally {
     clearTimeout(timer);
   }
-
-  const rawText = await res.text();
+  const raw = await res.text();
   let body: unknown;
   try {
-    body = rawText ? JSON.parse(rawText) : null;
+    body = raw ? JSON.parse(raw) : null;
   } catch {
-    throw new Error(`The server answered ${res.status} with non-JSON content.`);
+    throw new Error(`The server answered ${res.status} without JSON.`);
   }
-
   if (!res.ok) {
-    const msg =
-      body && typeof body === 'object' && 'error' in body
-        ? String((body as { error: unknown }).error)
-        : `The server answered ${res.status}.`;
+    const msg = body && typeof body === 'object' && 'error' in body ? String((body as { error: unknown }).error) : `The server answered ${res.status}.`;
     throw new Error(msg);
   }
   return body as T;
 }
 
-export async function getHealth(): Promise<Health> {
-  try {
-    return await call<Health>('/api/health');
-  } catch {
-    return getFallbackHealth();
-  }
-}
+const post = (body?: unknown): RequestInit => ({
+  method: 'POST',
+  ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
+});
 
-export async function runDemo(): Promise<DemoResult> {
-  try {
-    return await call<DemoResult>('/api/demo', { method: 'POST' });
-  } catch {
-    return getFallbackDemo();
-  }
-}
+export const getHealth = () => call<Health>('/api/health', undefined, 20_000);
+export const runDemo = () => call<DemoResult>('/api/demo', post());
+export const runTour = () => call<TourResult>('/api/tour', post());
+export const runCheck = (body: { to: string; valueEth: string; data: string; operation: string }) => call<CheckResult>('/api/check', post(body));
+export const getRecordedRun = () => call<RecordedRun>('/run.json', undefined, 15_000);
 
-export async function runTour(): Promise<TourResult> {
-  try {
-    return await call<TourResult>('/api/tour', { method: 'POST' });
-  } catch {
-    return getFallbackTour();
-  }
-}
+/** A real run saved earlier (web/public/recorded/*.json), replayed only when the live server is unavailable. */
+export interface RecordingInfo { capturedAt: string; runtime: string; note: string }
+export const getRecordedDemo = () => call<DemoResult & { recorded: RecordingInfo }>('/recorded/demo.json', undefined, 15_000);
+export const getRecordedTour = () => call<TourResult & { recorded: RecordingInfo }>('/recorded/tour.json', undefined, 15_000);
 
-export async function runCheck(body: { to: string; valueEth: string; data: string; operation: string }): Promise<CheckResult> {
-  try {
-    return await call<CheckResult>('/api/check', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-  } catch {
-    return evaluateFallbackCheck(body);
-  }
+export interface PlanStep { description?: string; to: string; valueEth?: string; data?: string; operation?: string }
+export interface PlanResult {
+  engine: string;
+  predictionSource: 'fe-native' | 'ts-mirror';
+  cliVersion: string;
+  fingerprintCli: string;
+  fingerprintChain: string;
+  steps: import('./types').StepResult[];
+  allowedCount: number;
+  firstDenied: number | null;
+  allMatched: boolean;
+  elapsedMs: number;
 }
-
-export async function getRecordedRun(): Promise<RecordedRun> {
-  try {
-    return await call<RecordedRun>('/run.json');
-  } catch {
-    const fallback = getFallbackDemo();
-    return {
-      network: 'in-memory-evm',
-      feVersion: '26.6.0',
-      fingerprintCli: fallback.fingerprintCli,
-      fingerprintChain: fallback.fingerprintChain,
-      fingerprintsMatch: true,
-      allStepsMatched: true,
-      steps: fallback.steps.map((s) => ({
-        i: s.i,
-        description: s.description,
-        predicted: s.predicted.verdict,
-        predictedCode: s.predicted.code,
-        onchain: s.onchain.verdict,
-        onchainCode: s.onchain.code,
-        matched: s.matched,
-        txHash: s.onchain.txHash,
-        gasUsed: s.onchain.gasUsed,
-      })),
-    };
-  }
-}
+export const runPlan = (steps: PlanStep[]) => call<PlanResult>('/api/plan', post({ steps }));

@@ -13,7 +13,6 @@
     "typecheck:web": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json",
     "test:web": "tsx test/web/web_test.ts",
     "build:web": "node scripts/build-web.mjs",
-    "plan": "tsx scripts/leash-plan.ts",
     "dev:web": "node scripts/dev-vite.mjs",
     "dev": "node scripts/dev-vite.mjs"
   },

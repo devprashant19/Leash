@@ -12,17 +12,17 @@ interface RuleDetail {
 }
 
 const MATRIX_DATA: RuleDetail[] = [
-  { code: 1, name: 'Paused', scope: 'State', condition: 'Guardian or Safe has paused the agent', mitigation: 'Wait for Safe owner to call unpause(agent)' },
-  { code: 2, name: 'SessionExpired', scope: 'State', condition: 'Block timestamp >= agent.expiry', mitigation: 'Safe owner must extend session key validity' },
+  { code: 1, name: 'Paused', scope: 'State', condition: 'The guardian or the Safe called pause() on the module', mitigation: 'Only the Safe can lift it, with unpause()' },
+  { code: 2, name: 'SessionExpired', scope: 'State', condition: 'Block timestamp >= agent.expiry', mitigation: 'The Safe renews the agent with setAgent() and a new expiry' },
   { code: 3, name: 'DelegateCallBlocked', scope: 'Call', condition: 'Transaction requested delegatecall operation', mitigation: 'Switch operation to standard call (0)' },
-  { code: 4, name: 'TargetNotAllowed', scope: 'Call', condition: 'Target address not present in allowlist', mitigation: 'Safe owner must register target in policy' },
+  { code: 4, name: 'TargetNotAllowed', scope: 'Call', condition: 'Target address not present in allowlist', mitigation: 'Targets are compiled into the policy; adding one is a new policy build with a new fingerprint' },
   { code: 5, name: 'SelectorNotAllowed', scope: 'Calldata', condition: 'Function selector is not permitted on this target', mitigation: 'Use only allowlisted methods' },
   { code: 6, name: 'MalformedCalldata', scope: 'Calldata', condition: 'Calldata byte length does not match ABI schema', mitigation: 'Properly encode parameters with 32-byte words' },
-  { code: 7, name: 'PerTxCapExceeded', scope: 'Budget', condition: 'ETH value exceeds per-transaction cap (0.1 ETH)', mitigation: 'Reduce transaction size or request owner override' },
-  { code: 8, name: 'WindowCapExceeded', scope: 'Budget', condition: 'Rolling 24h spending exceeds 0.5 ETH', mitigation: 'Wait for sliding hourly buckets to mature' },
-  { code: 9, name: 'TokenCapExceeded', scope: 'Budget', condition: 'ERC-20 transfer exceeds per-token cap (100 tokens)', mitigation: 'Split transfers across time or raise cap' },
-  { code: 10, name: 'UnlimitedApproval', scope: 'Calldata', condition: 'approve() with uint256 max value', mitigation: 'Use bounded approval matching exact trade size' },
-  { code: 15, name: 'CircuitTripped', scope: 'State', condition: '3 consecutive transaction denials detected', mitigation: 'Safe owner must call resetBreaker(agent)' },
+  { code: 7, name: 'PerTxCapExceeded', scope: 'Budget', condition: 'ETH value exceeds per-transaction cap (0.1 ETH)', mitigation: 'Send less per call; the Safe can change this agent’s cap with setAgentPolicy()' },
+  { code: 8, name: 'WindowCapExceeded', scope: 'Budget', condition: 'Rolling 24h spending exceeds 0.5 ETH', mitigation: 'Wait for older hourly buckets to leave the 24 h window' },
+  { code: 9, name: 'TokenCapExceeded', scope: 'Budget', condition: 'ERC-20 transfer exceeds per-token cap (100 tokens)', mitigation: 'Send at most 100 tokens per call; token caps are compiled into the policy' },
+  { code: 10, name: 'UnlimitedApproval', scope: 'Calldata', condition: 'approve() for more than 100 tokens, including 2^256 − 1', mitigation: 'Approve only what the next trade needs' },
+  { code: 15, name: 'CircuitTripped', scope: 'State', condition: 'Three denials since the agent was set or last reset', mitigation: 'Safe owner must call resetBreaker(agent)' },
 ];
 
 export function RuleMatrix() {
@@ -33,13 +33,13 @@ export function RuleMatrix() {
       <div className="container"><div className="inner" style={{ padding: '4em 2em' }}>
         <div style={{ marginBottom: '2em' }}>
           <Eyebrow>Security Architecture</Eyebrow>
-          <h2 className="t-h2" style={{ marginTop: '0.4em' }}>The 21-Rule Invariant Matrix</h2>
+          <h2 className="t-h2" style={{ marginTop: '0.4em' }}>What each refusal means, and how to recover</h2>
           <p className="t-p dim" style={{ maxWidth: '42em', marginTop: '0.6em' }}>
-            Every proposed agent interaction is evaluated against an immutable hierarchy of policy gates. No transaction can bypass early denials.
+            The deny codes this demo policy can return, the condition behind each one and what unblocks it. decide() checks them in a fixed order and returns the first that fails.
           </p>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 1fr) 1.5fr', gap: '2em', alignItems: 'start' }}>
+        <div className="rm-grid">
           <div style={{ display: 'grid', gap: '0.5em' }}>
             {MATRIX_DATA.map((r) => (
               <button
