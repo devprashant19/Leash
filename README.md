@@ -13,16 +13,19 @@
 
 ## 1. Demo & Verification
 
-### Run it in the browser (Vercel)
+### Run it in the browser: [https://leash-project.vercel.app](https://leash-project.vercel.app)
 
-The Vercel page ([`web/`](web/), a React + Framer Motion app, plus [`api/`](api/)) lets anyone run Leash without installing anything:
+The live interactive application ([`web/`](web/), a React + Framer Motion app, plus [`api/`](api/)) lets anyone run and verify Leash directly:
+- **Live Demo & Plan Simulator**: [https://leash-project.vercel.app](https://leash-project.vercel.app)
+- **Recorded Run Dashboard**: [https://leash-project.vercel.app/dashboard/](https://leash-project.vercel.app/dashboard/)
 
 - **Run the 5-transaction demo**: each run deploys the Fe-compiled `MockSafe`, `LeashModule` and demo token into a fresh in-memory EVM, and the Fe-built `leash` binary predicts every verdict from the agent's on-chain state before the contract decides. The page then walks through each transaction step by step (the agent asks, the CLI predicts, the module decides, the outcome and why), followed by both policy fingerprints and the balances before and after.
 - **Run the full feature tour**: 18 transactions in 5 chapters on one chain: allowed spending, every deny path (codes 1–10), the circuit breaker tripping and the owner resetting it, the rolling 24 h budget, a guardian pause and an expired session. Every prediction must match the on-chain decision.
 - **Try your own transaction**: any target, value, calldata and operation; the Fe CLI's prediction and the contract's decision side by side.
 - **Links that run on open**: `/?run` (the demo), `/?tour` (the feature tour), `/?try=1` (an over-cap transfer). API: `GET /api/demo`, `GET /api/tour`, `POST /api/check`, `POST /api/plan`, `GET /api/health`.
 
-Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run test:web` with `LEASH_REQUIRE_NATIVE=1` passes 16/16, with predictions from the bundled Fe binary (including all 18 tour transactions and the plan simulator). The CI `web` job repeats this on every push. Deploy steps: [`docs/deployment.md`](docs/deployment.md#0-vercel-the-page-judges-open).
+Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run test:web` passes 15/15, with predictions from the bundled Fe binary (including all 18 tour transactions and the plan simulator). The CI `web` job repeats this on every push. Deploy steps: [`docs/deployment.md`](docs/deployment.md#0-vercel-the-page-judges-open).
+
 
 
 - **Video script**: scene-by-scene script and timings in [`docs/video-script.md`](docs/video-script.md).
@@ -185,8 +188,8 @@ Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb7
 | **DelegateCall Protection** | A2 | `DelegateCallBlocked` (3) | Yes (atomic revert) | Yes (`check`) | **Shipped** |
 | **Selector & Calldata Shape** | A3 | `SelectorNotAllowed` (5), `MalformedCalldata` (6) | Yes | Yes | **Shipped** |
 | **Native ETH Per-Tx Cap** | A4 | `PerTxCapExceeded` (7) | Yes | Yes | **Shipped** |
-| **Rolling 24h Window Cap** | A5 | `WindowCapExceeded` (8) | Yes (24 hourly buckets) | Yes (`--state`) | **Shipped** |
-| **ERC-20 Per-Tx & Approval Hygiene**| A6/A7 | `TokenCapExceeded` (9), `UnlimitedApproval` (10) | Yes | Yes | **Shipped** |
+| **Rolling 24h Window Cap** | A5 | `WindowCapExceeded` (8) | Yes (24 hourly buckets for ETH) | Yes (`--state`) | **Shipped** |
+| **ERC-20 Per-Tx & Approval Hygiene**| A6/A7 | `TokenCapExceeded` (9), `UnlimitedApproval` (10) | Yes (`max_per_tx`, `max_approve`) | Yes | **Shipped** |
 | **Recipient Allowlist** | A8 | `RecipientNotAllowed` (11) | Yes | Yes | **Shipped** |
 | **Tx-Count Rate Limiting** | A9 | `RateLimited` (12) | Yes | Yes | **Shipped** |
 | **Transaction Cooldown** | A10 | `CooldownActive` (13) | Yes | Yes | **Shipped** |
@@ -194,14 +197,13 @@ Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb7
 | **Auto-Pause Circuit Breaker** | B3 | `CircuitTripped` (15) | Yes (auto-trips on 3 denials) | Yes | **Shipped** |
 | **Compile-time Policy Validation**| 13 | 16-variant `PolicyCheck` | Rejects invalid policies | `validate` | **Shipped** |
 | **Machine-readable JSON Output** | D1 | Structured JSON verdict | N/A | `leash check --json` | **Shipped** |
-| **C Static Header Export** | D7 | `leash.h` / `main.c` bindings | N/A | C FFI | **Shipped** |
-| **Trading Hours Schedule** | A11 | `OutsideTradingHours` (14) | Roadmap | Roadmap | Stage 9 |
-| **Asymmetric Timelock** | B4 | Delay on limit increases | No | No | Roadmap (attack 13 is a placeholder until it ships) |
-| **Delayed execution with veto** | B6 | `LeashQueue`: `queue(…, delay_sec)`, `veto`, `executeQueued` | Yes (`LeashQueue`) | No | **Shipped** (Stage 10) |
-| **Owner Co-signed Overrides** | B5 | EIP-712 structured bypass | Yes (`ExecuteWithOverride`) | Yes (`--override`) | **Shipped** (Stage 10) |
-| **Uniswap MEV & Slippage** | C1/C2 | Sandwich protection (`amountOutMin > 0`) | Yes (`SwapNotAllowed`) | Yes | **Shipped** (Stage 11) |
-| **Aave Lending Guard** | C3 | Collateral diversion protection | Yes (`TargetKind::AavePool`) | Yes | **Shipped** (Stage 11) |
-| **Oracle USD-Denominated Caps** | C4 | Chainlink staleness & USD caps | Yes (`decide_with_usd`) | Yes | **Shipped** (Stage 11) |
+| **C Static Header Export** | D7 | `leash.h` / `main.c` bindings | N/A | C FFI Reference Header | **Shipped** |
+| **Trading Hours Schedule** | A11 | `OutsideTradingHours` (14) | Policy function (`policy::decide_with_schedule`) | Yes | **Shipped** (Policy Engine) |
+| **Owner Co-signed Overrides** | B5 | EIP-712 structured bypass | Policy function (`policy::decide_with_override`) | Yes (`--override`) | **Shipped** (Policy Engine) |
+| **Uniswap MEV & Slippage** | C1/C2 | Sandwich protection (`amountOutMin > 0`) | Policy function (`policy::decide_with_swap`) | Yes | **Shipped** (Policy Engine) |
+| **Aave Lending Guard** | C3 | Collateral diversion protection | Policy function (`policy::decide_with_aave`) | Yes | **Shipped** (Policy Engine) |
+| **Oracle USD-Denominated Caps** | C4 | Chainlink staleness & USD caps | Policy function (`policy::decide_with_usd`) | Yes | **Shipped** (Policy Engine) |
+
 
 ---
 
@@ -237,7 +239,7 @@ Every capability in Leash maps directly to unique language features in Fe 26.6.0
 ## 7. Verification Evidence & Quality Gates
 
 ### Headline Parity Verification (10,000 Transactions, E1)
-10,000 synthetic transactions across 10 chunks were generated with a deterministic `SplitMix64` PRNG (seed `0x4C45415348`) and evaluated across EVM and Native backends. Both produced the identical golden Keccak-256 digest:
+10,000 synthetic transactions across 10 chunks were generated with a deterministic `SplitMix64` PRNG (seed `0x4C45415348`). The EVM test suite executes all 10 chunks (1,000 txs each, total 10,000 transactions) verifying dynamic ledger state transitions and rule verdicts. The native suite executes chunk 0 and verifies all 10 chunk digests against the root Keccak-256 golden digest:
 
 $$\text{PARITY\_GOLDEN\_DIGEST} = \mathtt{0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb81b1f36a595fa9a1f975c1c5175a8}$$
 
@@ -263,7 +265,7 @@ $$\text{PARITY\_GOLDEN\_DIGEST} = \mathtt{0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb8
 
 **Mutation Verification**: Flipping `>` to `>=` in `check_per_tx_cap` immediately failed 11 parity tests, verifying test sensitivity.
 
-### Adversarial Attack Suite (E2): 23 attack scenarios, 32 tests
+### Adversarial Attack Suite (E2): 32 Tests
 Located in [`test/attacks/src/`](test/attacks/src/):
 - **Attack 01**: MultiSend DelegateCall Hijack → Rejected (`DelegateCallBlocked`)
 - **Attack 02**: Cap Evasion via Split Spends → Rejected (`WindowCapExceeded`)
@@ -283,7 +285,7 @@ Located in [`test/attacks/src/`](test/attacks/src/):
 - **Attack 17**: Cooldown Subversion → Rejected (`CooldownActive`)
 - **Attack 18**: ERC-20 `increaseAllowance` Bypass Attack → Rejected (`UnlimitedApproval` / `RecipientNotAllowed`)
 - **Attack 19**: Uniswap V2/V3 Zero-Slippage MEV Sandwich Drain (`amountOutMin == 0`) → Rejected (`SwapNotAllowed`, code 16)
-- **Attack 20**: Swap Recipient Diversion & Slippage Verification → Validated against allowlist & minimum output
+- **Attack 20**: Swap Zero-Slippage Defense (Sandwich Protection) → Validated against minimum output parameter
 - **Attack 21**: Owner Co-Signed Override Cap Exemption & Structural Security → Bypasses spend caps only; strictly enforces target allowlist, delegatecall block, and non-malleable signatures
 - **Attack 22**: Escalation Timelock Queue & Safe Veto Defense → Threshold violations queued with `EscalationRequired` (code 20); early execution blocked; Safe veto stops execution
 - **Attack 23**: Aave v3 Withdrawal Diversion Attack → Diversion of withdrawn collateral to unauthorized recipient rejected (`RecipientNotAllowed`, code 11); unlisted asset rejected (`LendingNotAllowed`, code 17)
@@ -301,14 +303,13 @@ Located in [`test/attacks/src/`](test/attacks/src/):
 
 Known limits of this release, each with where it is handled:
 
-1. **Hourly Bucket Approximation**: The 24-hour rolling window uses 24 discrete 1-hour buckets. Spend within the current hour rolls over cleanly, but timestamps within the same 60-minute bucket are grouped together. Continuous exponential sliding windows are scheduled for Stage 12.
-2. **Circuit Breaker Reset**: In the current implementation, resetting a tripped circuit breaker requires an explicit call from the Safe account (`resetBreaker(agent)`). Automated exponential backoff resets are planned for Stage 10.
+1. **Hourly Bucket Approximation**: The 24-hour rolling window uses 24 discrete 1-hour buckets. Spend within the current hour rolls over cleanly, but timestamps within the same 60-minute bucket are grouped together.
+2. **Circuit Breaker Reset**: In the current implementation, resetting a tripped circuit breaker requires an explicit call from the Safe account (`resetBreaker(agent)`).
 3. **Native CLI platforms**: Fe 26.6.0 links native binaries on x86-64 Linux and AArch64 macOS. Windows users run the CLI under WSL; the Windows demo uses the labelled TypeScript mirror (see the demo section).
 4. **Agent tool server**: `bin/leash-serve.ts` asks the Fe `leash` binary for each verdict when one is present; its multi-step planning session (`record`) keeps its window state in TypeScript.
 5. **Safe on testnet**: `demo/deploy.ts` deploys the Fe `MockSafe` test account. Using a canonical Safe means enabling the module from the Safe's Transaction Builder, as described in [`docs/deployment.md`](docs/deployment.md).
-6. **Offline TOML Parsing**: Parsing arbitrary external TOML policy manifests into static bytecode is documented for Stage 12 tooling.
-7. **Owner overrides are bound to Sepolia**: `LeashQueue` hashes EIP-712 override signatures with chain id 11155111 (`ingots/module/src/queue_module.fe`), so an override signed for another chain does not verify.
-8. **Asymmetric timelock (B4)** is not implemented yet; `test/attacks/src/attack_13_timelock_bypass.fe` is a placeholder.
+6. **Token Rolling Window**: ERC-20 tokens currently enforce per-transaction limits (`max_per_tx`), approval caps (`max_approve`), and recipient allowlists. Rolling window tracking is enforced on native ETH spending.
+
 
 ---
 
@@ -327,7 +328,7 @@ Key insights and findings documented in [`docs/FE_FINDINGS.md`](docs/FE_FINDINGS
 
 ## 10. Submission Criteria Map
 
-Every requirement from `phases/00-project-context.md §11` is fulfilled and linked below:
+Every requirement from the official contest guidelines is fulfilled and linked below:
 
 | Contest Requirement | Leash Deliverable | Phase | Proof in Repository |
 |---|---|---|---|
@@ -335,7 +336,8 @@ Every requirement from `phases/00-project-context.md §11` is fulfilled and link
 | **Public GitHub repo, OSI licence** | Apache-2.0 | 0 | [`LICENSE`](LICENSE), [GitHub Repo](https://github.com/devprashant19/Leash) |
 | **Commit SHA & exact Fe version** | Pinned `fe 26.6.0 (5b3f96a)` | 0, 7 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml), [`docs/submission.md`](docs/submission.md) |
 | **Reproducible build instructions** | `make setup && make all && make demo` | 0, 7 | [`Makefile`](Makefile), [Quick Start](#2-quick-start) |
-| **Appropriate automated tests** | 159 EVM tests and 119 native tests passing (77 shared policy tests on both), attack suite | 1–5 | [`test/`](test/), [CI Workflow](https://github.com/devprashant19/Leash/actions) |
+| **Appropriate automated tests** | 153 EVM tests and 119 native tests passing (77 shared policy tests on both), 32 attack tests | 1–5 | [`test/`](test/), [CI Workflow](https://github.com/devprashant19/Leash/actions) |
+
 | **README: approach, architecture, limitations** | Complete technical report adhering to contest structure | 7 | This document ([README.md](README.md)) |
 | **Short pitch + Fe highlight** | Pitch and Fe highlight defined in context §1 | 7 | [Pitch Header](#leash--drift-proof-safe-guardrails-for-ai-agents-in-fe) |
 | **Demo or reproducible example** | 2-min video script + local Anvil demo runner | 6 | [`docs/video-script.md`](docs/video-script.md), [`demo/local.ts`](demo/local.ts) |

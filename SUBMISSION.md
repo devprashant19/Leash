@@ -1,57 +1,155 @@
-# Project name
+# Leash — Drift-Proof Safe Guardrails for AI Agents in Pure Fe
 
-<!-- Replace README.md with this file once you start your project, and fill in
-every section. The jury reads it first. -->
+**Pitch:** Leash gives AI agents a Safe wallet with spending limits written once in Fe — the same pure policy enforces them on-chain and predicts them off-chain, guaranteeing that the agent's pre-check and the smart contract's decision can never drift.
 
-**Pitch:** One sentence that explains what your project does and why it matters.
+---
 
-## The problem
+## The Problem
 
-What problem does the project solve, and for whom?
+Autonomous AI agents executing financial transactions need strict, non-bypassable guardrails. In current architectures, two failure modes dominate:
+
+1. **Monolithic On-Chain Guards**: Writing all rules exclusively in Solidity contracts is gas-expensive and opaque to the agent's LLM planning loop. Agents repeatedly propose invalid transactions, wasting gas on execution reverts and retrying in broken loops.
+2. **Off-Chain Simulation Drift**: Writing off-chain prediction rules in Python or TypeScript inevitably drifts from on-chain contract logic over time as edge cases, rounding errors, and block semantics diverge. An agent believes a transaction is permitted, only for it to revert on-chain; or worse, relies on an off-chain filter that permits transactions that the contract rejects.
+
+---
 
 ## Approach
 
-How does the project solve it? What did you build during the contest?
+Leash compiles **one pure Fe policy source (`ingots/policy`)** to two distinct compilation targets:
+- **On-chain Safe Module (`LeashModule`)**: Enforces spending limits, agent session key validity, emergency guardian pause, and circuit-breaker tripping on the EVM.
+- **Fast Native CLI (`leash`)**: Evaluates the identical policy rules off-chain before broadcasting, allowing agents to pre-flight transactions instantly.
 
-## Fe highlight
+Both targets share the exact same code, constants, and cryptographic fingerprint (`keccak256("LEASH_POLICY_V1" || enc(policy))`). The agent's off-chain simulator and the on-chain enforcer are cryptographically proven to be identical.
 
-One Fe-specific technical highlight, with a short code excerpt: a language
-feature, abstraction, or tool that made the difference.
+---
+
+## Fe Highlight
+
+Every policy rule is an **effect-checked pure function**:
+- `policy::decide` has **no `uses` clause**: the Fe compiler statically forbids any storage access, I/O, or external calls inside the policy evaluator. A reviewer can verify from function signatures alone that `decide` cannot alter state.
+- Only `policy::record` (and `record_denial` for the breaker) takes `mut AgentState` to update spending ledgers.
+- Guardian emergency pause declares `uses (ctx, safe, guardian, mut paused, mut log)`: the compiler guarantees the guardian cannot touch funds, register agents, or alter spending limits.
+- The identical Fe source compiles to EVM bytecode (`fe build`) and native x86-64/AArch64 machine code (`fe build --backend native`), verified by a 10,000-transaction parity test suite yielding identical Keccak-256 digests on both backends.
+
+```fe
+// ingots/policy/src/rules.fe
+// Pure deterministic policy evaluation: statically effect-free (no uses clause)
+pub fn decide(policy: Policy, state: AgentState, now: Timestamp, tx: Tx) -> Verdict {
+    if state.paused != 0 {
+        return Verdict::Deny(Reason::Paused)
+    }
+    if state.expiry != 0 and now > state.expiry {
+        return Verdict::Deny(Reason::SessionExpired)
+    }
+    if tx.operation != 0 {
+        return Verdict::Deny(Reason::DelegateCallBlocked)
+    }
+    // ... Target allowlist, calldata decoding, per-tx and 24h rolling budget checks
+    Verdict::Allow
+}
+```
+
+---
 
 ## Architecture
 
-How the code fits together: the main modules, contracts, or components, and
-how they interact.
-
-## Build and test
-
-```sh
-fe --version   # The exact Fe version you used, e.g. fe 26.5.0
-fe test
-fe build
+```
+                 1 check (off-chain)             same pure decide
+   ┌──────────┐ ─────────────────────────► ┌──────────────────┐ ──────────────┐
+   │ AI Agent │                            │ leash CLI(native)│               ▼
+   │ proposes │                            │ check·explain·   │      ┌─────────────────────┐
+   │ a tx     │                            │ replay·validate  │      │    policy ingot     │
+   └────┬─────┘                            └──────────────────┘      │ decide: no effects  │
+        │ 2 execute (on-chain)                                       │ record: mut state   │
+        ▼                                                            │ same fingerprint    │
+   ┌──────────────────────┐   same decide + record                   └─────────────────────┘
+   │ LeashModule (EVM)    │ ─────────────────────────────────────────────────▲
+   │ Execute·Preview·Pause│
+   └────┬─────────────────┘
+        │ 3 allowed calls only
+        ▼
+   ┌──────────────────────────┐
+   │ Safe Smart Account       │
+   │ execTransactionFromModule│
+   └──────────────────────────┘
 ```
 
-List any other tools the project needs, and how to install them.
+- **`ingots/policy/`**: Core data structures, deterministic `decide()`, state-transition `record()`, ERC-20 calldata decoders, policy canonical encoding, and compile-time validation.
+- **`ingots/module/`**: `LeashModule` smart contract integrating with Safe via `execTransactionFromModule`, managing agent session keys and emergency guardian pause.
+- **`ingots/cli/`**: Native command-line tool (`leash check`, `explain`, `fingerprint`, `replay`, `validate`) used by AI agents off-chain.
+- **`ingots/testkit/`**: Shared test doubles (`MockSafe`, `MockErc20`), deterministic `SplitMix64` PRNG, and test fixtures.
+
+---
+
+## Build and Test
+
+### Compiler Version
+- **Fe Compiler**: `fe 26.6.0 (5b3f96a)`
+- **Foundry**: Anvil & Cast v1.9.0
+- **Node.js**: v20+ or v22+
+
+### Quick Start
+```sh
+# 1. Verify environment and install dependencies
+make setup
+
+# 2. Check formatting and types
+fe fmt --check ingots
+fe check
+
+# 3. Run all tests on EVM backend (153 tests)
+fe test
+
+# 4. Run tests on Native backend (Linux / macOS)
+fe test --backend native
+
+# 5. Build EVM smart contracts (Runtime size: 22,029 B; 2,547 B under 24,576 B limit)
+fe build
+
+# 6. Run the local Anvil end-to-end demo
+make demo
+```
+
+---
 
 ## Demo
 
-A link to a video or screenshots, or a reproducible CLI example.
+- **Live Web Application**: [https://leash-project.vercel.app](https://leash-project.vercel.app)
+  - Interactive 5-transaction demo with step-by-step walkthrough.
+  - 18-transaction full feature tour covering all deny codes, breaker trips, and guardian pause.
+  - Interactive transaction console ("Send the agent anything") and plan simulator.
+- **Recorded Run Dashboard**: [https://leash-project.vercel.app/dashboard/](https://leash-project.vercel.app/dashboard/)
+  - Live inspection of off-chain CLI predictions vs on-chain module decisions with 0 drift.
+- **Local Anvil Demo**:
+  - Run `npm --prefix demo run demo` to spin up an ephemeral node, deploy contracts, and execute the 5-step canonical rogue agent scenario in 7 seconds.
+- **Video Script**: Scene-by-scene timing and narration script in [`docs/video-script.md`](docs/video-script.md).
+
+---
 
 ## Limitations
 
-What works, what is unfinished, and known issues or security assumptions.
+1. **Hourly Bucket Approximation**: The 24-hour rolling window uses 24 discrete 1-hour buckets. Spend within the current hour rolls over cleanly, but timestamps within the same 60-minute bucket are grouped together.
+2. **Circuit Breaker Reset**: Resetting a tripped circuit breaker requires an explicit call from the Safe owner (`resetBreaker(agent)`).
+3. **Native CLI Platforms**: Fe 26.6.0 links native binaries on x86-64 Linux and AArch64 macOS. Windows environments run under WSL or use the TypeScript policy mirror.
+4. **Token 24h Limits**: ERC-20 tokens currently enforce strict per-transaction limits (`max_per_tx`), approval caps (`max_approve`), and recipient allowlists; rolling window tracking is currently enforced on native ETH spending.
+
+---
 
 ## Declaration
 
-- **Pre-existing work:** What existed before November 3, 2026, and what you
-  added or changed during the contest. Link the starting commit if there is one.
-- **Third-party code:** Code you reused, with its source and license.
-- **AI assistance:** How you used AI tools, if at all.
+- **Pre-existing work**: Built on top of the official Fe challenge starter template (`https://github.com/fe-lang/builders-challenge-starter`, commit `f9d9aa9`), tagged as `starter`. All contract logic, CLI implementation, tests, and web interfaces were authored during the contest period.
+- **Third-party code**: Safe `ModuleManager` interface standard calling convention; ERC-20 standard interfaces; Fe standard library (`core`, `std`); Foundry Anvil for local node simulation; Viem and EthereumJS VM for the local web sandbox.
+- **AI assistance**: Development was assisted by agentic AI engineering workflows (Google DeepMind Antigravity / Claude Code) following strict rules (`AGENTS.md`). All AI-assisted changes, compiler test runs, and architectural decisions are logged in [`docs/ai-log.md`](docs/ai-log.md).
+- **Commit History & Integrity**: All work was created and verified within the contest window. Detailed attributions and disclosures are published in [`DECLARATION.md`](DECLARATION.md).
+
+---
 
 ## Team
 
-Who built the project.
+- **Dev Prashant** ([@devprashant19](https://github.com/devprashant19))
+
+---
 
 ## License
 
-The OSI-approved license of the project.
+Licensed under the [Apache License, Version 2.0](LICENSE).

@@ -23,7 +23,7 @@ use testkit::{
 }
 
 #[test]
-pub fn test_attack_20_swap_recipient_diversion() {
+pub fn test_attack_20_swap_zero_slippage_defense() {
     var pol = default_policy()
     let router = addr_uniswap_router()
 

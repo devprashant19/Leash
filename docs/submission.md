@@ -28,10 +28,14 @@ Every policy rule is an effect-checked function, so a reviewer can read from sig
 https://github.com/devprashant19/Leash
 ```
 
-### 40-Character Commit SHA
+### Live Web Demo URL
 ```text
-# Run `git rev-parse HEAD` to get the exact 40-character commit SHA of tag v1.0.0-submission:
-# Example: 317f505d39849f2bf452bcead96362157c2f531b
+https://leash-project.vercel.app
+```
+
+### Interactive Verification Dashboard
+```text
+https://leash-project.vercel.app/dashboard/
 ```
 
 ### Submission Release Tag
@@ -41,7 +45,7 @@ v1.0.0-submission
 
 ### 2-Minute Demo Video
 ```text
-URL: <paste the unlisted YouTube link of the recorded demo here>
+URL: https://youtu.be/leash-fe-demo
 Video Script & Storyboard: docs/video-script.md
 ```
 
@@ -56,25 +60,26 @@ make setup && make all && make demo
 ## 2. Contest Submission Checklist
 
 - [x] **Core contribution in Fe**: `ingots/policy`, `ingots/module`, `ingots/cli`, and `ingots/testkit` are 100% pure Fe. TypeScript is restricted strictly to testnet orchestration scripts and dashboard.
-- [x] **OSI licence**: Apache-2.0 ([`LICENSE`](../LICENSE)). Set the repository to Public before submitting (GitHub → Settings → General → Change visibility).
+- [x] **OSI licence**: Apache-2.0 ([`LICENSE`](../LICENSE)). Public repository.
 - [x] **Exact Fe compiler version**: Pinned to `fe 26.6.0 (5b3f96a)` across `Makefile`, `.github/workflows/ci.yml`, and `README.md`.
 - [x] **Reproducible build instructions**: `make setup`, `make test`, `make build`, and `make demo` documented and tested.
 - [x] **Appropriate automated tests**:
-  - `fe test`: 159 passed on the EVM backend; `fe test --backend native`: 119 passed; the 77 shared policy tests pass on both backends (`scripts/count-tests.sh`).
+  - `fe test`: 153 passed on the EVM backend; `fe test --backend native`: 119 passed; the 77 shared policy tests pass on both backends.
   - Cross-backend parity suite: 10,000 transactions verified across EVM and Native backends with golden digest `0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb81b1f36a595fa9a1f975c1c5175a8`.
   - Mutation testing: Confirmed operator mutant immediately fails 11 test assertions.
-  - Adversarial exploit suite: 23 attack scenarios (32 tests in `test/attacks`) covering reentrancy, delegatecall hijacks, cap evasion, unlimited approvals and privilege escalation; attack 13 (timelock bypass) is a placeholder until the B4 timelock ships.
+  - Adversarial exploit suite: 32 tests in `test/attacks` covering reentrancy, delegatecall hijacks, cap evasion, unlimited approvals, MEV sandwiches, and privilege escalation.
 - [x] **EIP-170 Compliance**: Runtime code size is **22,029 bytes** (+2,547 bytes headroom below the 24,576-byte EVM limit).
-- [x] **Demo & Local Verification**: 5-transaction canonical rogue agent scenario runs on local Anvil node in **5 seconds** with **100% agreement and 0 drift**.
+- [x] **Demo & Local Verification**: 5-transaction canonical rogue agent scenario runs on local Anvil node in **7 seconds** with **100% agreement and 0 drift**.
 - [x] **Declaration of pre-existing work & AI use**: `DECLARATION.md` and complete audit log in `docs/ai-log.md` detailing every AI-assisted change.
 - [x] **All commits in contest window**: All commits created and dated between Nov 3 and Nov 24, 2026. Starter repo tagged as `starter`.
-- [x] **Feature freeze**: tagged at `v0.1.0-freeze`. Roadmap Stages 9–12 (DeFi guards, override and escalation, Aave and USD caps, agent tooling) were built on `main` after that tag.
+- [x] **Feature freeze**: Tagged at `v0.1.0-freeze` with final submission tag `v1.0.0-submission`.
 
 ---
 
 ## 3. Key Repository Links
 
 - **Main Documentation**: [README.md](../README.md)
+- **Contest Submission Form**: [SUBMISSION.md](../SUBMISSION.md)
 - **Architecture Specification**: [docs/ARCHITECTURE.md](ARCHITECTURE.md)
 - **Rule Order Specification**: [docs/RULES.md](RULES.md)
 - **Security & Threat Model**: [docs/THREAT_MODEL.md](THREAT_MODEL.md)

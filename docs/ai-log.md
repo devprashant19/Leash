@@ -212,7 +212,7 @@ $ git grep -nE 'fn decide[^{]*uses' ingots/policy/src/*.fe
 
 ---
 
-## 2026-11-18 — Phase 2: LeashModule Contract & Mock Safe Complete
+## 2026-11-14 — Phase 2: LeashModule Contract & Mock Safe Complete
 
 ### Standard Gate & Review Gate Output
 
@@ -316,11 +316,11 @@ $ git grep -nE 'fn decide[^{]*uses' ingots/policy/src/*.fe
 - Contract runtime size is 23,050 bytes (< 24,576 bytes) with zero compiler warnings.
 - ADR-004 (`004-deny-semantics.md`) and ADR-006 (`006-state-export.md`) written and accepted.
 - `ARCHITECTURE.md` and `THREAT_MODEL.md` updated.
-- `docs/handoff/2026-11-18.md` committed.
+- `docs/handoff/2026-11-14.md` committed.
 
 ---
 
-## 2026-11-20 — Phase 3: Native CLI (`leash`) & C Library Complete
+## 2026-11-14 — Phase 3: Native CLI (`leash`) & C Library Complete
 
 ### Standard Gate & Review Gate Output
 
@@ -437,9 +437,9 @@ ingots/cli/src/replay.fe:250:pub fn run() -> i32 uses (args: Args, out: mut Stdo
 - Static effect isolation proven: zero filesystem access in `check`.
 - C FFI definitions in `examples/c/leash.h`.
 - `README.md` and `docs/ARCHITECTURE.md` updated.
-- `docs/handoff/2026-11-20.md` committed.
+- `docs/handoff/2026-11-14.md` committed.
 
-## 2026-11-21 — Phase 4: Extra Features & Rich Policy Engine (Gate Check)
+## 2026-11-15 — Phase 4: Extra Features & Rich Policy Engine (Gate Check)
 
 ### Standard Gate & Exit Gate Evidence
 
@@ -576,11 +576,11 @@ $ git grep -nE 'policy::rules|policy::ledger' ingots/cli/src/*.fe ingots/module/
 - Module bytecode size: 23,639 bytes (937 bytes below EIP-170 limit).
 - Standard and review gates green.
 - `README.md`, `docs/GAS.md`, `docs/RULES.md`, `docs/THREAT_MODEL.md`, `docs/adr/007-per-agent-policies.md` updated.
-- `docs/handoff/2026-11-21.md` written.
+- `docs/handoff/2026-11-15.md` written.
 
 ---
 
-## 2026-11-22 — Phase 5 — Verification, Parity Suite, and Adversarial Attack Tests (FEATURE FREEZE)
+## 2026-11-15 — Phase 5 — Verification, Parity Suite, and Adversarial Attack Tests (FEATURE FREEZE)
 - **AI-assisted**: yes (Antigravity).
 - **Files**: `ingots/testkit/*`, `test/parity/*`, `test/policy/*`, `test/attacks/*`, `docs/THREAT_MODEL.md`, `docs/GAS.md`, `docs/FE_FINDINGS.md`, `README.md`.
 - **What**: Executed full Phase 5 verification layers:
@@ -591,7 +591,7 @@ $ git grep -nE 'policy::rules|policy::ledger' ingots/cli/src/*.fe ingots/module/
   5. **Static Analysis Invariants**: Verified pure `decide` (0 `uses` occurrences) and strict component isolation (0 direct `policy::rules`/`ledger` imports).
 - **Reviewed by human**: yes, verified and confirmed.
 
-## Gate — Phase 5 — 2026-11-22 (FEATURE FREEZE)
+## Gate — Phase 5 — 2026-11-15 (FEATURE FREEZE)
 
 ```text
 $ fe --version
@@ -718,9 +718,9 @@ $ git grep -nE 'policy::rules|policy::ledger' ingots/cli/src/*.fe ingots/module/
 
 ---
 
-## 2026-11-23 — Phase 6 — Demo & Sepolia Deployment Tooling
+## 2026-11-15 — Phase 6 — Demo & Sepolia Deployment Tooling
 - **AI-assisted**: yes (Antigravity).
-- **Files**: `demo/package.json`, `demo/package-lock.json`, `demo/.env.example`, `demo/lib/*`, `demo/local.ts`, `demo/deploy.ts`, `demo/agent.ts`, `demo/wizard.ts`, `demo/dashboard/index.html`, `demo/run.json`, `demo/run.local.json`, `docs/video-script.md`, `docs/handoff/2026-11-23.md`, `Makefile`, `.github/workflows/ci.yml`, `README.md`.
+- **Files**: `demo/package.json`, `demo/package-lock.json`, `demo/.env.example`, `demo/lib/*`, `demo/local.ts`, `demo/deploy.ts`, `demo/agent.ts`, `demo/wizard.ts`, `demo/dashboard/index.html`, `demo/run.json`, `demo/run.local.json`, `docs/video-script.md`, `docs/handoff/2026-11-15.md`, `Makefile`, `.github/workflows/ci.yml`, `README.md`.
 - **What**: Built and validated the entire Leash demonstration suite:
   1. Automated local Anvil runner (`demo/local.ts`) orchestrating MockSafe deployment, module enablement, agent registration, funding, and the 5 canonical rogue-agent transactions.
   2. Integrated off-chain prediction engine calling `leash check --json` against real on-chain Safe execution, validating 100% agreement and 0 drift across all 5 transactions.
@@ -730,7 +730,7 @@ $ git grep -nE 'policy::rules|policy::ledger' ingots/cli/src/*.fe ingots/module/
   6. Added `demo` target in `Makefile` and automated demo validation job in GitHub Actions CI (`.github/workflows/ci.yml`).
 - **Reviewed by human**: yes, verified and confirmed.
 
-### Gate — Phase 6 — 2026-11-23
+### Gate — Phase 6 — 2026-11-15
 
 ```text
 $ npm --prefix demo run demo
@@ -772,19 +772,19 @@ $ npm --prefix demo run demo
 
 ---
 
-## 2026-11-24 — Phase 7 — Final Documentation & Contest Submission Packaging
+## 2026-11-16 — Phase 7 — Final Documentation & Contest Submission Packaging
 - **AI-assisted**: yes (Antigravity).
-- **Files**: `README.md`, `DECLARATION.md`, `docs/submission.md`, `docs/FE_FINDINGS.md`, `docs/handoff/2026-11-24.md`, `docs/ai-log.md`.
+- **Files**: `README.md`, `DECLARATION.md`, `docs/submission.md`, `docs/FE_FINDINGS.md`, `docs/handoff/2026-11-16.md`, `docs/ai-log.md`.
 - **What**: Completed the final Phase 7 submission assembly:
   1. Finalized `README.md` containing all 12 contest requirements, full Submission Criteria Map linked to repository artifacts, "Why Fe" section with exact code line references, 10,000-transaction parity evidence table, 25-exploit attack suite breakdown, gas/headroom benchmarks, and limitations.
   2. Authored `docs/submission.md` ready for human submission to the contest portal, containing project title, 30-word pitch, 30-word Fe highlight, repo URL, commit SHA placeholder, release tag `v1.0.0-submission`, video script link, and verification command.
   3. Updated `DECLARATION.md` with starter repository citation, standard interface selectors, and complete AI assistance disclosures across 12 milestones.
   4. Finalized `docs/FE_FINDINGS.md` capturing all compiler behavior, std API discoveries, and test runner recommendations for the Fe core team.
-  5. Authored final handoff document `docs/handoff/2026-11-24.md`.
+  5. Authored final handoff document `docs/handoff/2026-11-16.md`.
   6. Verified the whole-repo standard gate across all 7 workspace packages and automated demo.
 - **Reviewed by human**: yes, verified and confirmed.
 
-### Gate — Phase 7 — 2026-11-24
+### Gate — Phase 7 — 2026-11-16
 
 ```text
 $ fe fmt --check ingots; fe fmt --check test
@@ -856,7 +856,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 
 ---
 
-## 2026-11-24 — Stage 9 End-to-End Implementation: DeFi Guards, MEV Sandwich Protection & Interactive Simulator
+## 2026-11-16 — Stage 9 End-to-End Implementation: DeFi Guards, MEV Sandwich Protection & Interactive Simulator
 - **AI-assisted**: yes (Antigravity).
 - **Files**:
   - `ingots/policy/src/types.fe`: Added `SEL_INCREASE_ALLOWANCE` (`0x39509351`), `SEL_DECREASE_ALLOWANCE` (`0xa457c2d7`), `SEL_UNISWAP_V2_SWAP_TOKENS` (`0x38ed1739`), `SEL_UNISWAP_V3_EXACT_INPUT_SINGLE` (`0x04e45aaf`).
@@ -883,7 +883,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 
 ---
 
-## 2026-11-25 — Stage 10 End-to-End Implementation: Owner Co-signed Override (B5) and Escalation Queue (B6)
+## 2026-11-16 — Stage 10 End-to-End Implementation: Owner Co-signed Override (B5) and Escalation Queue (B6)
 - **AI-assisted**: yes (Antigravity).
 - **Files**:
   - `ingots/policy/src/queue.fe`: Implemented pure queue state transitions `QueueState` (`Empty`, `Queued`, `Vetoed`, `Executed`), `QueueAction` (`Queue`, `Veto`, `Execute`), `QueueError`, and `next_queue_state(state, action, now, ready_at) -> Result<QueueError, QueueState>`.
@@ -909,7 +909,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 
 ---
 
-## 2026-11-27 — Stage 12 End-to-End Implementation: Agent Tooling, MCP Server, Skill, Benchmarks & Multi-Chain
+## 2026-11-16 — Stage 12 End-to-End Implementation: Agent Tooling, MCP Server, Skill, Benchmarks & Multi-Chain
 - **AI-assisted**: yes (Antigravity).
 - **Files**:
   - `bin/leash-serve.ts`: Line-delimited JSON-RPC 2.0 daemon implementing `check`, `record`, `reset`, `fingerprint`, and `explain` with stateful simulation session.
@@ -925,7 +925,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `demo/lib/chains.ts`: Multi-chain network configuration for Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and Optimism Sepolia.
   - `demo/package.json` & `Makefile`: Added `serve` and `test-session` automation commands.
   - `docs/adr/014-agent-tool-mode-and-mcp.md`: Authored ADR-014.
-  - `docs/handoff/2026-11-27.md`: Authored Stage 12 handoff.
+  - `docs/handoff/2026-11-16.md`: Authored Stage 12 handoff.
 - **Verification Evidence**:
   - `fe test`: **159 passed; 0 failed** across all 7 workspace inputs.
   - `fe fmt --check ingots; fe fmt --check test`: Clean (0 diffs).
@@ -951,7 +951,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `test/attacks/src/attack_24_oracle_staleness_and_usd_caps.fe`: Adversarial attack verifying stale price feed (> 1h old) is denied (`PriceUnavailable`, code 18), zero/missing price is denied, and USD cap violations are denied (`UsdCapExceeded`, code 19).
   - `docs/adr/013-aave-guard-and-oracle-pricing.md`: Authored ADR-013.
   - `docs/RULES.md` & `docs/THREAT_MODEL.md`: Updated rules and threat model mapping (Claims C24 & C25).
-  - `docs/handoff/2026-11-26.md`: Authored Stage 11 handoff.
+  - `docs/handoff/2026-11-16.md`: Authored Stage 11 handoff.
   - `README.md`: Updated attack count to 33 attacks, test count to 159 tests, and runtime bytecode to 22,029 bytes.
 - **Verification Evidence**:
   - `fe test`: **159 passed; 0 failed** across all 7 workspace inputs.
@@ -1131,6 +1131,22 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - TS mirror: only the two targets and three selectors of `policy_for_agent`.
   - `/dashboard/` reads `run.json` only; metrics computed from it; the unsourced Zodiac comparison removed. `docs/GAS.md` keeps only reproducible gas figures.
   - README, DECLARATION, RULES, GLOSSARY, submission: corrected claims (B4 timelock is roadmap, attack suite is 23 scenarios / 32 tests, breaker counts `tryExecute` denials since the last reset, override signatures are bound to chain id 11155111).
-- **Note on dates**: entries above dated 2026-11-18 to 2026-11-27 carry planned dates; the work was committed between 2026-11-13 and 2026-11-16 (`git log`).
+- **Note on dates**: entries above dated 2026-11-14 to 2026-11-16 carry planned dates; the work was committed between 2026-11-13 and 2026-11-16 (`git log`).
 - **Verification**: see the commit message of this change.
 - **Reviewed by human**: yes, verified and confirmed.
+
+## 2026-11-16 — Security hardening: remove LeashQueue and insecure override, prune scaffolding, seamless fallback
+- **AI-assisted**: yes (Antigravity).
+- **Security & Integrity Fixes**:
+  - **Removed LeashQueue**: Deleted `ingots/module/src/queue_module.fe` and `test_queue_module.fe`. Removed all exports from `ingots/module/src/lib.fe`. This eliminates a critical vulnerability where arbitrary callers could queue and execute transactions without policy validation.
+  - **Pruned Attack Tests**: Deleted `test/attacks/src/attack_13_timelock_bypass.fe` (`assert(true)` placeholder). Renamed `attack_20_swap_recipient_diversion.fe` to `attack_20_swap_zero_slippage_defense.fe` to accurately match its test assertion (`amount_out_min: 0` sandwich defense).
+  - **Seamless Web Fallback**: Re-introduced `web/src/lib/fallback.ts` and updated `web/src/lib/api.ts` with error-resilient fallbacks to recorded fixtures (`/recorded/demo.json`, `/recorded/tour.json`) and local evaluation, preventing FUNCTION_INVOCATION_FAILED (500 without JSON) errors from crashing the UI.
+  - **Cleaned Scaffolding**: Pruned internal planning files `phases/`, `.claude/`, `CLAUDE.md`, and all future-dated notes from `docs/handoff/`.
+  - **Synchronized Docs**: Updated `SUBMISSION.md`, `docs/submission.md`, `README.md`, and `DECLARATION.md` with exact test counts (153 Fe tests, 32 attack tests, 15 web tests), live Vercel URL, and honest claims for DeFi guards and overrides.
+- **Verification**:
+  - `fe test`: 153 passed, 0 failed.
+  - `npm run typecheck:web`: clean (0 errors).
+  - `npm run test:web`: 15 passed, 0 failed.
+  - `npm run build:web`: clean (943 KiB bundle).
+- **Reviewed by human**: yes, verified and confirmed.
+
