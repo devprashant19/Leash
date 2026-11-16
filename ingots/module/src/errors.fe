@@ -82,6 +82,10 @@ pub struct UsdCapExceeded {}
 pub struct EscalationRequired {}
 // 0x48653cea
 
+#[error]
+pub struct TokenWindowCapExceeded {}
+// 0xa28a8ab3
+
 // Non-policy module errors
 #[error]
 pub struct NotAgent {}
@@ -133,5 +137,6 @@ pub fn revert_for(_ reason: DenyReason) -> ! {
         DenyReason::PriceUnavailable => revert_error(PriceUnavailable {}),
         DenyReason::UsdCapExceeded => revert_error(UsdCapExceeded {}),
         DenyReason::EscalationRequired => revert_error(EscalationRequired {}),
+        DenyReason::TokenWindowCapExceeded => revert_error(TokenWindowCapExceeded {}),
     }
 }

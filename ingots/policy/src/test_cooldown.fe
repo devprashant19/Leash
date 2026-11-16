@@ -1,7 +1,18 @@
 use ingot::config::default_policy
 use ingot::ledger::record
 use ingot::rules::decide
-use ingot::types::{AgentState, Calldata, DenyReason, Operation, Timestamp, Tx, Verdict, Window24}
+use ingot::types::{
+    AgentState,
+    Bucket,
+    MAX_TOKENS,
+    Calldata,
+    DenyReason,
+    Operation,
+    Timestamp,
+    Tx,
+    Verdict,
+    Window24,
+}
 use std::evm::units::{seconds, wei}
 
 #[test]
@@ -15,6 +26,7 @@ fn test_cooldown_off_by_default() {
         eth_window: Window24::empty(),
         last_action: now,
         action_window: Window24::empty(),
+        token_spent: [Bucket { index: 0, amount: 0 }; MAX_TOKENS],
     }
 
     let tx = Tx {
@@ -44,6 +56,7 @@ fn test_cooldown_first_action_allowed() {
         eth_window: Window24::empty(),
         last_action: Timestamp::from_seconds(0),
         action_window: Window24::empty(),
+        token_spent: [Bucket { index: 0, amount: 0 }; MAX_TOKENS],
     }
 
     let tx = Tx {
@@ -73,6 +86,7 @@ fn test_cooldown_denied_at_cooldown_minus_1() {
         eth_window: Window24::empty(),
         last_action: last,
         action_window: Window24::empty(),
+        token_spent: [Bucket { index: 0, amount: 0 }; MAX_TOKENS],
     }
 
     // Attempt at last + cooldown - 1 = 1059
@@ -106,6 +120,7 @@ fn test_cooldown_allowed_exactly_at_cooldown_boundary() {
         eth_window: Window24::empty(),
         last_action: last,
         action_window: Window24::empty(),
+        token_spent: [Bucket { index: 0, amount: 0 }; MAX_TOKENS],
     }
 
     // Attempt at exact boundary: 1000 + 60 = 1060
@@ -136,6 +151,7 @@ fn test_cooldown_with_record_lifecycle() {
         eth_window: Window24::empty(),
         last_action: Timestamp::from_seconds(0),
         action_window: Window24::empty(),
+        token_spent: [Bucket { index: 0, amount: 0 }; MAX_TOKENS],
     }
 
     let tx1 = Tx {

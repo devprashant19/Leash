@@ -9,12 +9,12 @@ use policy::{
     Tx,
     Verdict,
     calldata_from_bytes,
-    decide,
+    decide_spend,
     default_policy,
     reason_code,
     reason_from_code,
     reason_name,
-    record_spend,
+    record_allowed,
     wei,
 }
 use ingot::args::default_check_state
@@ -81,7 +81,7 @@ uses (out: mut Stdout, err: mut Stderr)
     var prev_ts: u256 = 0
     var allowed_count: usize = 0
     var denied_count: usize = 0
-    var reason_counts: [usize; 21] = [0; 21]
+    var reason_counts: [usize; 22] = [0; 22]
     var state = default_check_state()
     let pol = default_policy()
 
@@ -224,19 +224,18 @@ uses (out: mut Stdout, err: mut Stderr)
             op,
             now: Timestamp::from_seconds(ts),
         }
-        let verdict = decide(tx, pol, state)
-        match verdict {
+        let decision = decide_spend(tx, pol, state)
+        match decision.verdict {
             Verdict::Allow => {
-                if val_raw > 0 {
-                    record_spend(mut state.eth_window, tx.now, val_raw)
-                }
+                // Books the ETH and the token amount the same decision found, as LeashModule does.
+                record_allowed(tx, decision.spend, mut state)
                 allowed_count += 1
                 println!(row_idx, ",", ts, ",ALLOW")
             },
             Verdict::Deny(r) => {
                 denied_count += 1
                 let code: usize = reason_code(r) as usize
-                if code < 21 {
+                if code < 22 {
                     reason_counts[code] += 1
                 }
                 let name = reason_name(r)
@@ -250,7 +249,7 @@ uses (out: mut Stdout, err: mut Stderr)
 
     println!("allowed=", allowed_count, " denied=", denied_count)
     var c: u8 = 1
-    while c <= 20 {
+    while c <= 21 {
         let count_for_c = reason_counts[c as usize]
         if count_for_c > 0 {
             match reason_from_code(c) {

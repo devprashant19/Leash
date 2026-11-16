@@ -49,30 +49,6 @@
   },
   {
     "type": "function",
-    "name": "setAgentPolicy",
-    "inputs": [
-      {
-        "name": "agent",
-        "type": "address"
-      },
-      {
-        "name": "max_per_tx",
-        "type": "uint256"
-      },
-      {
-        "name": "max_per_window",
-        "type": "uint256"
-      },
-      {
-        "name": "custom_fingerprint",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "revokeAgent",
     "inputs": [
       {
@@ -109,23 +85,6 @@
   },
   {
     "type": "function",
-    "name": "fingerprintOf",
-    "inputs": [
-      {
-        "name": "agent",
-        "type": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "resetBreaker",
     "inputs": [
       {
@@ -148,7 +107,7 @@
     "outputs": [
       {
         "name": "",
-        "type": "uint256[52]"
+        "type": "uint256[60]"
       }
     ],
     "stateMutability": "view"
@@ -329,6 +288,33 @@
   },
   {
     "type": "event",
+    "name": "Allowed",
+    "inputs": [
+      {
+        "name": "agent",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "target",
+        "type": "address",
+        "indexed": true
+      },
+      {
+        "name": "value",
+        "type": "uint256",
+        "indexed": false
+      },
+      {
+        "name": "selector",
+        "type": "uint32",
+        "indexed": false
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "CircuitTrippedEvent",
     "inputs": [
       {
@@ -362,33 +348,6 @@
     "anonymous": false
   },
   {
-    "type": "event",
-    "name": "Allowed",
-    "inputs": [
-      {
-        "name": "agent",
-        "type": "address",
-        "indexed": true
-      },
-      {
-        "name": "target",
-        "type": "address",
-        "indexed": true
-      },
-      {
-        "name": "value",
-        "type": "uint256",
-        "indexed": false
-      },
-      {
-        "name": "selector",
-        "type": "uint32",
-        "indexed": false
-      }
-    ],
-    "anonymous": false
-  },
-  {
     "type": "error",
     "name": "ZeroAddress",
     "inputs": []
@@ -410,12 +369,12 @@
   },
   {
     "type": "error",
-    "name": "NotAgent",
+    "name": "Reentrant",
     "inputs": []
   },
   {
     "type": "error",
-    "name": "Reentrant",
+    "name": "NotAgent",
     "inputs": []
   },
   {
@@ -516,6 +475,11 @@
   {
     "type": "error",
     "name": "EscalationRequired",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TokenWindowCapExceeded",
     "inputs": []
   },
   {

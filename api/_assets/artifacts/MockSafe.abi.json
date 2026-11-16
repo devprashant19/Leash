@@ -172,34 +172,6 @@
   },
   {
     "type": "function",
-    "name": "setAgentPolicyOn",
-    "inputs": [
-      {
-        "name": "module_addr",
-        "type": "address"
-      },
-      {
-        "name": "agent",
-        "type": "address"
-      },
-      {
-        "name": "max_per_tx",
-        "type": "uint256"
-      },
-      {
-        "name": "max_per_window",
-        "type": "uint256"
-      },
-      {
-        "name": "custom_fingerprint",
-        "type": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "unpauseOn",
     "inputs": [
       {

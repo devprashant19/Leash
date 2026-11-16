@@ -1,0 +1,70 @@
+use policy::{
+    AgentState,
+    Operation,
+    Timestamp,
+    Tx,
+    Wei,
+    decide,
+    default_policy,
+    record,
+    verdict_code,
+}
+use testkit::{addr_attacker, addr_token, addr_treasury, erc20_transfer, erc20_transfer_from}
+
+const TOKEN: u256 = 1_000_000_000_000_000_000
+
+// Draining tokens in pieces that each stay under the 100-token transfer cap: the 500-token cap for the
+// 24 h period stops the sixth piece (21), transferFrom counts too, and a refused call books nothing.
+#[test]
+pub fn test_attack_25_token_drip_under_the_per_transfer_cap() {
+    let pol = default_policy()
+    var state = AgentState::empty()
+    state.expiry = Timestamp::from_seconds(2_000_000_000)
+    let now = Timestamp::from_seconds(1_763_000_000)
+
+    var i: u32 = 0
+    while i < 4 {
+        let tx = Tx {
+            to: addr_token(),
+            value: Wei::zero(),
+            data: erc20_transfer(to: addr_treasury(), amt: 99 * TOKEN),
+            op: Operation::Call,
+            now,
+        }
+        assert(verdict_code(decide(tx, pol, state)) == 0)
+        record(tx, pol, mut state)
+        i += 1
+    }
+    let pull = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: erc20_transfer_from(
+            from: addr_attacker(),
+            to: addr_treasury(),
+            amt: 99 * TOKEN,
+        ),
+        op: Operation::Call,
+        now,
+    }
+    assert(verdict_code(decide(pull, pol, state)) == 0)
+    record(pull, pol, mut state)
+    // 495 tokens moved; 6 more would make 501.
+    let sixth = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: erc20_transfer(to: addr_treasury(), amt: 6 * TOKEN),
+        op: Operation::Call,
+        now,
+    }
+    assert(verdict_code(decide(sixth, pol, state)) == 21)
+    assert(state.token_spent[0].amount == 495 * TOKEN)
+    // 5 more fit exactly.
+    let last = Tx {
+        to: addr_token(),
+        value: Wei::zero(),
+        data: erc20_transfer(to: addr_treasury(), amt: 5 * TOKEN),
+        op: Operation::Call,
+        now,
+    }
+    assert(verdict_code(decide(last, pol, state)) == 0)
+}

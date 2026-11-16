@@ -1,0 +1,180 @@
+use ingot::config::{ADDR_TOKEN, ADDR_TREASURY, default_policy}
+use ingot::encoding::{decode_state, encode_state}
+use ingot::ledger::record
+use ingot::rules::decide
+use ingot::test_decode::{make_approve_calldata, make_transfer_calldata, make_transfer_from_calldata}
+use ingot::types::{
+    Address,
+    AgentState,
+    Calldata,
+    Operation,
+    TargetKind,
+    TargetRule,
+    Timestamp,
+    Tx,
+    verdict_code,
+}
+use std::evm::units::wei
+
+// The default policy: 100 tokens per transfer, 500 tokens per 24 h period.
+const HUNDRED: u256 = 100_000_000_000_000_000_000
+
+fn token_tx(_ data: Calldata, _ now: Timestamp) -> Tx {
+    Tx { to: ADDR_TOKEN, value: wei(0), data, op: Operation::Call, now }
+}
+
+// Second `secs` of 24 h period number `day`.
+fn at(_ day: u256, _ secs: u256) -> Timestamp {
+    Timestamp::from_seconds(day * 86_400 + secs)
+}
+
+#[test]
+fn test_token_window_refuses_the_transfer_past_the_period_cap() {
+    let policy = default_policy()
+    var state = AgentState::empty()
+    let now = at(20_000, 60)
+    var i: u32 = 0
+    while i < 5 {
+        let tx = token_tx(
+            make_transfer_calldata(to: ADDR_TREASURY, amt: HUNDRED),
+            now,
+        )
+        assert(verdict_code(decide(tx, policy, state)) == 0)
+        record(tx, policy, mut state)
+        i += 1
+    }
+    // 500 tokens moved: even 1 more base unit is refused with TokenWindowCapExceeded (21).
+    let one_more = token_tx(make_transfer_calldata(to: ADDR_TREASURY, amt: 1), now)
+    assert(verdict_code(decide(one_more, policy, state)) == 21)
+}
+
+#[test]
+fn test_token_window_resets_in_the_next_period() {
+    let policy = default_policy()
+    var state = AgentState::empty()
+    let late = at(20_000, 86_000)
+    var i: u32 = 0
+    while i < 5 {
+        let tx = token_tx(
+            make_transfer_calldata(to: ADDR_TREASURY, amt: HUNDRED),
+            late,
+        )
+        record(tx, policy, mut state)
+        i += 1
+    }
+    let same_period = token_tx(
+        make_transfer_calldata(to: ADDR_TREASURY, amt: HUNDRED),
+        late,
+    )
+    assert(verdict_code(decide(same_period, policy, state)) == 21)
+    let next_period = token_tx(
+        make_transfer_calldata(to: ADDR_TREASURY, amt: HUNDRED),
+        at(20_001, 0),
+    )
+    assert(verdict_code(decide(next_period, policy, state)) == 0)
+}
+
+#[test]
+fn test_token_window_counts_transfer_from_but_not_approve() {
+    let policy = default_policy()
+    var state = AgentState::empty()
+    let now = at(20_000, 0)
+    var i: u32 = 0
+    while i < 4 {
+        let tx = token_tx(
+            make_transfer_from_calldata(from: ADDR_TREASURY, to: ADDR_TREASURY, amt: HUNDRED),
+            now,
+        )
+        record(tx, policy, mut state)
+        i += 1
+    }
+    // An approval is capped by max_approve, not by the transfer window, and is not recorded as spent.
+    let approve = token_tx(
+        make_approve_calldata(spender: ADDR_TREASURY, amt: HUNDRED),
+        now,
+    )
+    assert(verdict_code(decide(approve, policy, state)) == 0)
+    record(approve, policy, mut state)
+    // 400 spent: a fifth 100-token transfer fits, 101 tokens do not.
+    let fits = token_tx(
+        make_transfer_calldata(to: ADDR_TREASURY, amt: HUNDRED),
+        now,
+    )
+    assert(verdict_code(decide(fits, policy, state)) == 0)
+    let over = token_tx(
+        make_transfer_calldata(to: ADDR_TREASURY, amt: HUNDRED + 1),
+        now,
+    )
+    // The per-transfer cap (9) is checked before the window (21).
+    assert(verdict_code(decide(over, policy, state)) == 9)
+}
+
+#[test]
+fn test_token_window_ignores_eth_transfers() {
+    let policy = default_policy()
+    var state = AgentState::empty()
+    let now = at(20_000, 0)
+    let eth = Tx {
+        to: ADDR_TREASURY,
+        value: wei(1_000),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    record(eth, policy, mut state)
+    assert(state.token_spent[0].amount == 0)
+    let tx = token_tx(
+        make_transfer_calldata(to: ADDR_TREASURY, amt: HUNDRED),
+        now,
+    )
+    record(tx, policy, mut state)
+    assert(state.token_spent[0].amount == HUNDRED)
+}
+
+#[test]
+fn test_token_window_survives_state_encoding() {
+    let policy = default_policy()
+    var state = AgentState::empty()
+    let now = at(20_000, 0)
+    let tx = token_tx(
+        make_transfer_calldata(to: ADDR_TREASURY, amt: HUNDRED),
+        now,
+    )
+    record(tx, policy, mut state)
+    let back = decode_state(encode_state(state))
+    assert(back.token_spent[0].index == state.token_spent[0].index)
+    assert(back.token_spent[0].amount == HUNDRED)
+}
+
+#[test]
+fn test_listed_swap_router_is_refused() {
+    // Swap calldata cannot be fully checked (recipient and token path), so a listed router is refused.
+    var policy = default_policy()
+    let router = Address::new(0x3000000000000000000000000000000000000003)
+    var selectors: [u32; 8] = [0; 8]
+    selectors[0] = 0x04e45aaf
+    policy.targets[2] = TargetRule {
+        target: router,
+        kind: TargetKind::UniswapRouter,
+        allow_eth_transfer: false,
+        delegate_ok: false,
+        n_selectors: 1,
+        selectors,
+    }
+    policy.n_targets = 3
+    var buf: [u8; 100] = [0; 100]
+    buf[0] = 0x04
+    buf[1] = 0xe4
+    buf[2] = 0x5a
+    buf[3] = 0xaf
+    let tx = Tx {
+        to: router,
+        value: wei(0),
+        data: Calldata::from_slice(bytes: buf, len: 228),
+        op: Operation::Call,
+        now: at(20_000, 0),
+    }
+    assert(
+        verdict_code(decide(tx, policy, AgentState::empty())) == 16,
+    )
+}

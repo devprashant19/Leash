@@ -67,12 +67,13 @@ fn test_reason_codes_exhaustive() {
     assert(reason_code(DenyReason::PriceUnavailable) == 18)
     assert(reason_code(DenyReason::UsdCapExceeded) == 19)
     assert(reason_code(DenyReason::EscalationRequired) == 20)
+    assert(reason_code(DenyReason::TokenWindowCapExceeded) == 21)
 }
 
 #[test]
 fn test_reason_from_code_roundtrip() {
     var c: u8 = 1
-    while c <= 20 {
+    while c <= 21 {
         match reason_from_code(c) {
             Option::Some(r) => assert(reason_code(r) == c),
             Option::None => assert(false),
@@ -83,7 +84,7 @@ fn test_reason_from_code_roundtrip() {
         Option::Some(_) => assert(false),
         Option::None => (),
     }
-    match reason_from_code(21) {
+    match reason_from_code(22) {
         Option::Some(_) => assert(false),
         Option::None => (),
     }
@@ -118,5 +119,8 @@ fn test_reason_names_exhaustive() {
     )
     assert(
         reason_name(DenyReason::UnlimitedApproval) == "UnlimitedApproval",
+    )
+    assert(
+        reason_name(DenyReason::TokenWindowCapExceeded) == "TokenWindowCapExceeded",
     )
 }

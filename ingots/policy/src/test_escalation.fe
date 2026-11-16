@@ -1,0 +1,66 @@
+use ingot::config::default_policy
+use ingot::rules::decide_with_escalation
+use ingot::types::{Address, AgentState, Calldata, Operation, Tx, verdict_code}
+use std::evm::units::{Timestamp, ether}
+
+#[test]
+fn test_decide_with_escalation_lifecycle() {
+    let pol = default_policy()
+    let treasury = Address::new(0x2000000000000000000000000000000000000002)
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(1000)
+    // Default policy has max_per_tx = 0.1 ETH (ether(1) / 10)
+    let threshold = ether(1) / 20 // 0.05 ETH escalation threshold
+
+    // 1. Small spend below threshold: 0.02 ETH < 0.05 ETH threshold -> Allow
+    let small_tx = Tx {
+        to: treasury,
+        value: ether(1) / 50,
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    let v_small = decide_with_escalation(
+        tx: small_tx,
+        policy: pol,
+        state,
+        escalation_threshold: threshold,
+    )
+    assert(verdict_code(v_small) == 0) // Allow
+
+    // 2. Moderate spend above threshold but within per_tx cap:
+    // 0.066 ETH (ether(1) / 15) > 0.05 ETH threshold and < 0.1 ETH cap -> EscalationRequired (code 20)
+    let mid_tx = Tx {
+        to: treasury,
+        value: ether(1) / 15,
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    let v_mid = decide_with_escalation(
+        tx: mid_tx,
+        policy: pol,
+        state,
+        escalation_threshold: threshold,
+    )
+    assert(
+        verdict_code(v_mid) == 20,
+    ) // DenyReason::EscalationRequired
+
+    // 3. Large spend above per_tx cap: 0.2 ETH (ether(1) / 5) > 0.1 ETH cap
+    // Denied by PerTxCapExceeded (code 7), not EscalationRequired
+    let huge_tx = Tx {
+        to: treasury,
+        value: ether(1) / 5,
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    let v_huge = decide_with_escalation(
+        tx: huge_tx,
+        policy: pol,
+        state,
+        escalation_threshold: threshold,
+    )
+    assert(verdict_code(v_huge) == 7) // PerTxCapExceeded
+}

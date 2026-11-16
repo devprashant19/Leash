@@ -16,7 +16,8 @@ use ingot::types::{
 }
 
 pub const POLICY_WORDS: usize = 138
-pub const STATE_WORDS: usize = 52
+// paused, tripped, expiry, 24 ETH buckets (index, amount), last_action, 4 token periods (index, amount)
+pub const STATE_WORDS: usize = 60
 
 fn kind_to_u256(_ kind: TargetKind) -> u256 {
     match kind {
@@ -133,6 +134,15 @@ pub fn encode_state(_ state: AgentState) -> [u256; STATE_WORDS] {
     words[idx] = state.last_action.as_seconds()
     idx += 1
 
+    var t: usize = 0
+    while t < MAX_TOKENS {
+        words[idx] = state.token_spent[t].index as u256
+        idx += 1
+        words[idx] = state.token_spent[t].amount
+        idx += 1
+        t += 1
+    }
+
     words
 }
 
@@ -160,6 +170,14 @@ pub fn decode_state(_ words: [u256; STATE_WORDS]) -> AgentState {
     let last_action = Timestamp::from_seconds(words[idx])
     idx += 1
 
+    var token_spent: [Bucket; MAX_TOKENS] = [Bucket { index: 0, amount: 0 }; MAX_TOKENS]
+    var t: usize = 0
+    while t < MAX_TOKENS {
+        token_spent[t] = Bucket { index: words[idx].downcast_truncate(), amount: words[idx + 1] }
+        idx += 2
+        t += 1
+    }
+
     AgentState {
         paused,
         tripped,
@@ -167,6 +185,7 @@ pub fn decode_state(_ words: [u256; STATE_WORDS]) -> AgentState {
         eth_window: eth_win,
         last_action,
         action_window: Window24::empty(),
+        token_spent,
     }
 }
 

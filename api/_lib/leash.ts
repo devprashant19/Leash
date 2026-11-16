@@ -53,6 +53,7 @@ export const REASONS = [
   'MalformedCalldata', 'PerTxCapExceeded', 'WindowCapExceeded', 'TokenCapExceeded', 'UnlimitedApproval',
   'RecipientNotAllowed', 'RateLimited', 'CooldownActive', 'OutsideTradingHours', 'CircuitTripped',
   'SwapNotAllowed', 'LendingNotAllowed', 'PriceUnavailable', 'UsdCapExceeded', 'EscalationRequired',
+  'TokenWindowCapExceeded',
 ];
 
 /**
@@ -195,7 +196,7 @@ async function read(env: Env, to: Hex, abi: Abi, functionName: string, args: unk
   return decodeFunctionResult({ abi, functionName, data } as never);
 }
 
-/** The agent's on-chain state, encoded the way `leash check --state` expects (52 words, hex). */
+/** The agent's on-chain state, encoded the way `leash check --state` expects (60 words, hex). */
 async function stateHex(env: Env): Promise<Hex> {
   const words = (await read(env, env.module, env.moduleAbi, 'state', [env.agent.address])) as bigint[];
   return ('0x' + words.map((w) => w.toString(16).padStart(64, '0')).join('')) as Hex;

@@ -107,6 +107,13 @@ async function main() {
     assert.deepEqual(trip.steps.map((s) => s.onchain.code), [4, 7, 3, 15]);
     assert.ok(trip.allMatched);
   });
+  const hundredTokens = '0xa9059cbb' + TREASURY.slice(2).padStart(64, '0') + (100n * 10n ** 18n).toString(16).padStart(64, '0');
+  const drip = await runPlan(parsePlan({ steps: Array.from({ length: 6 }, () => ({ to: TOKEN, data: hundredTokens })) }));
+  await step('plan: six 100-token transfers, the sixth is refused by the 24 h token cap (21), every prediction matched', () => {
+    assert.deepEqual(drip.steps.map((s) => s.onchain.code), [0, 0, 0, 0, 0, 21]);
+    assert.equal(drip.firstDenied, 6);
+    assert.ok(drip.allMatched);
+  });
   await step('plan: input validation', () => {
     assert.throws(() => parsePlan({ steps: [] }), /steps/);
     assert.throws(() => parsePlan({ steps: Array.from({ length: 13 }, () => ({ to: TREASURY })) }), /at most 12/);

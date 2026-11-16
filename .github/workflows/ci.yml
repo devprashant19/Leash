@@ -171,6 +171,15 @@ jobs:
         env:
           LEASH_REQUIRE_NATIVE: "1"
         run: npm run test:web
+      - name: Web functions test with the bundled binary (what Vercel runs)
+        env:
+          LEASH_REQUIRE_NATIVE: "1"
+        run: LEASH_BIN="$PWD/api/_assets/leash-linux-x86_64" npm run test:web
+      - name: Upload the freshly built leash CLI (to refresh api/_assets/leash-linux-x86_64)
+        uses: actions/upload-artifact@v4
+        with:
+          name: leash-linux-x86_64
+          path: out/cli
       - name: API bundle loads without require(esm), as on Vercel's runtime
         env:
           LEASH_REQUIRE_NATIVE: "1"

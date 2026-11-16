@@ -1,5 +1,5 @@
 use policy
-use policy::types::{AgentState, Calldata, Policy, Tx, Verdict, Window24}
+use policy::types::{AgentState, Bucket, Calldata, MAX_TOKENS, Policy, Tx, Verdict, Window24}
 use policy::types::{MAX_CALLDATA, TokenAmount}
 use std::abi::Bytes
 use std::evm::{Address, Call, Create, Ctx, Evm, Log, StorageMap, Timestamp, Wei, revert_error, wei}
@@ -12,16 +12,13 @@ pub struct AgentConfig {
     pub active: bool,
     pub expiry: Timestamp,
     pub label: u256,
-    pub max_per_tx: Wei,
-    pub max_per_window: Wei,
-    pub custom_fingerprint: u256,
     pub tripped: bool,
     pub denials: u32,
 }
 impl Copy for AgentConfig {}
 impl Snapshot for AgentConfig {}
 
-pub struct AgentLedger { pub eth_window: Window24 }
+pub struct AgentLedger { pub eth_window: Window24, pub token_spent: [Bucket; MAX_TOKENS] }
 impl Copy for AgentLedger {}
 impl Snapshot for AgentLedger {}
 
@@ -44,28 +41,19 @@ pub msg LeashMsg {
         u256,
     ),
     #[selector = sol("state(address)")]
-    State { agent: Address } -> [u256; 52],
+    State { agent: Address } -> [u256; 60],
     #[selector = sol("pause()")]
     Pause,
     #[selector = sol("unpause()")]
     Unpause,
     #[selector = sol("setAgent(address,uint256,uint256)")]
     SetAgent { agent: Address, expiry: Timestamp, label: u256 },
-    #[selector = sol("setAgentPolicy(address,uint256,uint256,uint256)")]
-    SetAgentPolicy {
-        agent: Address,
-        max_per_tx: u256,
-        max_per_window: u256,
-        custom_fingerprint: u256,
-    },
     #[selector = sol("revokeAgent(address)")]
     RevokeAgent { agent: Address },
     #[selector = sol("setGuardian(address)")]
     SetGuardian { guardian_addr: Address },
     #[selector = sol("fingerprint()")]
     Fingerprint -> u256,
-    #[selector = sol("fingerprintOf(address)")]
-    FingerprintOf { agent: Address } -> u256,
     #[selector = sol("resetBreaker(address)")]
     ResetBreaker { agent: Address },
 }
@@ -94,24 +82,29 @@ fn eval_tx(
     _ now: Timestamp,
     _ record: bool,
 ) -> (u8, Verdict) {
-    let pol = policy::config::policy_for_agent(cfg.max_per_tx, cfg.max_per_window)
-    let st = AgentState {
+    let pol = policy::config::default_policy()
+    var st = AgentState {
         paused,
         tripped: cfg.tripped,
         expiry: cfg.expiry,
         eth_window: ledger.eth_window,
         last_action: Timestamp::from_seconds(0),
+        // Rate limiting is off in the module policy (max_actions_per_window = 0), so no action window is stored.
         action_window: ledger.eth_window,
+        token_spent: ledger.token_spent,
     }
     let op = resolve_op(operation)
     let cd = policy::calldata_from_bytes(data)
     let tx = Tx { to, value: wei(value), data: cd, op, now }
-    let verdict = policy::decide(tx, pol, st)
+    let decision = policy::decide_spend(tx, pol, st)
+    let verdict = decision.verdict
 
     let code = match verdict {
         Verdict::Allow => {
-            if record && value > 0 {
-                policy::record_spend(mut ledger.eth_window, now, value)
+            if record {
+                policy::record_allowed(tx, decision.spend, mut st)
+                ledger.eth_window = st.eth_window
+                ledger.token_spent = st.token_spent
             }
             0
         },
@@ -121,67 +114,36 @@ fn eval_tx(
     (code, verdict)
 }
 
-fn run_tx(
+// The Safe call for an allowed transaction. Callers store the updated ledger before calling this
+// (checks-effects-interactions); the reentrancy lock is still held.
+fn forward(
     safe: Address,
     agent: Address,
     to: Address,
     value: u256,
     data: Bytes,
     operation: u8,
-    paused: bool,
-    cfg: mut AgentConfig,
-    ledger: mut AgentLedger,
-    now: Timestamp,
-    should_revert: bool,
-) -> (bool, u8)
+) -> bool
 uses (call: mut Call, log: mut Log)
 {
-    let (code, verdict) = eval_tx(
-        to,
-        value,
-        data,
-        operation,
-        paused,
-        cfg,
-        mut ledger,
-        now,
-        record: true,
-    )
-    match verdict {
-        Verdict::Deny(r) => {
-            if should_revert {
-                revert_for(r)
-            } else {
-                cfg.denials += 1
-                if cfg.denials >= 3 {
-                    cfg.tripped = true
-                    log.emit(CircuitTrippedEvent { agent })
-                }
-                log.emit(Denied { agent, target: to, code })
-                (false, code)
-            }
-        },
-        Verdict::Allow => {
-            let sel = extract_selector(data)
-            log.emit(Allowed { agent, target: to, value, selector: sel })
-            let success: bool = call
-                .call(
-                    addr: safe,
-                    gas: 1000000,
-                    value: Wei::zero(),
-                    message: SafeMsg::ExecTransactionFromModule {
-                        to,
-                        value,
-                        data: data.clone(),
-                        operation,
-                    },
-                )
-            if !success {
-                revert_error(SafeCallFailed {})
-            }
-            (true, 0)
-        },
+    let sel = extract_selector(data)
+    log.emit(Allowed { agent, target: to, value, selector: sel })
+    let success: bool = call
+        .call(
+            addr: safe,
+            gas: 1000000,
+            value: Wei::zero(),
+            message: SafeMsg::ExecTransactionFromModule {
+                to,
+                value,
+                data: data.clone(),
+                operation,
+            },
+        )
+    if !success {
+        revert_error(SafeCallFailed {})
     }
+    true
 }
 
 fn require_safe(_ caller: Address, _ safe: Address) {
@@ -238,32 +200,9 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             agents
                 .set(
                     key: agent,
-                    value: AgentConfig {
-                        active: true,
-                        expiry,
-                        label,
-                        max_per_tx: Wei::zero(),
-                        max_per_window: Wei::zero(),
-                        custom_fingerprint: 0,
-                        tripped: false,
-                        denials: 0,
-                    },
+                    value: AgentConfig { active: true, expiry, label, tripped: false, denials: 0 },
                 )
             log.emit(AgentSet { agent, expiry })
-        }
-
-        SetAgentPolicy { agent, max_per_tx, max_per_window, custom_fingerprint }
-        uses (ctx, safe, mut agents)
-        {
-            require_safe(ctx.caller(), safe)
-            var cfg = agents.get(key: agent)
-            if !cfg.active {
-                revert_error(NotAgent {})
-            }
-            cfg.max_per_tx = wei(max_per_tx)
-            cfg.max_per_window = wei(max_per_window)
-            cfg.custom_fingerprint = custom_fingerprint
-            agents.set(key: agent, value: cfg)
         }
 
         RevokeAgent { agent } uses (ctx, safe, mut agents, mut log) {
@@ -287,15 +226,6 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee
         }
 
-        FingerprintOf { agent } -> u256 uses (agents) {
-            let cfg = agents.get(key: agent)
-            if cfg.custom_fingerprint != 0 {
-                cfg.custom_fingerprint
-            } else {
-                0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee
-            }
-        }
-
         ResetBreaker { agent } uses (ctx, safe, mut agents, mut log) {
             require_safe(ctx.caller(), safe)
             var cfg = agents.get(key: agent)
@@ -305,10 +235,10 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             log.emit(CircuitResetEvent { agent })
         }
 
-        State { agent } -> [u256; 52] uses (agents, ledgers, paused) {
+        State { agent } -> [u256; 60] uses (agents, ledgers, paused) {
             let cfg = agents.get(key: agent)
             let ledger = ledgers.get(key: agent)
-            var words: [u256; 52] = [0; 52]
+            var words: [u256; 60] = [0; 60]
             words[0] = if paused { 1 } else { 0 }
             words[1] = if cfg.tripped { 1 } else { 0 }
             words[2] = cfg.expiry.as_seconds()
@@ -322,6 +252,15 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
                 b += 1
             }
             words[51] = 0
+            var t: usize = 0
+            idx = 52
+            while t < MAX_TOKENS {
+                words[idx] = ledger.token_spent[t].index as u256
+                idx += 1
+                words[idx] = ledger.token_spent[t].amount
+                idx += 1
+                t += 1
+            }
             words
         }
 
@@ -346,18 +285,9 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
                 record: false,
             )
             let spent_win = policy::spent_in_window(ledger.eth_window, now)
-            let max_win = if cfg.max_per_window.as_wei() > 0 {
-                cfg.max_per_window.as_wei()
-            } else {
-                500_000_000_000_000_000
-            }
-            let rem_win = remaining(max_win, spent_win)
-            let max_tx = if cfg.max_per_tx.as_wei() > 0 {
-                cfg.max_per_tx.as_wei()
-            } else {
-                100_000_000_000_000_000
-            }
-            let rem_tx = remaining(max_tx, value)
+            let pol = policy::config::default_policy()
+            let rem_win = remaining(pol.max_per_window.as_wei(), spent_win)
+            let rem_tx = remaining(pol.max_per_tx.as_wei(), value)
             (code, rem_tx, rem_win)
         }
 
@@ -382,22 +312,24 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
 
             let now = ctx.timestamp()
             var ledger = ledgers.get(key: agent)
-            let (success, _code) = run_tx(
-                safe,
-                agent,
+            let (_code, verdict) = eval_tx(
                 to,
                 value,
                 data,
                 operation,
                 paused,
-                cfg: mut cfg,
-                ledger: mut ledger,
+                cfg,
+                mut ledger,
                 now,
-                should_revert: true,
+                record: true,
             )
-
-            locked = false
+            match verdict {
+                Verdict::Deny(r) => revert_for(r),
+                Verdict::Allow => {},
+            }
             ledgers.set(key: agent, value: ledger)
+            let success = forward(safe, agent, to, value, data, operation)
+            locked = false
             success
         }
 
@@ -422,27 +354,36 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
 
             let now = ctx.timestamp()
             var ledger = ledgers.get(key: agent)
-            let (success, code) = run_tx(
-                safe,
-                agent,
+            let (code, verdict) = eval_tx(
                 to,
                 value,
                 data,
                 operation,
                 paused,
-                cfg: mut cfg,
-                ledger: mut ledger,
+                cfg,
+                mut ledger,
                 now,
-                should_revert: false,
+                record: true,
             )
-
-            locked = false
-            if success {
-                ledgers.set(key: agent, value: ledger)
-            } else {
-                agents.set(key: agent, value: cfg)
+            match verdict {
+                Verdict::Deny(_r) => {
+                    cfg.denials += 1
+                    if policy::breaker_trips(cfg.denials) {
+                        cfg.tripped = true
+                        log.emit(CircuitTrippedEvent { agent })
+                    }
+                    log.emit(Denied { agent, target: to, code })
+                    agents.set(key: agent, value: cfg)
+                    locked = false
+                    (false, code)
+                },
+                Verdict::Allow => {
+                    ledgers.set(key: agent, value: ledger)
+                    let success = forward(safe, agent, to, value, data, operation)
+                    locked = false
+                    (success, 0)
+                },
             }
-            (success, code)
         }
     }
 }

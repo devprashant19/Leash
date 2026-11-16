@@ -35,23 +35,15 @@ export interface CheckOptions {
 export const GOLDEN_FINGERPRINT = '0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee';
 export const ADDR_TOKEN = '0x1000000000000000000000000000000000000001'.toLowerCase();
 export const ADDR_TREASURY = '0x2000000000000000000000000000000000000002'.toLowerCase();
-export const ADDR_UNISWAP_ROUTER = '0x7a250d5630b4cf539739df2c5dacb4c659f2488d'.toLowerCase();
-export const ADDR_AAVE_POOL = '0x6ae43d3271ff6888e7fc43fd7321a503ff738951'.toLowerCase();
 
 export const SEL_APPROVE = '0x095ea7b3';
 export const SEL_TRANSFER = '0xa9059cbb';
 export const SEL_TRANSFER_FROM = '0x23b872dd';
-export const SEL_INCREASE_ALLOWANCE = '0x39509351';
-export const SEL_DECREASE_ALLOWANCE = '0xa457c2d7';
-export const SEL_UNISWAP_V2_SWAP = '0x38ed1739';
-export const SEL_UNISWAP_V3_SWAP = '0x04e45aaf';
-export const SEL_AAVE_WITHDRAW = '0x69328dec';
-export const SEL_AAVE_SUPPLY = '0x617ba037';
-export const SEL_AAVE_REPAY = '0x573ade81';
 
 export const MAX_PER_TX_WEI = 100_000_000_000_000_000n; // 0.1 ETH
 export const MAX_PER_WINDOW_WEI = 500_000_000_000_000_000n; // 0.5 ETH
 export const TOKEN_MAX_PER_TX = 100_000_000_000_000_000_000n; // 100 tokens
+export const TOKEN_MAX_PER_WINDOW = 500_000_000_000_000_000_000n; // 500 tokens per 24 h period
 export const TOKEN_MAX_APPROVE = 100_000_000_000_000_000_000n; // 100 tokens
 
 /**
@@ -75,9 +67,12 @@ export function findLeashBinary(): string | null {
   return candidates.find((p) => fs.existsSync(p)) ?? null;
 }
 
-/** LEASH_REQUIRE_NATIVE=1 (set in CI) forbids the TypeScript fallback, but on Vercel resilience is prioritized. */
+/**
+ * The TypeScript fallback is forbidden in CI (LEASH_REQUIRE_NATIVE=1) and on Vercel: there every
+ * prediction must come from the Fe binary, and a missing binary is an error, not a quiet fallback.
+ */
 function requireNative(): boolean {
-  return process.env.LEASH_REQUIRE_NATIVE === '1' && !process.env.VERCEL;
+  return process.env.LEASH_REQUIRE_NATIVE === '1' || !!process.env.VERCEL;
 }
 
 export function predictionSource(): PredictionSource {
@@ -121,134 +116,67 @@ export function predictVerdict(opts: CheckOptions): LeashCheckResult {
     return JSON.parse(runLeash(binary, args));
   }
 
-  // TypeScript mirror of the policy rules (fallback only; see PredictionSource).
+  // TypeScript mirror of the default policy (fallback only; see PredictionSource), in decide()'s order
+  // (ingots/policy/src/rules.fe decide_spend). The deployed policy lists two targets: the treasury
+  // (plain ETH only) and the token (approve, transferFrom, transfer).
   const to = opts.to.toLowerCase();
   const value = opts.valueWei || 0n;
-  const data = opts.data || '0x';
+  const data = (opts.data || '0x').replace(/^0x/, '').toLowerCase();
   const op = opts.op || 'call';
   const now = opts.now ?? Math.floor(Date.now() / 1000);
+  const byteLen = data.length / 2;
+  const word = (offset: number) => data.slice(offset * 2, offset * 2 + 64);
+  const isAddressWord = (offset: number) => /^0{24}$/.test(data.slice(offset * 2, offset * 2 + 24));
 
-  // 0. Agent state (the module's state(agent) words, same layout as policy/src/encoding.fe):
-  //    paused, tripped and session expiry are checked first, in decide()'s order.
   const st = opts.stateHex ? decodeStateHex(opts.stateHex) : null;
   const spent = st ? spentInWindow(st.buckets, now) : 0n;
-  if (st?.paused) return makeResult('DENY', 1, 'Paused', 'Agent is paused by the guardian or owner', now, spent);
-  if (st?.tripped) return makeResult('DENY', 15, 'CircuitTripped', 'Circuit breaker tripped after repeated denials', now, spent);
-  if (st && st.expiry > 0n && BigInt(now) >= st.expiry) return makeResult('DENY', 2, 'SessionExpired', 'Agent session has expired', now, spent);
+  const deny = (code: number, reason: string, message: string) => makeResult('DENY', code, reason, message, now, spent);
 
-  // 1. DelegateCall check
-  if (op === 'delegatecall') {
-    return makeResult('DENY', 3, 'DelegateCallBlocked', 'DelegateCall is permanently blocked', now);
-  }
+  // 1-3. Paused, CircuitTripped, SessionExpired (4. cooldown is off in the default policy)
+  if (st?.paused) return deny(1, 'Paused', 'Agent is paused by the guardian or owner');
+  if (st?.tripped) return deny(15, 'CircuitTripped', 'Circuit breaker tripped after repeated denials');
+  if (st && st.expiry > 0n && BigInt(now) >= st.expiry) return deny(2, 'SessionExpired', 'Agent session has expired');
 
-  // 2. Target check
+  // 5. DelegateCallBlocked
+  if (op === 'delegatecall') return deny(3, 'DelegateCallBlocked', 'DelegateCall is permanently blocked');
+
+  // 6. TargetNotAllowed
   const isTreasury = to === ADDR_TREASURY;
   const isToken = to === ADDR_TOKEN;
-  // The deployed default policy (policy/src/config.fe policy_for_agent) lists exactly two targets.
-  const isUniswap = false;
-  const isAave = false;
-  if (!isTreasury && !isToken) {
-    return makeResult('DENY', 4, 'TargetNotAllowed', 'Target contract is not allowlisted', now);
+  if (!isTreasury && !isToken) return deny(4, 'TargetNotAllowed', 'Target contract is not allowlisted');
+
+  // 7. Selector / calldata (8. rate limiting is off in the default policy)
+  const sel = byteLen >= 4 ? '0x' + data.slice(0, 8) : '';
+  if (byteLen === 0) {
+    if (isToken) return deny(5, 'SelectorNotAllowed', 'Token contract allows no plain ETH transfer');
+  } else if (byteLen < 4) {
+    return deny(6, 'MalformedCalldata', 'Calldata shorter than a 4-byte selector');
+  } else if (isTreasury || ![SEL_APPROVE, SEL_TRANSFER_FROM, SEL_TRANSFER].includes(sel)) {
+    return deny(5, 'SelectorNotAllowed', 'Function selector is not allowlisted');
   }
 
-  // 3. Calldata and selector check
-  const dataBytes = data.startsWith('0x') ? data.slice(2) : data;
-  const byteLen = dataBytes.length / 2;
+  // 9-10. ETH caps
+  if (value > MAX_PER_TX_WEI) return deny(7, 'PerTxCapExceeded', 'ETH value exceeds per-transaction cap');
+  if (spent + value > MAX_PER_WINDOW_WEI) return deny(8, 'WindowCapExceeded', 'ETH spend exceeds 24h window limit');
 
-  if (isTreasury) {
-    if (byteLen > 0) {
-      return makeResult('DENY', 5, 'SelectorNotAllowed', 'Treasury allows pure transfers only', now);
-    }
-  } else if (isAave) {
-    if (byteLen < 4) {
-      return makeResult('DENY', 6, 'MalformedCalldata', 'Calldata shorter than 4-byte selector', now);
-    }
-    const sel = '0x' + dataBytes.slice(0, 8).toLowerCase();
-    if (sel !== SEL_AAVE_WITHDRAW) {
-      return makeResult('DENY', 17, 'LendingNotAllowed', 'Lending method not authorized on pool', now);
-    }
-    if (byteLen !== 100) {
-      return makeResult('DENY', 6, 'MalformedCalldata', 'Aave withdraw calldata must be exactly 100 bytes', now);
-    }
-    const asset = '0x' + dataBytes.slice(32, 72).toLowerCase();
-    const amount = BigInt('0x' + dataBytes.slice(72, 136));
-    const recipient = '0x' + dataBytes.slice(160, 200).toLowerCase();
-    if (asset !== ADDR_TOKEN) {
-      return makeResult('DENY', 17, 'LendingNotAllowed', 'Withdrawn asset is not an allowlisted token', now);
-    }
-    if (amount > TOKEN_MAX_PER_TX) {
-      return makeResult('DENY', 9, 'TokenCapExceeded', 'Aave withdraw amount exceeds token cap', now);
-    }
-  } else if (isUniswap) {
-    if (byteLen < 4) {
-      return makeResult('DENY', 6, 'MalformedCalldata', 'Calldata shorter than 4-byte selector', now);
-    }
-    const sel = '0x' + dataBytes.slice(0, 8).toLowerCase();
-    if (sel !== SEL_UNISWAP_V2_SWAP && sel !== SEL_UNISWAP_V3_SWAP) {
-      return makeResult('DENY', 16, 'SwapNotAllowed', 'Swap method not authorized on router', now);
-    }
-    if (byteLen < 68) {
-      return makeResult('DENY', 6, 'MalformedCalldata', 'Swap calldata too short', now);
-    }
-    const amountIn = BigInt('0x' + dataBytes.slice(8, 72));
-    const amountOutMin = BigInt('0x' + dataBytes.slice(72, 136));
-    if (amountOutMin === 0n) {
-      return makeResult('DENY', 16, 'SwapNotAllowed', 'MEV sandwich protection: minimum output must be > 0', now);
-    }
-    if (amountIn > TOKEN_MAX_PER_TX) {
-      return makeResult('DENY', 12, 'TokenCapExceeded', 'Swap input amount exceeds token cap', now);
-    }
-  } else if (isToken) {
-    if (byteLen === 0) {
-      return makeResult('DENY', 5, 'SelectorNotAllowed', 'Token contract disallows plain ETH transfers', now);
-    }
-    if (byteLen < 4) {
-      return makeResult('DENY', 6, 'MalformedCalldata', 'Calldata shorter than 4-byte selector', now);
-    }
-    const sel = '0x' + dataBytes.slice(0, 8).toLowerCase();
-    // ERC20 selectors
-    // approve: 0x095ea7b3, increaseAllowance: 0x39509351, decreaseAllowance: 0xa457c2d7
-    // transfer: 0xa9059cbb
-    // transferFrom: 0x23b872dd
-    if (sel === SEL_APPROVE) {
-      if (byteLen !== 68) {
-        return makeResult('DENY', 6, 'MalformedCalldata', 'Invalid approve calldata length', now);
-      }
-      const rawAmt = BigInt('0x' + dataBytes.slice(72, 136));
-      if (rawAmt === 0n) {
-        // Revocation allowed
-      } else if (rawAmt > TOKEN_MAX_APPROVE) {
-        return makeResult('DENY', 10, 'UnlimitedApproval', 'Approval exceeds max approval limit', now);
-      }
-    } else if (sel === SEL_TRANSFER) {
-      if (byteLen !== 68) {
-        return makeResult('DENY', 6, 'MalformedCalldata', 'Invalid transfer calldata length', now);
-      }
-      const rawAmt = BigInt('0x' + dataBytes.slice(72, 136));
-      if (rawAmt > TOKEN_MAX_PER_TX) {
-        return makeResult('DENY', 9, 'TokenCapExceeded', 'ERC-20 transfer exceeds per-transaction cap', now);
-      }
-    } else if (sel === SEL_TRANSFER_FROM) {
-      if (byteLen !== 100) {
-        return makeResult('DENY', 6, 'MalformedCalldata', 'Invalid transferFrom calldata length', now);
-      }
-      const rawAmt = BigInt('0x' + dataBytes.slice(136, 200));
-      if (rawAmt > TOKEN_MAX_PER_TX) {
-        return makeResult('DENY', 9, 'TokenCapExceeded', 'ERC-20 transferFrom exceeds per-transaction cap', now);
-      }
+  // 11. ERC-20 guard: decode, then the approval cap (10), or the per-transfer cap (9) and the 24 h
+  //     period cap (21). The default policy has no recipient allowlist, so every recipient passes (11).
+  if (isToken) {
+    let amount: bigint;
+    if (sel === SEL_TRANSFER_FROM) {
+      if (byteLen !== 100 || !isAddressWord(4) || !isAddressWord(36)) return deny(6, 'MalformedCalldata', 'Invalid transferFrom calldata');
+      amount = BigInt('0x' + word(68));
     } else {
-      return makeResult('DENY', 5, 'SelectorNotAllowed', 'Function selector is not allowlisted', now);
+      if (byteLen !== 68 || !isAddressWord(4)) return deny(6, 'MalformedCalldata', `Invalid ${sel === SEL_APPROVE ? 'approve' : 'transfer'} calldata`);
+      amount = BigInt('0x' + word(36));
     }
-  }
-
-  // 4. Per-tx ETH cap check
-  if (value > MAX_PER_TX_WEI) {
-    return makeResult('DENY', 7, 'PerTxCapExceeded', 'ETH value exceeds per-transaction cap', now);
-  }
-
-  // 5. Window ETH cap check (rolling 24 h: already spent + this call)
-  if (spent + value > MAX_PER_WINDOW_WEI) {
-    return makeResult('DENY', 8, 'WindowCapExceeded', 'ETH spend exceeds 24h window limit', now, spent);
+    if (sel === SEL_APPROVE) {
+      if (amount > TOKEN_MAX_APPROVE) return deny(10, 'UnlimitedApproval', 'Approval exceeds max approval limit');
+    } else {
+      if (amount > TOKEN_MAX_PER_TX) return deny(9, 'TokenCapExceeded', 'ERC-20 transfer exceeds per-transaction cap');
+      const moved = st ? tokenSpentInPeriod(st.tokenSpent, now) : 0n;
+      if (moved + amount > TOKEN_MAX_PER_WINDOW) return deny(21, 'TokenWindowCapExceeded', 'ERC-20 transfers exceed the 24 h token cap');
+    }
   }
 
   return makeResult('ALLOW', 0, 'None', 'Transaction allowed by policy', now, spent);
@@ -256,15 +184,29 @@ export function predictVerdict(opts: CheckOptions): LeashCheckResult {
 
 const BUCKETS = 24;
 const BUCKET_LEN = 3600n;
+const TOKEN_PERIOD = 86400n;
+const STATE_WORDS = 60;
 
-/** Decodes `leash check --state` hex (52 words): paused, tripped, expiry, 24 (index, amount) buckets, last_action. */
-function decodeStateHex(hex: string): { paused: boolean; tripped: boolean; expiry: bigint; buckets: Array<[bigint, bigint]> } | null {
+interface DecodedState {
+  paused: boolean;
+  tripped: boolean;
+  expiry: bigint;
+  buckets: Array<[bigint, bigint]>;
+  /** The default policy's one token rule: [period index, tokens moved in that period]. */
+  tokenSpent: [bigint, bigint];
+}
+
+/**
+ * Decodes `leash check --state` hex (60 words, policy/src/encoding.fe): paused, tripped, expiry,
+ * 24 (index, amount) ETH buckets, last_action, then 4 (period, amount) token periods.
+ */
+function decodeStateHex(hex: string): DecodedState | null {
   const h = hex.replace(/^0x/, '');
-  if (h.length !== 52 * 64) return null;
+  if (h.length !== STATE_WORDS * 64) return null;
   const w = (i: number) => BigInt('0x' + h.slice(i * 64, (i + 1) * 64));
   const buckets: Array<[bigint, bigint]> = [];
   for (let b = 0; b < BUCKETS; b++) buckets.push([w(3 + b * 2), w(4 + b * 2)]);
-  return { paused: w(0) !== 0n, tripped: w(1) !== 0n, expiry: w(2), buckets };
+  return { paused: w(0) !== 0n, tripped: w(1) !== 0n, expiry: w(2), buckets, tokenSpent: [w(52), w(53)] };
 }
 
 /** Same as ledger.fe spent_in_window: sum of buckets from the last 24 hourly slots. */
@@ -273,6 +215,11 @@ function spentInWindow(buckets: Array<[bigint, bigint]>, now: number): bigint {
   let total = 0n;
   for (const [index, amount] of buckets) if (index <= cur && cur - index < BigInt(BUCKETS)) total += amount;
   return total;
+}
+
+/** Same as ledger.fe token_spent_in_period: tokens moved in the 24 h period that contains `now`. */
+function tokenSpentInPeriod([index, amount]: [bigint, bigint], now: number): bigint {
+  return index === BigInt(now) / TOKEN_PERIOD ? amount : 0n;
 }
 
 function makeResult(
@@ -299,7 +246,7 @@ function makeResult(
         {
           token: '0x1000000000000000000000000000000000000001',
           per_tx: TOKEN_MAX_PER_TX.toString(),
-          window: '500000000000000000000'
+          window: TOKEN_MAX_PER_WINDOW.toString()
         }
       ]
     },

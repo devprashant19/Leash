@@ -1,0 +1,32 @@
+use ingot::types::{Address, Policy}
+
+// Tokens a call moves under a token rule: `idx` is the rule in `policy.tokens`, `amount` its base units.
+pub struct TokenSpend { pub idx: usize, pub amount: u256 }
+
+impl Copy for TokenSpend {}
+impl Snapshot for TokenSpend {}
+
+pub fn find_target_idx(_ to: Address, _ policy: ref Policy) -> Option<usize> {
+    if to == Address::zero() {
+        return Option::None
+    }
+    var i: usize = 0
+    while i < (policy.n_targets as usize) {
+        if policy.targets[i].target == to {
+            return Option::Some(i)
+        }
+        i += 1
+    }
+    Option::None
+}
+
+pub fn find_token_rule_idx(_ token: Address, _ policy: ref Policy) -> Option<usize> {
+    var i: usize = 0
+    while i < (policy.n_tokens as usize) {
+        if policy.tokens[i].token == token {
+            return Option::Some(i)
+        }
+        i += 1
+    }
+    Option::None
+}

@@ -1,11 +1,12 @@
-use ingot::decode::{Erc20Call, decode_erc20}
+use ingot::outflow::TokenSpend
+use ingot::rules::decide_spend
 use ingot::types::{
     AgentState,
     BUCKETS,
     BUCKET_LEN,
     Bucket,
     Policy,
-    TargetKind,
+    TOKEN_PERIOD,
     Timestamp,
     Tx,
     Window24,
@@ -50,12 +51,45 @@ pub fn record_spend(_ window: mut Window24, _ now: Timestamp, _ amount: u256) {
     }
 }
 
-pub fn record(_ tx: ref Tx, _ policy: ref Policy, _ state: mut AgentState) {
+pub fn period_index_of(_ now: Timestamp) -> u64 {
+    (now.as_seconds() / (TOKEN_PERIOD as u256)).downcast_truncate()
+}
+
+// Tokens moved in the TOKEN_PERIOD that contains `now` (0 once the period has passed).
+pub fn token_spent_in_period(_ bucket: Bucket, _ now: Timestamp) -> u256 {
+    if bucket.index == period_index_of(now) {
+        bucket.amount
+    } else {
+        0
+    }
+}
+
+pub fn add_token_spend(_ bucket: Bucket, _ now: Timestamp, _ amount: u256) -> Bucket {
+    let period = period_index_of(now)
+    if bucket.index == period {
+        Bucket { index: period, amount: checked_add_saturate(bucket.amount, amount) }
+    } else {
+        Bucket { index: period, amount }
+    }
+}
+
+// Books an allowed call: its ETH, the tokens decide_spend found it moves, one action, the time.
+pub fn record_allowed(_ tx: ref Tx, _ spend: Option<TokenSpend>, _ state: mut AgentState) {
     if tx.value.as_wei() > 0 {
         record_spend(mut state.eth_window, tx.now, tx.value.as_wei())
     }
+    if let Option::Some(s) = spend {
+        state.token_spent[s.idx] = add_token_spend(state.token_spent[s.idx], tx.now, s.amount)
+    }
     record_spend(mut state.action_window, tx.now, 1)
     state.last_action = tx.now
+}
+
+// Books a call that decide allowed. The token amount comes from the same decision, so the check and
+// the ledger never read the calldata differently.
+pub fn record(_ tx: ref Tx, _ policy: ref Policy, _ state: mut AgentState) {
+    let spend = decide_spend(tx, policy, state).spend
+    record_allowed(tx, spend, mut state)
 }
 
 pub fn record_denial(_ now: Timestamp, _ state: mut AgentState) {

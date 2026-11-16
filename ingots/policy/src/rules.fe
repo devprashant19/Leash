@@ -1,13 +1,6 @@
-use ingot::decode::{
-    AaveCall,
-    Erc20Call,
-    SwapCall,
-    decode_aave,
-    decode_erc20,
-    decode_swap,
-    selector_of,
-}
-use ingot::ledger::{U256_MAX, checked_add_saturate, spent_in_window}
+use ingot::decode::{AaveCall, Erc20Call, decode_aave, decode_erc20, selector_of}
+use ingot::ledger::{U256_MAX, checked_add_saturate, spent_in_window, token_spent_in_period}
+use ingot::outflow::{TokenSpend, find_target_idx, find_token_rule_idx}
 use ingot::types::{
     Address,
     AgentState,
@@ -18,24 +11,10 @@ use ingot::types::{
     PriceQuote,
     TargetKind,
     TargetRule,
-    TokenRule,
+    Timestamp,
     Tx,
     Verdict,
     Wei,
-}
-
-fn find_target_idx(_ to: Address, _ policy: ref Policy) -> Option<usize> {
-    if to == Address::zero() {
-        return Option::None
-    }
-    var i: usize = 0
-    while i < (policy.n_targets as usize) {
-        if policy.targets[i].target == to {
-            return Option::Some(i)
-        }
-        i += 1
-    }
-    Option::None
 }
 
 fn check_selector_and_calldata(_ tx: ref Tx, _ target: ref TargetRule) -> Option<DenyReason> {
@@ -71,17 +50,6 @@ fn check_selector_and_calldata(_ tx: ref Tx, _ target: ref TargetRule) -> Option
     }
 }
 
-fn find_token_rule_idx(_ token: Address, _ policy: ref Policy) -> Option<usize> {
-    var i: usize = 0
-    while i < (policy.n_tokens as usize) {
-        if policy.tokens[i].token == token {
-            return Option::Some(i)
-        }
-        i += 1
-    }
-    Option::None
-}
-
 fn is_recipient_allowed(_ addr: Address, _ policy: ref Policy) -> bool {
     if policy.n_recipients == 0 {
         return true
@@ -96,111 +64,159 @@ fn is_recipient_allowed(_ addr: Address, _ policy: ref Policy) -> bool {
     false
 }
 
+// What a protocol guard found: nothing to object to, tokens leaving under a token rule, or a refusal.
+pub enum GuardCheck {
+    Pass,
+    Spend(TokenSpend),
+    Fail(DenyReason),
+}
+
+impl Copy for GuardCheck {}
+impl Snapshot for GuardCheck {}
+
+fn guard_reason(_ c: GuardCheck) -> Option<DenyReason> {
+    match c {
+        GuardCheck::Fail(r) => Option::Some(r),
+        _ => Option::None,
+    }
+}
+
+// Tokens leaving under token rule `idx`: recipient (11), per-transfer cap (9), then the 24 h period cap (21).
 fn check_transfer(
     _ to: Address,
     _ amt: u256,
-    _ token_rule: ref TokenRule,
+    _ idx: usize,
     _ policy: ref Policy,
-) -> Option<DenyReason> {
+    _ state: ref AgentState,
+    _ now: Timestamp,
+) -> GuardCheck {
+    let token_rule = ref policy.tokens[idx]
     if !is_recipient_allowed(to, policy) {
-        Option::Some(DenyReason::RecipientNotAllowed)
+        GuardCheck::Fail(DenyReason::RecipientNotAllowed)
     } else if amt > token_rule.max_per_tx.as_u256() {
-        Option::Some(DenyReason::TokenCapExceeded)
+        GuardCheck::Fail(DenyReason::TokenCapExceeded)
+    } else if checked_add_saturate(token_spent_in_period(state.token_spent[idx], now), amt)
+        > token_rule.max_per_window.as_u256() {
+        GuardCheck::Fail(DenyReason::TokenWindowCapExceeded)
     } else {
-        Option::None
+        GuardCheck::Spend(TokenSpend { idx, amount: amt })
+    }
+}
+
+fn erc20_check(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> GuardCheck {
+    let token_idx = match find_token_rule_idx(token: tx.to, policy) {
+        Option::Some(idx) => idx,
+        Option::None => {
+            return GuardCheck::Fail(DenyReason::TokenCapExceeded)
+        },
+    }
+    let token_rule = ref policy.tokens[token_idx]
+
+    match decode_erc20(tx.data) {
+        Erc20Call::Malformed => GuardCheck::Fail(DenyReason::MalformedCalldata),
+        Erc20Call::Unknown => GuardCheck::Fail(DenyReason::SelectorNotAllowed),
+        Erc20Call::Transfer(to, amt) => check_transfer(
+            to,
+            amt,
+            idx: token_idx,
+            policy,
+            state,
+            now: tx.now,
+        ),
+        Erc20Call::TransferFrom(_from, to, amt) => {
+            check_transfer(to, amt, idx: token_idx, policy, state, now: tx.now)
+        },
+        Erc20Call::Approve(spender, amt) => {
+            if amt == 0 {
+                GuardCheck::Pass
+            } else if !is_recipient_allowed(spender, policy) {
+                GuardCheck::Fail(DenyReason::RecipientNotAllowed)
+            } else if amt == U256_MAX || amt > token_rule.max_approve.as_u256() {
+                GuardCheck::Fail(DenyReason::UnlimitedApproval)
+            } else {
+                GuardCheck::Pass
+            }
+        },
+    }
+}
+
+fn aave_check(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> GuardCheck {
+    match decode_aave(tx.data) {
+        AaveCall::Malformed => GuardCheck::Fail(DenyReason::MalformedCalldata),
+        AaveCall::Unknown => GuardCheck::Fail(DenyReason::LendingNotAllowed),
+        AaveCall::Withdraw(asset, amount, to) => {
+            match find_token_rule_idx(token: asset, policy) {
+                Option::Some(idx) => check_transfer(
+                    to,
+                    amt: amount,
+                    idx,
+                    policy,
+                    state,
+                    now: tx.now,
+                ),
+                Option::None => GuardCheck::Fail(DenyReason::LendingNotAllowed),
+            }
+        },
     }
 }
 
 pub fn check_erc20_guard(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
     DenyReason,
 > {
-    let token_idx = match find_token_rule_idx(token: tx.to, policy) {
-        Option::Some(idx) => idx,
-        Option::None => {
-            return Option::Some(DenyReason::TokenCapExceeded)
-        },
-    }
-    let token_rule = ref policy.tokens[token_idx]
-
-    match decode_erc20(tx.data) {
-        Erc20Call::Malformed => Option::Some(DenyReason::MalformedCalldata),
-        Erc20Call::Unknown => Option::Some(DenyReason::SelectorNotAllowed),
-        Erc20Call::Transfer(to, amt) => check_transfer(to, amt, token_rule, policy),
-        Erc20Call::TransferFrom(_from, to, amt) => check_transfer(to, amt, token_rule, policy),
-        Erc20Call::Approve(spender, amt) => {
-            if amt == 0 {
-                Option::None
-            } else {
-                if !is_recipient_allowed(spender, policy) {
-                    return Option::Some(DenyReason::RecipientNotAllowed)
-                }
-                if amt == U256_MAX || amt > token_rule.max_approve.as_u256() {
-                    Option::Some(DenyReason::UnlimitedApproval)
-                } else {
-                    Option::None
-                }
-            }
-        },
-    }
+    guard_reason(erc20_check(tx, policy, state))
 }
 
+// Swaps are refused. The recipient and the token path of a Uniswap call lie past the 100 calldata
+// bytes the policy decodes, so the policy cannot check where the output goes: default deny.
 pub fn check_uniswap_guard(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
     DenyReason,
 > {
-    match decode_swap(tx.data) {
-        SwapCall::Malformed => Option::Some(DenyReason::MalformedCalldata),
-        SwapCall::Unknown => Option::Some(DenyReason::SwapNotAllowed),
-        SwapCall::ExactInput(amount_in, amount_out_min) => {
-            // MEV Sandwich Protection: Zero minimum output is strictly forbidden
-            if amount_out_min == 0 {
-                return Option::Some(DenyReason::SwapNotAllowed)
-            }
-
-            // Check input token caps if tokens are listed in policy
-            if policy.n_tokens > 0 {
-                if amount_in > policy.tokens[0].max_per_tx.as_u256() {
-                    return Option::Some(DenyReason::TokenCapExceeded)
-                }
-            }
-            Option::None
-        },
-    }
+    Option::Some(DenyReason::SwapNotAllowed)
 }
 
 pub fn check_aave_guard(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
     DenyReason,
 > {
-    match decode_aave(tx.data) {
-        AaveCall::Malformed => Option::Some(DenyReason::MalformedCalldata),
-        AaveCall::Unknown => Option::Some(DenyReason::LendingNotAllowed),
-        AaveCall::Withdraw(asset, amount, to) => {
-            let tr_idx = match find_token_rule_idx(token: asset, policy) {
-                Option::Some(idx) => idx,
-                Option::None => {
-                    return Option::Some(DenyReason::LendingNotAllowed)
-                },
-            }
-            let token_rule = ref policy.tokens[tr_idx]
-            check_transfer(to, amt: amount, token_rule, policy)
-        },
-    }
+    guard_reason(aave_check(tx, policy, state))
+}
+
+// Consecutive refused tryExecute calls that trip an agent's circuit breaker (until the Safe resets it).
+pub const BREAKER_DENIALS: u32 = 3
+
+pub fn breaker_trips(_ denials: u32) -> bool {
+    denials >= BREAKER_DENIALS
+}
+
+// A verdict, and for an allowed call the tokens it moves under a token rule (what `record_allowed` books).
+pub struct Decision { pub verdict: Verdict, pub spend: Option<TokenSpend> }
+
+impl Copy for Decision {}
+impl Snapshot for Decision {}
+
+fn denied(_ reason: DenyReason) -> Decision {
+    Decision { verdict: Verdict::Deny(reason), spend: Option::None }
 }
 
 pub fn decide(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Verdict {
+    decide_spend(tx, policy, state).verdict
+}
+
+// The rules, in order. Pure: same inputs, same decision. Anything not allowlisted is denied.
+pub fn decide_spend(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Decision {
     // 1. Paused
     if state.paused {
-        return Verdict::Deny(DenyReason::Paused)
+        return denied(DenyReason::Paused)
     }
 
     // 2. CircuitTripped
     if state.tripped {
-        return Verdict::Deny(DenyReason::CircuitTripped)
+        return denied(DenyReason::CircuitTripped)
     }
 
     // 3. SessionExpired
     if state.expiry.as_seconds() > 0 {
         if tx.now >= state.expiry {
-            return Verdict::Deny(DenyReason::SessionExpired)
+            return denied(DenyReason::SessionExpired)
         }
     }
 
@@ -208,7 +224,7 @@ pub fn decide(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Ve
     if policy.cooldown.as_seconds() > 0 {
         if state.last_action.as_seconds() > 0 {
             if tx.now < state.last_action + policy.cooldown {
-                return Verdict::Deny(DenyReason::CooldownActive)
+                return denied(DenyReason::CooldownActive)
             }
         }
     }
@@ -216,7 +232,7 @@ pub fn decide(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Ve
     // 5. DelegateCallBlocked
     match tx.op {
         Operation::DelegateCall => {
-            return Verdict::Deny(DenyReason::DelegateCallBlocked)
+            return denied(DenyReason::DelegateCallBlocked)
         },
         Operation::Call => {},
     }
@@ -225,194 +241,48 @@ pub fn decide(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Ve
     let target_idx = match find_target_idx(to: tx.to, policy) {
         Option::Some(idx) => idx,
         Option::None => {
-            return Verdict::Deny(DenyReason::TargetNotAllowed)
+            return denied(DenyReason::TargetNotAllowed)
         },
     }
 
     // 7. MalformedCalldata / SelectorNotAllowed
     let tr = ref policy.targets[target_idx]
     if let Option::Some(reason) = check_selector_and_calldata(tx, target: tr) {
-        return Verdict::Deny(reason)
+        return denied(reason)
     }
 
     // 8. RateLimited
     if policy.max_actions_per_window > 0 {
         let count = spent_in_window(state.action_window, tx.now)
         if count + 1 > (policy.max_actions_per_window as u256) {
-            return Verdict::Deny(DenyReason::RateLimited)
+            return denied(DenyReason::RateLimited)
         }
     }
 
     // 9. PerTxCapExceeded
     if tx.value > policy.max_per_tx {
-        return Verdict::Deny(DenyReason::PerTxCapExceeded)
+        return denied(DenyReason::PerTxCapExceeded)
     }
 
     // 10. WindowCapExceeded
     let spent = spent_in_window(state.eth_window, tx.now)
     let total = checked_add_saturate(spent, tx.value.as_wei())
     if total > policy.max_per_window.as_wei() {
-        return Verdict::Deny(DenyReason::WindowCapExceeded)
+        return denied(DenyReason::WindowCapExceeded)
     }
 
-    // 11. Protocol guards (ERC-20, Uniswap Router)
-    match policy.targets[target_idx].kind {
-        TargetKind::Erc20 => {
-            if let Option::Some(reason) = check_erc20_guard(tx, policy, state) {
-                return Verdict::Deny(reason)
-            }
-        },
-        TargetKind::UniswapRouter => {
-            if let Option::Some(reason) = check_uniswap_guard(tx, policy, state) {
-                return Verdict::Deny(reason)
-            }
-        },
-        TargetKind::AavePool => {
-            if let Option::Some(reason) = check_aave_guard(tx, policy, state) {
-                return Verdict::Deny(reason)
-            }
-        },
-        _ => {},
+    // 11. Protocol guards: ERC-20 and Aave (recipient, token caps 9 and 21, approvals), Uniswap (refused)
+    let check = match policy.targets[target_idx].kind {
+        TargetKind::Erc20 => erc20_check(tx, policy, state),
+        TargetKind::UniswapRouter => GuardCheck::Fail(DenyReason::SwapNotAllowed),
+        TargetKind::AavePool => aave_check(tx, policy, state),
+        _ => GuardCheck::Pass,
     }
-
-    Verdict::Allow
-}
-
-pub fn check_erc20_guard_override(
-    _ tx: ref Tx,
-    _ policy: ref Policy,
-    _ state: ref AgentState,
-) -> Option<DenyReason> {
-    match decode_erc20(tx.data) {
-        Erc20Call::Malformed => Option::Some(DenyReason::MalformedCalldata),
-        Erc20Call::Unknown => Option::Some(DenyReason::SelectorNotAllowed),
-        Erc20Call::Transfer(to, _amt) => {
-            if !is_recipient_allowed(to, policy) {
-                Option::Some(DenyReason::RecipientNotAllowed)
-            } else {
-                Option::None
-            }
-        },
-        Erc20Call::TransferFrom(_from, to, _amt) => {
-            if !is_recipient_allowed(to, policy) {
-                Option::Some(DenyReason::RecipientNotAllowed)
-            } else {
-                Option::None
-            }
-        },
-        Erc20Call::Approve(spender, amt) => {
-            if amt == 0 {
-                Option::None
-            } else {
-                if !is_recipient_allowed(spender, policy) {
-                    return Option::Some(DenyReason::RecipientNotAllowed)
-                }
-                if amt == U256_MAX {
-                    Option::Some(DenyReason::UnlimitedApproval)
-                } else {
-                    Option::None
-                }
-            }
-        },
+    match check {
+        GuardCheck::Fail(reason) => denied(reason),
+        GuardCheck::Spend(s) => Decision { verdict: Verdict::Allow, spend: Option::Some(s) },
+        GuardCheck::Pass => Decision { verdict: Verdict::Allow, spend: Option::None },
     }
-}
-
-pub fn check_uniswap_guard_override(
-    _ tx: ref Tx,
-    _ policy: ref Policy,
-    _ state: ref AgentState,
-) -> Option<DenyReason> {
-    match decode_swap(tx.data) {
-        SwapCall::Malformed => Option::Some(DenyReason::MalformedCalldata),
-        SwapCall::Unknown => Option::Some(DenyReason::SwapNotAllowed),
-        SwapCall::ExactInput(_amount_in, amount_out_min) => {
-            if amount_out_min == 0 {
-                return Option::Some(DenyReason::SwapNotAllowed)
-            }
-            Option::None
-        },
-    }
-}
-
-pub fn decide_with_override(
-    _ tx: ref Tx,
-    _ policy: ref Policy,
-    _ state: ref AgentState,
-) -> Verdict {
-    // 1. Paused
-    if state.paused {
-        return Verdict::Deny(DenyReason::Paused)
-    }
-
-    // 2. CircuitTripped
-    if state.tripped {
-        return Verdict::Deny(DenyReason::CircuitTripped)
-    }
-
-    // 3. SessionExpired
-    if state.expiry.as_seconds() > 0 {
-        if tx.now >= state.expiry {
-            return Verdict::Deny(DenyReason::SessionExpired)
-        }
-    }
-
-    // 4. CooldownActive
-    if policy.cooldown.as_seconds() > 0 {
-        if state.last_action.as_seconds() > 0 {
-            if tx.now < state.last_action + policy.cooldown {
-                return Verdict::Deny(DenyReason::CooldownActive)
-            }
-        }
-    }
-
-    // 5. DelegateCallBlocked
-    match tx.op {
-        Operation::DelegateCall => {
-            return Verdict::Deny(DenyReason::DelegateCallBlocked)
-        },
-        Operation::Call => {},
-    }
-
-    // 6. TargetNotAllowed
-    let target_idx = match find_target_idx(to: tx.to, policy) {
-        Option::Some(idx) => idx,
-        Option::None => {
-            return Verdict::Deny(DenyReason::TargetNotAllowed)
-        },
-    }
-
-    // 7. MalformedCalldata / SelectorNotAllowed
-    let tr = ref policy.targets[target_idx]
-    if let Option::Some(reason) = check_selector_and_calldata(tx, target: tr) {
-        return Verdict::Deny(reason)
-    }
-
-    // 8. RateLimited
-    if policy.max_actions_per_window > 0 {
-        let count = spent_in_window(state.action_window, tx.now)
-        if count + 1 > (policy.max_actions_per_window as u256) {
-            return Verdict::Deny(DenyReason::RateLimited)
-        }
-    }
-
-    // Notice: 9. PerTxCapExceeded and 10. WindowCapExceeded are skipped with valid owner override!
-
-    // 11. Protocol guards (with token caps skipped)
-    match policy.targets[target_idx].kind {
-        TargetKind::Erc20 => {
-            if let Option::Some(reason) = check_erc20_guard_override(tx, policy, state) {
-                return Verdict::Deny(reason)
-            }
-        },
-        TargetKind::UniswapRouter => {
-            if let Option::Some(reason) = check_uniswap_guard_override(tx, policy, state) {
-                return Verdict::Deny(reason)
-            }
-        },
-        _ => {},
-    }
-
-    Verdict::Allow
 }
 
 pub fn decide_with_escalation(

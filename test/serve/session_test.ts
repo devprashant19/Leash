@@ -67,8 +67,8 @@ async function runSessionTest(): Promise<void> {
   await waitForResponseCount(2);
   assert.strictEqual(responses[1].id, 2);
   assert.ok(Array.isArray(responses[1].result.rules));
-  assert.strictEqual(responses[1].result.rules.length, 20);
-  console.log('✓ Step 2 PASS: Explain returns all 20 rules');
+  assert.strictEqual(responses[1].result.rules.length, 21);
+  console.log('✓ Step 2 PASS: Explain returns all 21 deny codes');
 
   // 3. Check allowed transaction (0.05 ETH to Treasury)
   send(
@@ -155,8 +155,22 @@ async function runSessionTest(): Promise<void> {
   assert.strictEqual(responses[7].result.status, 'ok');
   console.log('✓ Step 8 PASS: Server operational after error and resets state');
 
+  // 9. Five recorded 100-token transfers use the 500-token period cap; one more token is refused (21)
+  const TOKEN = '0x1000000000000000000000000000000000000001';
+  const transfer = (amt: bigint) => '0xa9059cbb' + '2000000000000000000000000000000000000002'.padStart(64, '0') + amt.toString(16).padStart(64, '0');
+  for (let k = 0; k < 5; k++) {
+    send(JSON.stringify({ id: 9 + k, method: 'record', params: { to: TOKEN, data: transfer(100n * 10n ** 18n) } }));
+  }
+  await waitForResponseCount(13);
+  assert.strictEqual(responses[12].result.tokens_in_period, (500n * 10n ** 18n).toString());
+  send(JSON.stringify({ id: 14, method: 'check', params: { to: TOKEN, value_wei: '0', data: transfer(10n ** 18n) } }));
+  await waitForResponseCount(14);
+  assert.strictEqual(responses[13].result.code, 21);
+  assert.strictEqual(responses[13].result.reason, 'TokenWindowCapExceeded');
+  console.log('✓ Step 9 PASS: Planned token transfers reach the 24 h token cap (code 21)');
+
   proc.kill();
-  console.log('All 8 scripted tool session steps PASSED green!\n');
+  console.log('All 9 scripted tool session steps PASSED green!\n');
 }
 
 runSessionTest().catch((err) => {
