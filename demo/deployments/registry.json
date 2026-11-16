@@ -1,0 +1,31 @@
+{
+  "version": "1.0.0",
+  "salt": "0x6c656173682d706f6c6963792d76312e302e3000000000000000000000000000",
+  "policyFingerprint": "0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee",
+  "deployments": {
+    "sepolia": {
+      "chainId": 11155111,
+      "moduleAddress": "0x51E91aA8b9C5E9b71e16f39e31d8c117Bf1a92e1",
+      "verified": true,
+      "bytecodeHeadroomBytes": 2292
+    },
+    "base-sepolia": {
+      "chainId": 84532,
+      "moduleAddress": "0x51E91aA8b9C5E9b71e16f39e31d8c117Bf1a92e1",
+      "verified": true,
+      "bytecodeHeadroomBytes": 2292
+    },
+    "arbitrum-sepolia": {
+      "chainId": 421614,
+      "moduleAddress": "0x51E91aA8b9C5E9b71e16f39e31d8c117Bf1a92e1",
+      "verified": true,
+      "bytecodeHeadroomBytes": 2292
+    },
+    "optimism-sepolia": {
+      "chainId": 11155420,
+      "moduleAddress": "0x51E91aA8b9C5E9b71e16f39e31d8c117Bf1a92e1",
+      "verified": true,
+      "bytecodeHeadroomBytes": 2292
+    }
+  }
+}
