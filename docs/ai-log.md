@@ -1169,3 +1169,24 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 - **Reviewed by human**: yes, verified and confirmed.
 
 
+
+## 2026-11-17 — Fix the live API, enforce the per-token 24 h cap, refuse unverifiable swaps, remove unused bypass code
+- **AI-assisted**: yes (Claude Code).
+- **Live API (Vercel)**: every function failed with `FUNCTION_INVOCATION_FAILED`. Cause, read from a JSON error added to `/api/health`: the `@ethereumjs` CommonJS builds `require()` `@noble/curves` / `@noble/hashes` v2 (ES modules only), which Vercel's Node runtime rejects (`ERR_REQUIRE_ESM`). Fix: `scripts/bundle-api.mjs` bundles the engine with esbuild into `api/_lib/engine.bundle.cjs` during the install step; handlers load it inside their try blocks (`api/_lib/load.ts`); CI loads the bundle with `node --no-experimental-require-module` (`npm run test:bundle`). The silent empty-ABI artifact fallback was replaced by a clear error, and the TypeScript mirror is forbidden on Vercel again (it had been enabled there).
+- **Token cap (code 21)**: `TokenRule.max_per_window` was set but never checked. Now enforced per fixed 24 h period (`AgentState.token_spent`, state words 52 → 60), after the per-transfer cap. `decide_spend` returns the verdict and the tokens an allowed call moves; `record_allowed` books exactly that. `LeashModule` stores the token periods per agent.
+- **Swaps**: the Uniswap decoder read `amountIn`/`amountOutMin` at the wrong offsets for `exactInputSingle` (they lie past the 100 decoded bytes, as does the recipient). Listed routers are now refused (16); swap decoding was removed.
+- **Removed**: `decide_with_override`, the EIP-712 override hash module, the policy queue module, the CLI `--override` flag and attack 21 (no contract used them; the override skipped the caps); per-agent caps (`setAgentPolicy`, `fingerprintOf`, owner-supplied `custom_fingerprint`), which produced policies the CLI could not predict. ADRs 007, 011, 012 marked superseded.
+- **LeashModule**: ledger written to storage before the Safe call (was after); breaker threshold via `policy::breaker_trips`; rate-limit window input no longer fed the ETH window by mistake. Runtime 24,308 bytes (268 under EIP-170).
+- **Tooling**: TS mirror rewritten in `decide`'s order (it differed in edge cases); `leash replay` books token spends; the agent-tool session passes its planned ledger as `--state` instead of overriding verdicts in TypeScript; CI runs the web tests with the bundled binary and uploads `out/cli`.
+- **Docs and page**: RULES.md rewritten from the code (it said delegatecall was allowed with `delegate_ok`, which the code never reads); README limitations, sizes, test counts, attack list, mutation result (re-measured: 12 failing tests, not 11) and source links; rule cards quote the current code; the page's "Recipient allowlist" card was replaced (the default policy has no recipient list); deny-code grid holds 22 codes.
+- **Verification** (raw):
+  - `fe fmt --check ingots && fe fmt --check test`: clean.
+  - `fe test` (Windows, EVM): `test result: ok. 153 passed; 0 failed` (attacks 31, policy 80, module 18, parity 13, testkit 5, policy-2 4, cli 2).
+  - `fe test --backend native` (Ubuntu 24.04 container): `test result: ok. 119 passed; 0 failed`.
+  - `bash scripts/golden.sh`: `All 17 golden tests passed!`; `scripts/fixtures-to-golden.sh`: `All fixture parity tests passed!`; `scripts/compile-fail.sh`: `6 file(s) correctly rejected`.
+  - `fe build --emit sizes`: `runtime: 24308 bytes (22223 code, 2085 data, 0 embedded)`.
+  - `vercel build` (vercel@65.9.0) in `public.ecr.aws/lambda/nodejs:22`, functions invoked with `--no-experimental-require-module`: health `200 {"ok":true,"predictionSource":"fe-native",...}`, demo `200 ... "allMatched":true`.
+  - `LEASH_REQUIRE_NATIVE=1 npm run test:web` with the bundled binary on Amazon Linux 2023: `All 17 web checks passed.`; `npm run test:bundle`: `bundle ok: fe-native, demo 5/5 matched, plan allowed 1`.
+  - `npx tsx test/serve/session_test.ts`: `All 9 scripted tool session steps PASSED green!`
+  - `web/public/recorded/{demo,tour}.json` re-recorded on Amazon Linux 2023 with the new binary: 5/5 and 18/18 matched, `fe-native`.
+- **Reviewed by human**: pending.

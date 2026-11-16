@@ -20,6 +20,11 @@ const PLANS: Array<{ title: string; note: string; steps: PlanStep[] }> = [
     steps: [1, 2, 3, 4, 5, 6].map((i) => ({ description: `Pay 0.09 ETH (#${i})`, to: TREASURY, valueEth: '0.09' })),
   },
   {
+    title: 'A token drip',
+    note: 'Six transfers of 100 tokens: each is within the 100-token cap, but the sixth would take the day past 500 tokens (code 21).',
+    steps: [1, 2, 3, 4, 5, 6].map((i) => ({ description: `Transfer 100 tokens (#${i})`, to: TOKEN, valueEth: '0', data: '0xa9059cbb' + pad(TREASURY) + pad(tokens(100)) })),
+  },
+  {
     title: 'A diversion in the middle',
     note: 'A prompt-injected call to an unlisted contract is refused; the plan around it still runs.',
     steps: [

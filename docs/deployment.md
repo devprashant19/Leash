@@ -14,7 +14,8 @@ Leash runs in four places, and each one is free: a Vercel site where anyone can 
 What it is:
 
 - `web/index.html`: the page, plus the recorded-run dashboard at `/dashboard/`.
-- `api/demo.ts`, `api/check.ts`, `api/health.ts`: Node functions. Each request deploys the Fe-compiled `MockSafe`, `LeashModule` and `MockErc20` (from `api/_assets/artifacts/`) into a fresh in-memory EVM (`@ethereumjs/vm`, Prague rules). Before each agent transaction, the bundled Fe-built binary (`api/_assets/leash-linux-x86_64`, from the `cli-v0.1.0` release) predicts the verdict from the agent's on-chain state. On Vercel the TypeScript mirror is switched off: if the binary cannot run, the request fails rather than fall back.
+- `api/demo.ts`, `api/tour.ts`, `api/check.ts`, `api/plan.ts`, `api/health.ts`: Node functions. Each request deploys the Fe-compiled `MockSafe`, `LeashModule` and `MockErc20` (from `api/_assets/artifacts/`) into a fresh in-memory EVM (`@ethereumjs/vm`, Prague rules). Before each agent transaction, the bundled Fe-built binary (`api/_assets/leash-linux-x86_64`) predicts the verdict from the agent's on-chain state. On Vercel the TypeScript mirror is switched off: if the binary is missing or cannot run, the request fails with a JSON error rather than fall back.
+- The handlers load `api/_lib/engine.bundle.cjs`, which `scripts/bundle-api.mjs` builds with esbuild during the install step (`vercel.json` `installCommand`). The `@ethereumjs` CommonJS builds `require()` `@noble/curves` and `@noble/hashes` v2, which are ES modules only, and Vercel's Node runtime rejects `require()` of an ES module (`ERR_REQUIRE_ESM`, seen as `FUNCTION_INVOCATION_FAILED`). The bundle converts them to CommonJS. CI loads it with `node --no-experimental-require-module` (`npm run test:bundle`) to catch a regression.
 - Nothing touches a real network, and no keys or environment variables are needed.
 
 Deploy:
@@ -25,7 +26,7 @@ Deploy:
 
 Shareable links: `/?run` runs the demo on load, `/?tour` runs the full feature tour, and `/?try=N` runs example N (0 = 0.05 ETH to the treasury, 1 = 0.2 ETH over the cap, 2 = transfer 50 tokens, 3 = transfer 101 tokens, 4 = unlimited approve, 5 = unlisted contract, 6 = delegatecall).
 
-Keep it in sync: after a Fe change, run `fe build && npm run sync:web` and commit `api/_assets/artifacts/`. To refresh the binary, run `gh release download <tag> -p leash-linux-x86_64 -D api/_assets --clobber`. The CI `web` job fails if either is stale.
+Keep it in sync: after a Fe change, run `fe build && npm run sync:web` and commit `api/_assets/artifacts/`. Refresh the binary from a Linux build of the same commit: `fe build --backend native` on x86-64 Linux and copy `out/cli` to `api/_assets/leash-linux-x86_64`, or download the `leash-linux-x86_64` artifact of the CI `web` job (`gh run download <run-id> -n leash-linux-x86_64`). The CI `web` job fails if the artifacts are stale, if the bundled binary's fingerprint or version differ from a fresh build, or if `npm run test:web` fails with the bundled binary.
 
 Run it locally: `npm ci && npm run build:web && npx tsx scripts/dev-web.ts`, then open `http://localhost:3000`. For live editing of the page, `npm run dev:web` serves it with hot reload on `http://localhost:5173`. Run `npm run test:web` to check the functions without a server.
 

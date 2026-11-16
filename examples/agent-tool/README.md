@@ -4,8 +4,8 @@ This directory provides drop-in tool wrappers for autonomous AI agents (LangChai
 
 ## Why Agents Need Leash Pre-Flight Checks
 
-1. **Zero On-Chain Reverts**: LLMs often propose out-of-budget transactions, unlisted swap routes, or missing approvals. Leash evaluates the transaction off-chain with 100% mathematical parity against the on-chain Safe module before any transaction is broadcast.
-2. **Multi-Step Budget Planning**: Through the `record` simulation method, agents can plan multi-step routes (e.g., swapping on Uniswap and supplying to Aave) and verify that the combined actions will not violate the 24-hour rolling window cap.
+1. **Zero On-Chain Reverts**: LLMs often propose out-of-budget transactions, unlisted contracts, or oversized approvals. Leash evaluates the transaction off-chain with the same Fe policy the on-chain Safe module runs (through the `leash` binary when one is present) before any transaction is broadcast.
+2. **Multi-Step Budget Planning**: Through the `record` simulation method, agents can plan multi-step routes (for example several payments and token transfers) and verify that the combined actions will not violate the 24-hour rolling window cap.
 3. **Zero Drift Guarantee**: Both the native CLI and the on-chain Safe module compile the identical pure Fe policy ingot and produce the same Keccak-256 policy fingerprint (`0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee`).
 
 ## Usage

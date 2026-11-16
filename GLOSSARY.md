@@ -20,7 +20,8 @@ Every term listed here must be used consistently across code, types, comments, d
 | **Execute** | An on-chain entrypoint on `LeashModule` that evaluates policy, reverts with custom error on Deny, or updates ledger and calls the Safe on Allow. |
 | **TryExecute** | An on-chain entrypoint that returns `(bool ok, u8 code)` without reverting on Deny, recording denials for the circuit breaker. |
 | **Breaker** | The circuit breaker: after 3 `tryExecute` denials since the agent was set or last reset, every call returns `CircuitTripped` (15) until the Safe calls `resetBreaker`. |
-| **Guard** | Protocol-specific calldata decoding and policy checks (e.g. ERC-20 transfer/approve limits, Uniswap swap caps). |
+| **Guard** | Protocol-specific calldata decoding and policy checks (ERC-20 transfer, approve and the 24 h token cap; Aave withdraw; Uniswap routers are refused). |
+| **Token period** | The fixed 24 h period (from 00:00 UTC) in which a token rule's `max_per_window` applies; tracked per token rule in `AgentState.token_spent`. |
 | **Session** | A temporary authorization window defined by a session key expiry timestamp. |
 | **Target** | The destination address of a proposed transaction. Must be present in the target allowlist unless transferring ETH within general caps. |
 | **Selector** | The 4-byte function selector of an EVM contract call. Checked against allowlisted selectors for that target. |

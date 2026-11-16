@@ -23,4 +23,4 @@ Storing a full 138-word `Policy` struct per agent in EVM contract storage would 
 - **Parity**: Identical fingerprint generation guarantees that `leash check` and `LeashModule` produce the exact same verdicts.
 
 ## Status
-Accepted.
+Superseded (2026-11-17). Per-agent caps (`setAgentPolicy`, `fingerprintOf`, `custom_fingerprint`) were removed: the `leash` CLI predicts with `default_policy()` only, so an agent with custom caps got predictions the chain did not honour, and its "fingerprint" was a number the Safe supplied. Every agent now runs under `default_policy()`.

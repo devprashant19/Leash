@@ -122,13 +122,13 @@ code.t-code { font-size: .9em; color: var(--text); }
 .rules-list.touch .rule-row:not(.active) .rule-hit > :not(.rule-bar):not(.rule-inline) { opacity: .45; transition: opacity .6s var(--ease-row); }
 
 /* ================= deny codes ================= */
-.codes { display: grid; grid-template-columns: repeat(7, 1fr); border-top: 1px solid var(--line); }
+.codes { display: grid; grid-template-columns: repeat(11, 1fr); border-top: 1px solid var(--line); }
 .code { display: grid; gap: .6em; align-content: start; padding: 1.4em 1.2em 1.6em; background: none; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: left; cursor: default; color: var(--text); opacity: 0; transition: background .4s var(--ease-house), color .3s; }
 .code:nth-child(7n) { border-right: 0; }
 .reveal-on .code { animation: brighten 4s linear forwards; animation-delay: calc(var(--c) * .33s); }
 @keyframes brighten { 0% { opacity: 0; } 15% { opacity: .35; } 100% { opacity: 1; } }
 .code-n { font-size: 1.8em; color: var(--text-dim); font-weight: 500; }
-.code-name { font-size: .78em; color: var(--text-2); overflow-wrap: anywhere; }
+.code-name { font-size: .78em; color: var(--text-2); overflow-wrap: normal; }
 .code:hover, .code:focus-visible { background: var(--bg-hover); }
 .code:hover .code-n, .code:focus-visible .code-n { color: var(--violet-2); }
 .code.zero .code-n { color: var(--violet-2); }

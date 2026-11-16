@@ -1,7 +1,7 @@
 # ADR-012: Owner Co-signed EIP-712 Spending Overrides
 
 ## Status
-Accepted
+Superseded (2026-11-17). `decide_with_override`, the EIP-712 override hash module and the CLI `--override` flag were removed: no contract verified the signature, and the function skipped the spend caps.
 
 ## Context
 In exceptional circumstances (such as emergency rebalancing, urgent debt repayment, or scheduled treasury operations), an agent may need to exceed its configured per-transaction, rolling window, or token spending caps without waiting for contract reconfiguration or redeployment.

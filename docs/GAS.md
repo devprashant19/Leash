@@ -5,26 +5,28 @@
 EIP-170 sets a hard runtime bytecode limit of **24,576 bytes** (0x6000).
 EIP-3860 sets a maximum initcode limit of **49,152 bytes** (0xc000).
 
-| Contract | Runtime Size (Bytes) | EIP-170 Limit | Headroom | Initcode Size (Bytes) | EIP-3860 Limit | Status |
+| Contract | Runtime size (bytes) | EIP-170 limit | Headroom | Initcode size (bytes) | EIP-3860 limit | Status |
 |---|---|---|---|---|---|---|
-| `LeashModule` | **22,029** | 24,576 | **+2,547 bytes (10.4%)** | 22,284 | 49,152 | **PASS (0 warnings)** |
-| `LeashQueue` | **8,610** | 24,576 | **+15,966 bytes (65.0%)** | 8,730 | 49,152 | **PASS (0 warnings)** |
+| `LeashModule` | **24,308** | 24,576 | **+268 bytes (1.1%)** | 24,563 | 49,152 | **PASS (0 warnings)** |
+
+Measured with `fe build ingots/module --emit sizes` (Fe 26.6.0, default optimization level `-O 1`, which the artifacts are built with; `-O s` gives 24,217 bytes and `-O 2` 24,187). The headroom is small: new on-chain rules need size work first.
 
 ### Top Runtime Functions Breakdown (`LeashModule`)
 
 From `fe build ingots/module --emit sizes`:
 
 ```text
-runtime: 22029 bytes (20167 code, 1862 data, 0 embedded)
-    9277 eval_tx
-    3584 contract_runtime_root_LeashModule
-    2079 contract_recv_abi_LeashModule_1368675399 (Preview)
-    1358 contract_recv_abi_LeashModule_2197115671 (Execute)
-    1246 contract_recv_abi_LeashModule_837179557 (TryExecute)
-     689 run_tx
-     319 reason_code
-     274 revert_for
-     188 contract_recv_abi_LeashModule_3773533601
+runtime: 24308 bytes (22223 code, 2085 data, 0 embedded)
+    9318 eval_tx
+    3859 contract_runtime_root_LeashModule
+    2426 contract_recv_abi_LeashModule_1368675399 (Preview)
+    1504 contract_recv_abi_LeashModule_837179557 (TryExecute)
+    1459 contract_recv_abi_LeashModule_2197115671 (Execute)
+    1217 default_policy
+     406 forward
+     335 reason_code
+     288 revert_for
+     180 check_transfer
      125 spent_in_window
      116 copy_dynamic_payload_from_with_input_len
       93 find_token_rule_idx
@@ -32,24 +34,18 @@ runtime: 22029 bytes (20167 code, 1862 data, 0 embedded)
       86 is_recipient_allowed
       84 lib__decode__read_word
       75 selector_of
-      51 check_transfer
+      72 record_spend
+      37 checked_add_saturate
       25 require_safe
 ```
 
-### Architectural Size Optimizations Applied
+### What keeps it under the limit
 
-1. **Pass-by-Reference (`ref` & `mut`)**:
-   Eliminated struct copies for `Tx`, `Policy`, and `Calldata`.
-2. **Index-Based Target and Token Lookups**:
-   `find_target_idx` and `find_token_rule_idx` return indices, eliminating 416-byte `TargetRule` copies on every transaction check.
-3. **Data Section Pruning via Field Mutation**:
-   Constructing `targets` and `tokens` in `policy_for_agent` via direct field mutation reduced DATA section footprint by over 3,200 bytes.
-4. **Lean On-Chain Storage Model (`AgentLedger`)**:
-   Instead of storing 340-word `AgentState` struct on-chain, `StorageMap<Address, AgentLedger>` stores only active window buckets (`eth_window`), cutting storage read/write overhead by over 70%.
-5. **Execution Deduplication**:
-   Extracted shared transaction evaluation pipeline (`eval_tx`) between `Execute`, `TryExecute`, and `Preview`.
-6. **Compile-time Policy Fingerprint**:
-   Emitted the pinned default policy cryptographic fingerprint (`0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee`) as a constant for `Fingerprint`, pruning unused Keccak-f[1600] permutation engine from on-chain deployment.
+1. **One decision, one decode**: `policy::decide_spend` returns the verdict and the token amount an allowed call moves; the module books that amount with `record_allowed`. Decoding the calldata a second time for the ledger cost about 2.7 KB.
+2. **Pass-by-reference (`ref` and `mut`)** for `Tx`, `Policy` and `Calldata`, and index-based target and token lookups (`find_target_idx`, `find_token_rule_idx`) instead of copying 416-byte `TargetRule` structs.
+3. **Lean storage model (`AgentLedger`)**: per agent, only the 24 hourly ETH buckets and one `(period, amount)` pair per token rule are stored; no action window (rate limiting is off in the module policy).
+4. **One policy for every agent**: the module evaluates `default_policy()`; per-agent caps were removed (they also broke CLI parity).
+5. **Compile-time fingerprint**: `fingerprint()` returns the default policy's fingerprint as a constant instead of hashing 138 policy words on-chain. The `module` test `test_fingerprint_golden` checks it against `fingerprint(default_policy())`.
 
 ---
 

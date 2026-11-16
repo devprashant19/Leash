@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { animate, motion, useMotionValue } from 'motion/react';
 import { Head } from './Story';
 import { Fade, Reveal } from '../motion/Reveal';
@@ -97,11 +97,11 @@ export function Rules() {
   );
 }
 
-/** 21 deny codes. Cells brighten slowly, staggered by column; codes hit by a live run glow coral. */
+/** Code 0 and the 21 deny codes, two rows of 11 on wide screens. Cells brighten slowly, staggered by column; codes hit by a live run glow coral. */
 export function DenyCodes() {
   const { hitCodes } = useStore();
   const [focus, setFocus] = useState<number | null>(null);
-  const cols = 7;
+  const cols = 11;
   return (
     <section className="sec" aria-labelledby="codes-h">
       <div className="container"><div className="inner">
@@ -115,7 +115,7 @@ export function DenyCodes() {
               onPointerEnter={() => setFocus(i)} onFocus={() => setFocus(i)} onPointerLeave={() => setFocus(null)} onBlur={() => setFocus(null)}
               aria-describedby="code-msg">
               <span className="code-n t-code">{String(i).padStart(2, '0')}</span>
-              <span className="code-name">{r.name}</span>
+              <span className="code-name">{r.name.split(/(?=[A-Z])/).map((part, k) => <Fragment key={k}>{k > 0 && <wbr />}{part}</Fragment>)}</span>
             </button>
           ))}
         </Reveal>

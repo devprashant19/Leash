@@ -106,25 +106,26 @@ Every security invariant and threat mitigation asserted in the documentation is 
 | **C15** | **Rate Limiting Burst Guard** | `test/attacks/src/attack_16_rate_limit_burst.fe` | `test_attack_16_rate_limit_burst` | Native & EVM | Denied: `RateLimited` |
 | **C16** | **Cooldown Period Protection** | `test/attacks/src/attack_17_cooldown_subversion.fe` | `test_attack_17_cooldown_subversion` | Native & EVM | Denied: `CooldownActive` (tested at cd-1s and cd) |
 | **C17** | **IncreaseAllowance Bypass Guard** | `test/attacks/src/attack_18_increase_allowance_bypass.fe` | `test_attack_18_increase_allowance_bypass` | Native & EVM | Denied: `UnlimitedApproval` / `RecipientNotAllowed` |
-| **C18** | **MEV Zero-Slippage Sandwich Guard** | `test/attacks/src/attack_19_mev_zero_slippage_sandwich.fe` | `test_attack_19_mev_zero_slippage_sandwich` | Native & EVM | Denied: `SwapNotAllowed` (code 16 on `amountOutMin == 0`) |
-| **C19** | **Swap Recipient Diversion Guard** | `test/attacks/src/attack_20_swap_recipient_diversion.fe` | `test_attack_20_swap_recipient_diversion` | Native & EVM | Denied: `SwapNotAllowed` / `TokenCapExceeded` |
+| **C18** | **Zero-Slippage Sandwich Swap** | `test/attacks/src/attack_19_mev_zero_slippage_sandwich.fe` | `test_attack_19_mev_zero_slippage_sandwich` | Native & EVM | Denied: `SwapNotAllowed` (16): every call to a listed router is refused |
+| **C19** | **Swap Output Diversion** | `test/attacks/src/attack_20_swap_zero_slippage_defense.fe` | `test_attack_20_swap_zero_slippage_defense` | Native & EVM | Denied: `SwapNotAllowed` (16) on a listed router, `TargetNotAllowed` (4) otherwise |
 | **C20** | **Pure Decide Invariant** | Static analysis / CI Grep | `git grep -nE 'fn decide[^{]*uses'` | Compiler | 0 occurrences |
 | **C21** | **Component Isolation** | Static analysis / CI Grep | `git grep -nE 'policy::rules'` | Compiler | 0 occurrences |
-| **C22** | **Owner Override Selective Bypass** | `test/attacks/src/attack_21_owner_override.fe` | `test_attack_21_*` (2 tests) | Native & EVM | Allows over-cap spends; strictly rejects delegatecall, unlisted targets, replay |
-| **C23** | **Escalation Queue & Veto Defense** | `test/attacks/src/attack_22_escalation_veto.fe` | `test_attack_22_escalation_queue_and_veto_defense` | Native & EVM | Denied: `EscalationRequired` (code 20); rejects early exec; veto blocks |
+| **C22** | **Token Drip Under the Per-Transfer Cap** | `test/attacks/src/attack_25_token_drip.fe` | `test_attack_25_token_drip_under_the_per_transfer_cap` | Native & EVM | Denied: `TokenWindowCapExceeded` (21) once the 24 h period cap is reached |
+| **C23** | **Escalation Threshold** | `test/attacks/src/attack_22_escalation_threshold.fe` | `test_attack_22_escalation_threshold` | Native & EVM | Denied: `EscalationRequired` (20) above the threshold; allowed below |
 | **C24** | **Aave Withdrawal Diversion Guard** | `test/attacks/src/attack_23_aave_withdraw_diversion.fe` | `test_attack_23_aave_withdraw_diversion` | Native & EVM | Denied: `RecipientNotAllowed` (code 11) / `LendingNotAllowed` (code 17) |
 | **C25** | **Oracle Staleness & USD Caps** | `test/attacks/src/attack_24_oracle_staleness_and_usd_caps.fe` | `test_attack_24_oracle_staleness_and_usd_caps` | Native & EVM | Denied: `PriceUnavailable` (code 18) / `UsdCapExceeded` (code 19) |
 
 ---
 
-## 7. Threat Analysis: Owner Co-signed Overrides
+## 7. Threat Analysis: Token Window Boundary
 
-- **Risk**: A compromised agent key combined with a compromised Safe owner key can move funds above configured per-tx or window caps.
-- **Why this is acceptable**: In a Safe multisig architecture, a Safe owner (or N-of-M quorum) already holds direct on-chain authority to move funds or execute transactions directly from the Safe. The override mechanism allows owners to co-sign an urgent or large agent transaction without having to manually assemble the transaction calldata or disable the module.
-- **Safeguards Enforced**:
-  - Even with a valid owner signature, `DelegateCallBlocked`, `TargetNotAllowed`, `Paused`, `SessionExpired`, and `CircuitTripped` are **never** bypassed.
-  - Signatures are strictly bound to a single agent, destination, value, calldata hash, operation, chain ID, verifying contract, monotonically increasing nonce, and deadline.
-  - High-`s` and invalid `v` malleable signatures are rejected at the precompile boundary.
-- **Future Work**: Multi-owner threshold overrides requiring $M$-of-$N$ owner signatures for amounts exceeding critical treasury tiers.
+- **Risk**: The per-token cap (`max_per_window`, code 21) applies per fixed 24 h period starting 00:00 UTC. An agent that moves the full cap just before a period ends can move the full cap again just after it starts, so up to twice the cap within minutes.
+- **Why this design**: A sliding window like the ETH one needs 24 buckets (48 storage words) per token rule, read on every call; the fixed period needs two words. The per-transfer cap (code 9) still bounds each call, and the ETH window, circuit breaker and guardian pause are unaffected.
+- **Mitigation for operators**: Set `max_per_window` to half the amount you are willing to lose in a day.
+- **Future Work**: Hourly token buckets once the contract has the size and gas headroom.
+
+## 8. Removed Mechanisms
+
+Owner co-signed overrides (`decide_with_override`), the escalation queue (`LeashQueue`) and per-agent caps (`setAgentPolicy`) were removed on 2026-11-16 and 2026-11-17. Overrides let a signed request skip the spend caps, the queue contract's interface bypassed policy validation, and per-agent caps produced a policy the CLI could not predict, with an owner-supplied "fingerprint". Every agent now runs under `default_policy()`.
 
 

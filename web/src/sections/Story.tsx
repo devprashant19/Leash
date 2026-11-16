@@ -61,16 +61,16 @@ export function Checks() {
             <text x="300" y="336" textAnchor="middle" className="orbit-label core">DECIDE()</text>
           </svg>
         </div>
-        <Reveal className="center-row"><Fade d={0.1}><Button label="Read the policy (rules.fe)" variant="ghost" href={`${REPO}/blob/main/ingots/policy/src/rules.fe#L189`} /></Fade></Reveal>
+        <Reveal className="center-row"><Fade d={0.1}><Button label="Read the policy (rules.fe)" variant="ghost" href={`${REPO}/blob/main/ingots/policy/src/rules.fe#L205`} /></Fade></Reveal>
       </div></div>
     </section>
   );
 }
 
 const STATS = [
-  { v: '22,029', k: 'Bytes of runtime', d: 'LeashModule compiled from Fe, 2,547 bytes under the EVM limit.' },
+  { v: '24,308', k: 'Bytes of runtime', d: 'LeashModule compiled from Fe, 268 bytes under the EVM limit.' },
   { v: '21', k: 'Deny codes', d: 'Every refusal has a stable number the agent and the chain agree on.' },
-  { v: '153', k: 'EVM tests', d: 'Plus 119 native tests and 77 shared vectors run on both targets.' },
+  { v: '153', k: 'EVM tests', d: 'Plus 119 native tests and 80 shared policy tests run on both targets.' },
   { v: '1', k: 'Fingerprint', d: 'The CLI and the contract hash the same policy to the same value.' },
 ];
 

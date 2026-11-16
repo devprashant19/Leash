@@ -1,6 +1,6 @@
 {
  "recorded": {
-  "capturedAt": "2026-11-16T14:15:00.702Z",
+  "capturedAt": "2026-11-16T19:05:41.087Z",
   "runtime": "Amazon Linux 2023 (public.ecr.aws/lambda/nodejs:22), Node v22.23.5",
   "note": "A real run of /api on this runtime with the bundled Fe-built leash binary, saved so the page can replay it if the live server is unavailable."
  },
@@ -45,7 +45,7 @@
       "code": 0,
       "reason": "None",
       "txHash": "0x9d5e0e324e3591efe46ebee1bbd35abbfd658df32a462a76e1ab1b8536f69244",
-      "gasUsed": "314214",
+      "gasUsed": "333733",
       "eventEmitted": true
      },
      "matched": true,
@@ -88,7 +88,7 @@
       "code": 0,
       "reason": "None",
       "txHash": "0xe1457e5053eff2ec335796078ad487ce7a02929fd7a415834b146bf800e145ca",
-      "gasUsed": "234921",
+      "gasUsed": "294758",
       "eventEmitted": true
      },
      "matched": true,
@@ -131,7 +131,7 @@
       "code": 0,
       "reason": "None",
       "txHash": "0x1b78ba70b0d08e902a2a8dec86cd1b7a7227a819de8769cdf72d0f95ee724ddc",
-      "gasUsed": "228570",
+      "gasUsed": "248128",
       "eventEmitted": true
      },
      "matched": true,
@@ -180,7 +180,7 @@
       "code": 7,
       "reason": "PerTxCapExceeded",
       "txHash": "0x705ec453f5d883ceec1aa2f2773e2059db8dd0a51f2b260f1d7aa35d9aee55bf",
-      "gasUsed": "174925",
+      "gasUsed": "192947",
       "eventEmitted": true
      },
      "matched": true,
@@ -223,7 +223,7 @@
       "code": 4,
       "reason": "TargetNotAllowed",
       "txHash": "0xb27a4d37937b2d9a9df820693fce5f7f289126000ab454de0b5001f02a15c2ba",
-      "gasUsed": "157455",
+      "gasUsed": "175484",
       "eventEmitted": true
      },
      "matched": true,
@@ -266,7 +266,7 @@
       "code": 10,
       "reason": "UnlimitedApproval",
       "txHash": "0xd736ac533978c62a08cb39c7625438d32a68f1f4ac35e1b5d6a53d04d6dfce15",
-      "gasUsed": "184102",
+      "gasUsed": "201701",
       "eventEmitted": true
      },
      "matched": true,
@@ -309,7 +309,7 @@
       "code": 15,
       "reason": "CircuitTripped",
       "txHash": "0x43db00b3859d0d552f45806012800c9ab1e4a91edcedc46be60c4dc3fe3e7a5b",
-      "gasUsed": "43471",
+      "gasUsed": "39159",
       "eventEmitted": false
      },
      "matched": true,
@@ -365,7 +365,7 @@
       "code": 9,
       "reason": "TokenCapExceeded",
       "txHash": "0x4067b761e0c1d855643e6d6c836acb4990dc9436ef427900602944a6a7117100",
-      "gasUsed": "199972",
+      "gasUsed": "217697",
       "eventEmitted": true
      },
      "matched": true,
@@ -408,7 +408,7 @@
       "code": 5,
       "reason": "SelectorNotAllowed",
       "txHash": "0x11c5370a4257f32f2778ac04623c16d6916d9977562e1955c5af0d2f8e144baa",
-      "gasUsed": "166328",
+      "gasUsed": "184342",
       "eventEmitted": true
      },
      "matched": true,
@@ -458,7 +458,7 @@
       "code": 6,
       "reason": "MalformedCalldata",
       "txHash": "0x9bdf21961381ca4b672b7d839c7c4c8b6f1644fb6b7c264489d7e3ba2f8b0354",
-      "gasUsed": "183682",
+      "gasUsed": "201294",
       "eventEmitted": true
      },
      "matched": true,
@@ -501,7 +501,7 @@
       "code": 3,
       "reason": "DelegateCallBlocked",
       "txHash": "0x2b2f95cbc1c4af11d386cb4d363ebf18f31a452cebc3c9faa2b35cb983e90be1",
-      "gasUsed": "157076",
+      "gasUsed": "175106",
       "eventEmitted": true
      },
      "matched": true,
@@ -557,7 +557,7 @@
       "code": 0,
       "reason": "None",
       "txHash": "0x6b7a777b86f4b1edb54839be2bd6721c68b3e6d28518503eef255a51584e2b34",
-      "gasUsed": "218145",
+      "gasUsed": "237833",
       "eventEmitted": true
      },
      "matched": true,
@@ -600,7 +600,7 @@
       "code": 0,
       "reason": "None",
       "txHash": "0xadc5a0849aea950b21f4740ce460a62821579aaed4da2c49cd10a94083cadbeb",
-      "gasUsed": "195445",
+      "gasUsed": "215133",
       "eventEmitted": true
      },
      "matched": true,
@@ -643,7 +643,7 @@
       "code": 0,
       "reason": "None",
       "txHash": "0x934859400107839cd37e430cd24bd977457355d91fd2de56675babfd24ed6ac9",
-      "gasUsed": "195445",
+      "gasUsed": "215133",
       "eventEmitted": true
      },
      "matched": true,
@@ -686,7 +686,7 @@
       "code": 0,
       "reason": "None",
       "txHash": "0xb20ce79d5b747c53c2933ad8f90a9bc36cc708f16e21fcd0f6e67e83d6adf5ff",
-      "gasUsed": "195445",
+      "gasUsed": "215133",
       "eventEmitted": true
      },
      "matched": true,
@@ -729,7 +729,7 @@
       "code": 8,
       "reason": "WindowCapExceeded",
       "txHash": "0xd46d4fbd0c734d37076ba0662c2a67ccd5b937904d0b4b2b24747ac8bd62ce92",
-      "gasUsed": "179427",
+      "gasUsed": "197044",
       "eventEmitted": true
      },
      "matched": true,
@@ -785,7 +785,7 @@
       "code": 1,
       "reason": "Paused",
       "txHash": "0xc01e35d0f585901cdcea1e4868edaf299f9c31acf707b286b9ed70225e86b8c6",
-      "gasUsed": "156911",
+      "gasUsed": "174941",
       "eventEmitted": true
      },
      "matched": true,
@@ -810,7 +810,7 @@
      "actor": "owner",
      "title": "Owner renews the agent with a 60-second session",
      "detail": "setAgent sets a new expiry and clears the denial count.",
-     "txHash": "0xdca918bd9494260d1249cc1efe111e230f3ae8d47af433ffb19c70330fba16c8"
+     "txHash": "0x438e7efc0ec0de9bdc284e55d54d4a8f3d4ec92e0ae682ceaade838fb4f01e38"
     },
     {
      "kind": "event",
@@ -848,7 +848,7 @@
       "code": 2,
       "reason": "SessionExpired",
       "txHash": "0x075ce6adf115cacbf019d6190eb4feb351c86db605bdf7bd413157b30c96326b",
-      "gasUsed": "174128",
+      "gasUsed": "192158",
       "eventEmitted": true
      },
      "matched": true,
@@ -901,5 +901,5 @@
   "agent": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
   "guardian": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
  },
- "elapsedMs": 1392
+ "elapsedMs": 1087
 }

@@ -103,7 +103,7 @@ fe test
 # 4. Run tests on Native backend (Linux / macOS)
 fe test --backend native
 
-# 5. Build EVM smart contracts (Runtime size: 22,029 B; 2,547 B under 24,576 B limit)
+# 5. Build EVM smart contracts (Runtime size: 24,308 B; 268 B under 24,576 B limit)
 fe build
 
 # 6. Run the local Anvil end-to-end demo
@@ -131,9 +131,10 @@ make demo
 1. **Hourly Bucket Approximation**: The 24-hour rolling window uses 24 discrete 1-hour buckets. Spend within the current hour rolls over cleanly, but timestamps within the same 60-minute bucket are grouped together.
 2. **Circuit Breaker Reset**: Resetting a tripped circuit breaker requires an explicit call from the Safe owner (`resetBreaker(agent)`).
 3. **Native CLI Platforms**: Fe 26.6.0 links native binaries on x86-64 Linux and AArch64 macOS. Windows environments run under WSL or use the TypeScript policy mirror.
-4. **Token 24h Limits**: ERC-20 tokens currently enforce strict per-transaction limits (`max_per_tx`), approval caps (`max_approve`), and recipient allowlists; rolling window tracking is currently enforced on native ETH spending.
-5. **Uniswap Swap Cap Token**: Swap spending caps in `check_uniswap_guard` currently evaluate value against the primary token (`tokens[0]`).
-6. **Optional Guardrail Activation**: Recipient allowlists (`A8`), rate limiting (`A9`), and cooldowns (`A10`) have full verification logic in `ingots/policy`, but are set to 0 (disabled) in the default deployed `policy_for_agent` configuration.
+4. **Token window is fixed, not sliding**: each token rule's `max_per_window` (code 21) applies per fixed 24 h period from 00:00 UTC, so across a period boundary an agent can move up to twice the cap in a short span. The ETH window slides hour by hour.
+5. **Swaps are refused**: a Uniswap call's recipient and token path lie past the 100 calldata bytes the policy decodes, so every call to a listed router is refused (`SwapNotAllowed`, 16).
+6. **One policy for every agent**: `LeashModule` enforces `default_policy()`, the policy the CLI predicts with. Recipient allowlists (`A8`), rate limiting (`A9`) and cooldowns (`A10`) are implemented and tested in `ingots/policy` but off in that policy.
+7. **Small size headroom**: `LeashModule` is 268 bytes under the EIP-170 limit; new on-chain rules need size work first.
 
 
 ---

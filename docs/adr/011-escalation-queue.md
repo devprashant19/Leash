@@ -1,7 +1,7 @@
 # ADR-011: Escalation Queue for High-Value Operations
 
 ## Status
-Accepted
+Superseded (2026-11-16). The `LeashQueue` contract and the `queue` policy module were removed: the queue contract's caller interface bypassed policy validation. `decide_with_escalation` (code 20) remains as a policy function.
 
 ## Context
 AI agents operating autonomous trading or settlement workflows occasionally need to execute transactions with amounts exceeding normal operational spending patterns but still within hard per-transaction safety ceilings. Direct execution of large amounts introduces risk if an agent is misled or compromised.

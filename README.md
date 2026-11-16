@@ -24,7 +24,7 @@ The live interactive application ([`web/`](web/), a React + Framer Motion app, p
 - **Try your own transaction**: any target, value, calldata and operation; the Fe CLI's prediction and the contract's decision side by side.
 - **Links that run on open**: `/?run` (the demo), `/?tour` (the feature tour), `/?try=1` (an over-cap transfer). API: `GET /api/demo`, `GET /api/tour`, `POST /api/check`, `POST /api/plan`, `GET /api/health`.
 
-Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run test:web` passes 15/15, with predictions from the bundled Fe binary (including all 18 tour transactions and the plan simulator). The CI `web` job repeats this on every push. Deploy steps: [`docs/deployment.md`](docs/deployment.md#0-vercel-the-page-judges-open).
+Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run test:web` passes 17/17, with predictions from the bundled Fe binary (including all 18 tour transactions and the plan simulator). The CI `web` job repeats this on every push. Deploy steps: [`docs/deployment.md`](docs/deployment.md#0-vercel-the-page-judges-open).
 
 
 
@@ -190,17 +190,16 @@ Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb7
 | **Native ETH Per-Tx Cap** | A4 | `PerTxCapExceeded` (7) | Yes | Yes | **Shipped** |
 | **Rolling 24h Window Cap** | A5 | `WindowCapExceeded` (8) | Yes (24 hourly buckets for ETH) | Yes (`--state`) | **Shipped** |
 | **ERC-20 Per-Tx & Approval Hygiene**| A6/A7 | `TokenCapExceeded` (9), `UnlimitedApproval` (10) | Yes (`max_per_tx`, `max_approve`) | Yes | **Shipped** |
+| **ERC-20 24 h Token Cap** | A6 | `TokenWindowCapExceeded` (21) | Yes (per token rule, fixed 24 h periods, stored per agent) | Yes (`--state`) | **Shipped** |
 | **Recipient Allowlist** | A8 | `RecipientNotAllowed` (11) | In `decide` (inactive in default policy: `n_recipients: 0`) | Yes | **Shipped** (Policy Rule) |
 | **Tx-Count Rate Limiting** | A9 | `RateLimited` (12) | In `decide` (inactive in default policy: `max_actions: 0`) | Yes | **Shipped** (Policy Rule) |
 | **Transaction Cooldown** | A10 | `CooldownActive` (13) | In `decide` (inactive in default policy: `cooldown: 0`) | Yes | **Shipped** (Policy Rule) |
-| **Per-Agent Dynamic Limits** | B2 | `policy_for_agent` / `SetAgentPolicy` | Yes (`FingerprintOf`) | Yes | **Shipped** |
 | **Auto-Pause Circuit Breaker** | B3 | `CircuitTripped` (15) | Yes (auto-trips on 3 denials) | Yes | **Shipped** |
 | **Compile-time Policy Validation**| 13 | 16-variant `PolicyCheck` | Rejects invalid policies | `validate` | **Shipped** |
 | **Machine-readable JSON Output** | D1 | Structured JSON verdict | N/A | `leash check --json` | **Shipped** |
 | **C Static Header Export** | D7 | `leash.h` / `main.c` bindings | N/A | C FFI Reference Header | **Shipped** |
 | **Trading Hours Schedule** | A11 | `OutsideTradingHours` (14) | Roadmap (enum only, no evaluation logic) | Roadmap | Roadmap |
-| **Owner Co-signed Overrides** | B5 | EIP-712 structured bypass | Policy function only (`policy::decide_with_override`) | Yes (`--override`) | **Shipped** (Policy Engine) |
-| **Uniswap MEV & Slippage** | C1/C2 | Sandwich protection (`amountOutMin > 0`) | In `decide` (`check_uniswap_guard`; cap uses `tokens[0]`) | Yes | **Shipped** |
+| **Uniswap Swaps** | C1/C2 | `SwapNotAllowed` (16) for every call to a listed router | In `decide` (refused: the recipient and token path lie past the 100 decoded calldata bytes) | Yes | Roadmap (checked swaps) |
 | **Aave Lending Guard** | C3 | Collateral diversion protection | In `decide` (`check_aave_guard`) | Yes | **Shipped** |
 | **Oracle USD-Denominated Caps** | C4 | Chainlink staleness & USD caps | Policy function only (`policy::decide_with_usd`) | Yes | **Shipped** (Policy Engine) |
 
@@ -213,10 +212,10 @@ Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb7
 Every capability in Leash maps directly to unique language features in Fe 26.6.0:
 
 1. **Effects Bound Powers (Static Least Privilege)**:
-   - `policy::decide` has **no `uses` clause** ([`ingots/policy/src/rules.fe#L189`](ingots/policy/src/rules.fe#L189)): the compiler rejects any storage access, I/O or external call inside it, so it is pure and deterministic. The CI `rules` job fails if a `uses` clause is added.
-   - `policy::record` takes the agent state as `mut AgentState` ([`ingots/policy/src/ledger.fe#L53`](ingots/policy/src/ledger.fe#L53)) and is, with `record_denial`, the only policy function that changes it.
-   - Guardian emergency `Pause` declares `uses (ctx, safe, guardian, mut paused, mut log)` ([`ingots/module/src/lib.fe#L219`](ingots/module/src/lib.fe#L219)): the only storage it can write is `paused` (plus the event log), so the compiler rules out the guardian executing transactions, rotating keys or changing limits from that handler.
-   - CLI subcommands get only the effects they need: `leash check` uses `Args`, `Stdout` and `Stderr` ([`ingots/cli/src/check.fe#L125`](ingots/cli/src/check.fe#L125)), and only `leash replay` is granted `Fs` ([`ingots/cli/src/replay.fe#L271`](ingots/cli/src/replay.fe#L271)).
+   - `policy::decide` and `policy::decide_spend` have **no `uses` clause** ([`ingots/policy/src/rules.fe#L205`](ingots/policy/src/rules.fe#L205)): the compiler rejects any storage access, I/O or external call inside them, so they are pure and deterministic. The CI `rules` job fails if a `uses` clause is added.
+   - `policy::record_allowed` takes the agent state as `mut AgentState` ([`ingots/policy/src/ledger.fe#L77`](ingots/policy/src/ledger.fe#L77)); with `record` (which calls it) and `record_denial`, it is the only policy function that changes it. It books exactly the token amount `decide_spend` reported, so the check and the ledger read the calldata once.
+   - Guardian emergency `Pause` declares `uses (ctx, safe, guardian, mut paused, mut log)` ([`ingots/module/src/lib.fe#L180`](ingots/module/src/lib.fe#L180)): the only storage it can write is `paused` (plus the event log), so the compiler rules out the guardian executing transactions, rotating keys or changing limits from that handler.
+   - CLI subcommands get only the effects they need: `leash check` uses `Args`, `Stdout` and `Stderr` ([`ingots/cli/src/check.fe#L124`](ingots/cli/src/check.fe#L124)), and only `leash replay` is granted `Fs` ([`ingots/cli/src/replay.fe#L270`](ingots/cli/src/replay.fe#L270)).
 
 2. **Strictly Typed Financial Units**:
    - `Wei`, `Duration`, and `Timestamp` are distinct, strongly typed units ([`ingots/policy/src/types.fe#L1-L15`](ingots/policy/src/types.fe)).
@@ -264,9 +263,9 @@ $$\text{PARITY\_GOLDEN\_DIGEST} = \mathtt{0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb8
 | **CircuitTripped (15)** | 3,015 | 30.15% | Exercised |
 | **Total** | **10,000** | **100.00%** | **100% Agreement** |
 
-**Mutation Verification**: Flipping `>` to `>=` in `check_per_tx_cap` immediately failed 11 parity tests, verifying test sensitivity.
+**Mutation check**: changing the per-transaction cap test in `decide_spend` (step 9) from `tx.value > policy.max_per_tx` to `>=` makes 12 tests fail: all 11 parity tests (the 10 EVM chunks and the native chunk) and `test_per_tx_and_window_eth_caps`. Re-run on 2026-11-17 with `fe test`.
 
-### Adversarial Attack Suite (E2): 32 Tests
+### Adversarial Attack Suite (E2): 23 Scenarios, 31 Tests
 Located in [`test/attacks/src/`](test/attacks/src/):
 - **Attack 01**: MultiSend DelegateCall Hijack → Rejected (`DelegateCallBlocked`)
 - **Attack 02**: Cap Evasion via Split Spends → Rejected (`WindowCapExceeded`)
@@ -285,17 +284,17 @@ Located in [`test/attacks/src/`](test/attacks/src/):
 - **Attack 16**: Rate Limit Burst Spamming → Rejected (`RateLimited`)
 - **Attack 17**: Cooldown Subversion → Rejected (`CooldownActive`)
 - **Attack 18**: ERC-20 `increaseAllowance` Bypass Attack → Rejected (`UnlimitedApproval` / `RecipientNotAllowed`)
-- **Attack 19**: Uniswap V2/V3 Zero-Slippage MEV Sandwich Drain (`amountOutMin == 0`) → Rejected (`SwapNotAllowed`, code 16)
-- **Attack 20**: Swap Zero-Slippage Defense (Sandwich Protection) → Validated against minimum output parameter
-- **Attack 21**: Owner Co-Signed Override Cap Exemption & Structural Security → Bypasses spend caps only; strictly enforces target allowlist, delegatecall block, and non-malleable signatures
-- **Attack 22**: Escalation Timelock Queue & Safe Veto Defense → Threshold violations queued with `EscalationRequired` (code 20); early execution blocked; Safe veto stops execution
+- **Attack 19**: Zero-Slippage Sandwich Swap (V2 and V3) → Rejected (`SwapNotAllowed`, code 16): every call to a listed router is refused
+- **Attack 20**: Swap Output Diverted to the Attacker → Rejected (`SwapNotAllowed`, 16) on a listed router, `TargetNotAllowed` (4) on an unlisted one
+- **Attack 22**: Payment Above the Escalation Threshold → Rejected by `decide_with_escalation` (`EscalationRequired`, code 20); a payment below it passes
 - **Attack 23**: Aave v3 Withdrawal Diversion Attack → Diversion of withdrawn collateral to unauthorized recipient rejected (`RecipientNotAllowed`, code 11); unlisted asset rejected (`LendingNotAllowed`, code 17)
 - **Attack 24**: Oracle Staleness & USD Spending Cap Evasion → Stale or zero oracle price feed rejected (`PriceUnavailable`, code 18); exceeding USD cap rejected (`UsdCapExceeded`, code 19)
+- **Attack 25**: Token Drip Under the Per-Transfer Cap → Sixth piece rejected (`TokenWindowCapExceeded`, code 21); `transferFrom` counts too
 
 ### Bytecode Size & Headroom (E3)
-- **Runtime Code Size**: **22,029 bytes** (below the 24,576-byte EIP-170 limit, 0 compiler warnings; measured with `fe build --emit sizes`).
-- **EIP-170 Headroom**: **2,547 bytes** with all policy rules, ERC-20 hardening, the Uniswap guard and the Aave guard.
-- **Initcode Size**: 22,284 bytes (< 49,152 bytes EIP-3860 limit).
+- **Runtime Code Size**: **24,308 bytes** (below the 24,576-byte EIP-170 limit, 0 compiler warnings; measured with `fe build --emit sizes`, and checked in CI).
+- **EIP-170 Headroom**: **268 bytes** with all policy rules, the ERC-20 guard and per-token ledger, the Aave guard and the circuit breaker. Little room: new on-chain rules need size work first.
+- **Initcode Size**: 24,563 bytes (< 49,152 bytes EIP-3860 limit).
 - Gas profiling details available in [`docs/GAS.md`](docs/GAS.md).
 
 ---
@@ -307,11 +306,13 @@ Known limits of this release, each with where it is handled:
 1. **Hourly Bucket Approximation**: The 24-hour rolling window uses 24 discrete 1-hour buckets. Spend within the current hour rolls over cleanly, but timestamps within the same 60-minute bucket are grouped together.
 2. **Circuit Breaker Reset**: In the current implementation, resetting a tripped circuit breaker requires an explicit call from the Safe account (`resetBreaker(agent)`).
 3. **Native CLI platforms**: Fe 26.6.0 links native binaries on x86-64 Linux and AArch64 macOS. Windows users run the CLI under WSL; the Windows demo uses the labelled TypeScript mirror (see the demo section).
-4. **Agent tool server**: `bin/leash-serve.ts` asks the Fe `leash` binary for each verdict when one is present; its multi-step planning session (`record`) keeps its window state in TypeScript.
+4. **Agent tool server**: `bin/leash-serve.ts` asks the Fe `leash` binary for each verdict when one is present. Its planning session (`record`) keeps the planned ledger (ETH buckets and the token period) in TypeScript and passes it to every check as `--state`, so the verdict still comes from the policy.
 5. **Safe on testnet**: `demo/deploy.ts` deploys the Fe `MockSafe` test account. Using a canonical Safe means enabling the module from the Safe's Transaction Builder, as described in [`docs/deployment.md`](docs/deployment.md).
-6. **Token Rolling Window**: ERC-20 tokens currently enforce per-transaction limits (`max_per_tx`), approval caps (`max_approve`), and recipient allowlists. Rolling window tracking is enforced on native ETH spending.
-7. **Uniswap Swap Cap Token**: Swap spending caps in `check_uniswap_guard` currently evaluate value against the primary token (`tokens[0]`).
-8. **Optional Guardrail Activation**: Recipient allowlists (`A8`), rate limiting (`A9`), and cooldowns (`A10`) have full verification logic in `ingots/policy`, but are set to 0 (disabled) in the default deployed `policy_for_agent` configuration.
+6. **Token window is fixed, not sliding**: each token rule's `max_per_window` applies per fixed 24 h period starting 00:00 UTC (two storage words per token rule; a sliding window would need 48). Across a period boundary an agent can move up to twice the cap in a short span. The ETH window slides hour by hour. Details in [`docs/RULES.md`](docs/RULES.md#11-protocol-guards).
+7. **Swaps are refused**: the policy decodes the first 100 calldata bytes, and a Uniswap call's recipient and token path lie past them, so a listed router is always refused (`SwapNotAllowed`, 16). Checked swaps need a longer calldata window, which costs contract size.
+8. **One policy for every agent**: `LeashModule` enforces `default_policy()` for every agent, the policy the CLI predicts with and the fingerprint names. Recipient allowlists (`A8`), rate limiting (`A9`) and cooldowns (`A10`) are implemented in `ingots/policy` and tested, but are off in that policy.
+9. **On-chain fingerprint is a constant**: `LeashModule.fingerprint()` returns the default policy's fingerprint as a compiled-in constant (computing Keccak over the 138-word policy on-chain does not fit the size limit). The `module` test `test_fingerprint_golden` deploys the contract and checks that its constant equals `fingerprint(default_policy())` computed by the policy code, and the CLI test `test_cli_fingerprint_golden` checks the CLI against the same value, so the two cannot silently diverge.
+10. **Contract size headroom is small**: `LeashModule` is within the EIP-170 limit with little room to spare (see E3); new on-chain rules need size work first.
 
 
 
@@ -340,7 +341,7 @@ Every requirement from the official contest guidelines is fulfilled and linked b
 | **Public GitHub repo, OSI licence** | Apache-2.0 | 0 | [`LICENSE`](LICENSE), [GitHub Repo](https://github.com/devprashant19/Leash) |
 | **Commit SHA & exact Fe version** | Pinned `fe 26.6.0 (5b3f96a)` | 0, 7 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml), [`docs/submission.md`](docs/submission.md) |
 | **Reproducible build instructions** | `make setup && make all && make demo` | 0, 7 | [`Makefile`](Makefile), [Quick Start](#2-quick-start) |
-| **Appropriate automated tests** | 153 EVM tests and 119 native tests passing (77 shared policy tests on both), 32 attack tests | 1–5 | [`test/`](test/), [CI Workflow](https://github.com/devprashant19/Leash/actions) |
+| **Appropriate automated tests** | 153 EVM tests and 119 native tests passing (80 shared policy tests on both), 31 attack tests in 23 scenarios | 1–5 | [`test/`](test/), [CI Workflow](https://github.com/devprashant19/Leash/actions) |
 
 | **README: approach, architecture, limitations** | Complete technical report adhering to contest structure | 7 | This document ([README.md](README.md)) |
 | **Short pitch + Fe highlight** | Pitch and Fe highlight defined in context §1 | 7 | [Pitch Header](#leash--drift-proof-safe-guardrails-for-ai-agents-in-fe) |

@@ -18,10 +18,11 @@ const MATRIX_DATA: RuleDetail[] = [
   { code: 4, name: 'TargetNotAllowed', scope: 'Call', condition: 'Target address not present in allowlist', mitigation: 'Targets are compiled into the policy; adding one is a new policy build with a new fingerprint' },
   { code: 5, name: 'SelectorNotAllowed', scope: 'Calldata', condition: 'Function selector is not permitted on this target', mitigation: 'Use only allowlisted methods' },
   { code: 6, name: 'MalformedCalldata', scope: 'Calldata', condition: 'Calldata byte length does not match ABI schema', mitigation: 'Properly encode parameters with 32-byte words' },
-  { code: 7, name: 'PerTxCapExceeded', scope: 'Budget', condition: 'ETH value exceeds per-transaction cap (0.1 ETH)', mitigation: 'Send less per call; the Safe can change this agent’s cap with setAgentPolicy()' },
+  { code: 7, name: 'PerTxCapExceeded', scope: 'Budget', condition: 'ETH value exceeds per-transaction cap (0.1 ETH)', mitigation: 'Send less per call; the cap is part of the fingerprinted policy' },
   { code: 8, name: 'WindowCapExceeded', scope: 'Budget', condition: 'Rolling 24h spending exceeds 0.5 ETH', mitigation: 'Wait for older hourly buckets to leave the 24 h window' },
-  { code: 9, name: 'TokenCapExceeded', scope: 'Budget', condition: 'ERC-20 transfer exceeds per-token cap (100 tokens)', mitigation: 'Send at most 100 tokens per call; token caps are compiled into the policy' },
+  { code: 9, name: 'TokenCapExceeded', scope: 'Budget', condition: 'ERC-20 transfer exceeds the per-transfer cap (100 tokens)', mitigation: 'Send at most 100 tokens per call; token caps are compiled into the policy' },
   { code: 10, name: 'UnlimitedApproval', scope: 'Calldata', condition: 'approve() for more than 100 tokens, including 2^256 − 1', mitigation: 'Approve only what the next trade needs' },
+  { code: 21, name: 'TokenWindowCapExceeded', scope: 'Budget', condition: 'Tokens moved in this 24 h period (from 00:00 UTC) would exceed 500', mitigation: 'Wait for the next period; each transfer is also capped at 100 tokens' },
   { code: 15, name: 'CircuitTripped', scope: 'State', condition: 'Three denials since the agent was set or last reset', mitigation: 'Safe owner must call resetBreaker(agent)' },
 ];
 
@@ -59,8 +60,8 @@ export function RuleMatrix() {
                 }}
               >
                 <div>
-                  <span className="t-mono" style={{ fontSize: '0.75em', opacity: 0.6, marginRight: '0.8em' }}>CODE {String(r.code).padStart(2, '0')}</span>
-                  <span style={{ fontWeight: 600 }}>{r.name}</span>
+                  <span className="t-mono" style={{ fontSize: '0.75em', opacity: 0.6, marginRight: '0.8em', whiteSpace: 'nowrap' }}>CODE {String(r.code).padStart(2, '0')}</span>
+                  <span style={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{r.name}</span>
                 </div>
                 <span className="t-mono" style={{ fontSize: '0.7em', padding: '2px 6px', background: 'var(--bg-2)', borderRadius: '4px' }}>
                   {r.scope}
@@ -97,7 +98,7 @@ export function RuleMatrix() {
                   <div style={{ marginTop: '1em', padding: '1em', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: '1px dashed var(--line)' }}>
                     <div className="t-mono" style={{ fontSize: '0.7em', color: 'var(--violet)' }}>PURE FE CONTRACT SIGNATURE</div>
                     <code className="t-code" style={{ fontSize: '0.8em', display: 'block', marginTop: '0.4em' }}>
-                      pub fn decide(policy: Policy, state: State, tx: Tx) -&gt; Verdict
+                      pub fn decide(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -&gt; Verdict
                     </code>
                   </div>
                 </div>
