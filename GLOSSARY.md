@@ -19,7 +19,7 @@ Every term listed here must be used consistently across code, types, comments, d
 | **Preview** | A view function on `LeashModule` (and CLI `check`) returning the predicted verdict and remaining limits without state changes. |
 | **Execute** | An on-chain entrypoint on `LeashModule` that evaluates policy, reverts with custom error on Deny, or updates ledger and calls the Safe on Allow. |
 | **TryExecute** | An on-chain entrypoint that returns `(bool ok, u8 code)` without reverting on Deny, recording denials for the circuit breaker. |
-| **Breaker** | The circuit breaker that trips when consecutive denials exceed a threshold in a time window. |
+| **Breaker** | The circuit breaker: after 3 `tryExecute` denials since the agent was set or last reset, every call returns `CircuitTripped` (15) until the Safe calls `resetBreaker`. |
 | **Guard** | Protocol-specific calldata decoding and policy checks (e.g. ERC-20 transfer/approve limits, Uniswap swap caps). |
 | **Session** | A temporary authorization window defined by a session key expiry timestamp. |
 | **Target** | The destination address of a proposed transaction. Must be present in the target allowlist unless transferring ETH within general caps. |

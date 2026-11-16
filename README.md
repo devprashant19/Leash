@@ -20,25 +20,21 @@ The Vercel page ([`web/`](web/), a React + Framer Motion app, plus [`api/`](api/
 - **Run the 5-transaction demo**: each run deploys the Fe-compiled `MockSafe`, `LeashModule` and demo token into a fresh in-memory EVM, and the Fe-built `leash` binary predicts every verdict from the agent's on-chain state before the contract decides. The page then walks through each transaction step by step (the agent asks, the CLI predicts, the module decides, the outcome and why), followed by both policy fingerprints and the balances before and after.
 - **Run the full feature tour**: 18 transactions in 5 chapters on one chain: allowed spending, every deny path (codes 1–10), the circuit breaker tripping and the owner resetting it, the rolling 24 h budget, a guardian pause and an expired session. Every prediction must match the on-chain decision.
 - **Try your own transaction**: any target, value, calldata and operation; the Fe CLI's prediction and the contract's decision side by side.
-- **Links that run on open**: `/?run` (the demo), `/?tour` (the feature tour), `/?try=1` (an over-cap transfer). API: `GET /api/demo`, `GET /api/tour`, `POST /api/check`, `GET /api/health`.
+- **Links that run on open**: `/?run` (the demo), `/?tour` (the feature tour), `/?try=1` (an over-cap transfer). API: `GET /api/demo`, `GET /api/tour`, `POST /api/check`, `POST /api/plan`, `GET /api/health`.
 
-Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run test:web` with `LEASH_REQUIRE_NATIVE=1` passes 13/13, with predictions from the bundled Fe binary (including all 18 tour transactions). The CI `web` job repeats this on every push. Deploy steps: [`docs/deployment.md`](docs/deployment.md#0-vercel-the-page-judges-open).
+Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run test:web` with `LEASH_REQUIRE_NATIVE=1` passes 16/16, with predictions from the bundled Fe binary (including all 18 tour transactions and the plan simulator). The CI `web` job repeats this on every push. Deploy steps: [`docs/deployment.md`](docs/deployment.md#0-vercel-the-page-judges-open).
 
 
 - **Video script**: scene-by-scene script and timings in [`docs/video-script.md`](docs/video-script.md).
-- **Interactive Visual Dashboard**: run `npx serve demo` and open `/dashboard/` (it reads `demo/run.json`), or open [`demo/dashboard/index.html`](demo/dashboard/index.html) directly to see the bundled run.
+- **Recorded-run dashboard**: `/dashboard/` on the Vercel page, or `npx serve demo` and open `/dashboard/`. It reads `run.json` (the recorded Anvil run) and shows each prediction next to the on-chain decision.
 - **Contract build metadata**: [`demo/deployments/LeashModule.metadata.json`](demo/deployments/LeashModule.metadata.json) (from `fe build --emit metadata`).
 - **Native CLI binaries**: [`cli-v0.1.0` release](https://github.com/devprashant19/Leash/releases/tag/cli-v0.1.0): `leash-linux-x86_64` and `leash-macos-arm64`, built and smoke-tested by [`.github/workflows/release.yml`](.github/workflows/release.yml).
 - **Deploying (free tier)**: Sepolia contracts, dashboard hosting and CLI release, step by step in [`docs/deployment.md`](docs/deployment.md).
 - **Full Submission Details**: [`docs/submission.md`](docs/submission.md).
 
-### Ecosystem & Developer Tooling
-- **TypeScript Agent SDK**: [`packages/leash-sdk`](packages/leash-sdk/) — pre-flight verification & Safe transaction packager with LangChain & Eliza adapters.
-- **Python Agent SDK**: [`packages/python-sdk`](packages/python-sdk/) — Python client with CrewAI tools and AutoGen guardrail hooks.
-- **WASM Client Simulator**: [`packages/wasm-simulator`](packages/wasm-simulator/) — zero-dependency embedded policy evaluator for browser extensions & edge bots.
-- **Multi-Step Plan Simulator**: [`scripts/leash-plan.ts`](scripts/leash-plan.ts) — simulates sequential multi-transaction agent plans, predicting cumulative 24h budget consumption and breaker trips before broadcast.
-- **Multi-Chain Deployment Registry**: [`demo/deployments/registry.json`](demo/deployments/registry.json) — deterministic CREATE2 deployments across Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and OP Sepolia.
-- **Security Audit & Invariant Proofs**: [`docs/audit/2026-11-16-security-audit.md`](docs/audit/2026-11-16-security-audit.md) and [`docs/FORMAL_SPEC.md`](docs/FORMAL_SPEC.md).
+### More on the page
+- **Plan simulator**: on the page and `POST /api/plan` (up to 12 steps). The server runs the whole plan on a fresh chain with the real contracts; each step is predicted by the Fe CLI from the agent's state at that point and then decided by `LeashModule`, so the 24 h budget and the circuit breaker carry over exactly as on-chain ([`api/_lib/plan.ts`](api/_lib/plan.ts)).
+- **If the live server fails**: the page says so and offers to replay a run recorded earlier with the Fe binary ([`web/public/recorded/`](web/public/recorded/)), labelled as a recording. It never substitutes invented results.
 
 ### The 5-Transaction Canonical Scenario (Reproduce in 7 Seconds)
 
@@ -200,7 +196,8 @@ Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb7
 | **Machine-readable JSON Output** | D1 | Structured JSON verdict | N/A | `leash check --json` | **Shipped** |
 | **C Static Header Export** | D7 | `leash.h` / `main.c` bindings | N/A | C FFI | **Shipped** |
 | **Trading Hours Schedule** | A11 | `OutsideTradingHours` (14) | Roadmap | Roadmap | Stage 9 |
-| **Asymmetric Timelock** | B4 | 24h limit increase queue | Yes (`LeashQueue`) | Yes (`--timelock`) | **Shipped** (Stage 10) |
+| **Asymmetric Timelock** | B4 | Delay on limit increases | No | No | Roadmap (attack 13 is a placeholder until it ships) |
+| **Delayed execution with veto** | B6 | `LeashQueue`: `queue(…, delay_sec)`, `veto`, `executeQueued` | Yes (`LeashQueue`) | No | **Shipped** (Stage 10) |
 | **Owner Co-signed Overrides** | B5 | EIP-712 structured bypass | Yes (`ExecuteWithOverride`) | Yes (`--override`) | **Shipped** (Stage 10) |
 | **Uniswap MEV & Slippage** | C1/C2 | Sandwich protection (`amountOutMin > 0`) | Yes (`SwapNotAllowed`) | Yes | **Shipped** (Stage 11) |
 | **Aave Lending Guard** | C3 | Collateral diversion protection | Yes (`TargetKind::AavePool`) | Yes | **Shipped** (Stage 11) |
@@ -266,7 +263,7 @@ $$\text{PARITY\_GOLDEN\_DIGEST} = \mathtt{0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb8
 
 **Mutation Verification**: Flipping `>` to `>=` in `check_per_tx_cap` immediately failed 11 parity tests, verifying test sensitivity.
 
-### 33-Exploit Adversarial Attack Suite (E2)
+### Adversarial Attack Suite (E2): 23 attack scenarios, 32 tests
 Located in [`test/attacks/src/`](test/attacks/src/):
 - **Attack 01**: MultiSend DelegateCall Hijack → Rejected (`DelegateCallBlocked`)
 - **Attack 02**: Cap Evasion via Split Spends → Rejected (`WindowCapExceeded`)
@@ -305,11 +302,13 @@ Located in [`test/attacks/src/`](test/attacks/src/):
 Known limits of this release, each with where it is handled:
 
 1. **Hourly Bucket Approximation**: The 24-hour rolling window uses 24 discrete 1-hour buckets. Spend within the current hour rolls over cleanly, but timestamps within the same 60-minute bucket are grouped together. Continuous exponential sliding windows are scheduled for Stage 12.
-2. **Circuit Breaker Reset**: In the current implementation, resetting a tripped circuit breaker requires an explicit call from the Safe account (`ResetCircuitBreaker`). Automated exponential backoff resets are planned for Stage 10.
+2. **Circuit Breaker Reset**: In the current implementation, resetting a tripped circuit breaker requires an explicit call from the Safe account (`resetBreaker(agent)`). Automated exponential backoff resets are planned for Stage 10.
 3. **Native CLI platforms**: Fe 26.6.0 links native binaries on x86-64 Linux and AArch64 macOS. Windows users run the CLI under WSL; the Windows demo uses the labelled TypeScript mirror (see the demo section).
 4. **Agent tool server**: `bin/leash-serve.ts` asks the Fe `leash` binary for each verdict when one is present; its multi-step planning session (`record`) keeps its window state in TypeScript.
 5. **Safe on testnet**: `demo/deploy.ts` deploys the Fe `MockSafe` test account. Using a canonical Safe means enabling the module from the Safe's Transaction Builder, as described in [`docs/deployment.md`](docs/deployment.md).
 6. **Offline TOML Parsing**: Parsing arbitrary external TOML policy manifests into static bytecode is documented for Stage 12 tooling.
+7. **Owner overrides are bound to Sepolia**: `LeashQueue` hashes EIP-712 override signatures with chain id 11155111 (`ingots/module/src/queue_module.fe`), so an override signed for another chain does not verify.
+8. **Asymmetric timelock (B4)** is not implemented yet; `test/attacks/src/attack_13_timelock_bypass.fe` is a placeholder.
 
 ---
 
@@ -341,7 +340,7 @@ Every requirement from `phases/00-project-context.md §11` is fulfilled and link
 | **Short pitch + Fe highlight** | Pitch and Fe highlight defined in context §1 | 7 | [Pitch Header](#leash--drift-proof-safe-guardrails-for-ai-agents-in-fe) |
 | **Demo or reproducible example** | 2-min video script + local Anvil demo runner | 6 | [`docs/video-script.md`](docs/video-script.md), [`demo/local.ts`](demo/local.ts) |
 | **Declaration of pre-existing work & AI use** | Starter cited; Safe interfaces noted; full AI log | 0–7 | [`DECLARATION.md`](DECLARATION.md), [`docs/ai-log.md`](docs/ai-log.md) |
-| **All commits in contest window** | Commits dated Nov 3–24, 2026; starter tagged `starter` | 0 | `git log starter..HEAD` |
+| **All commits in contest window** | Commits after the `starter` tag, dated Nov 13–16, 2026 | 0 | `git log starter..HEAD` |
 
 ---
 
@@ -351,7 +350,7 @@ Every requirement from `phases/00-project-context.md §11` is fulfilled and link
 - **Safe Smart Account Interface**: Standard `ModuleManager.execTransactionFromModule` selector (`0x468721a7`) and calling convention.
 - **ERC-20 Interface**: Standard selectors for `transfer`, `approve`, `transferFrom`, `balanceOf`, `allowance`.
 - **Standard Library**: Fe standard library modules (`core`, `std`) from `argotorg/fe` tag `v26.6.0`.
-- **AI Assistance Declaration**: Development was assisted by agentic AI engineering workflows (Google DeepMind Antigravity / Claude Code) following strict engineering rules (`AGENTS.md`). Every AI-assisted code change, test execution, architectural decision, and raw compiler output is permanently logged in [`docs/ai-log.md`](docs/ai-log.md) (12 total milestones logged). Full details in [`DECLARATION.md`](DECLARATION.md).
+- **AI Assistance Declaration**: Development was assisted by agentic AI engineering workflows (Google DeepMind Antigravity / Claude Code) following strict engineering rules (`AGENTS.md`). Every AI-assisted code change, test execution, architectural decision, and raw compiler output is permanently logged in [`docs/ai-log.md`](docs/ai-log.md) (25 entries). Full details in [`DECLARATION.md`](DECLARATION.md).
 
 ---
 

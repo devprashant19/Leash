@@ -63,7 +63,7 @@ make setup && make all && make demo
   - `fe test`: 159 passed on the EVM backend; `fe test --backend native`: 119 passed; the 77 shared policy tests pass on both backends (`scripts/count-tests.sh`).
   - Cross-backend parity suite: 10,000 transactions verified across EVM and Native backends with golden digest `0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb81b1f36a595fa9a1f975c1c5175a8`.
   - Mutation testing: Confirmed operator mutant immediately fails 11 test assertions.
-  - Adversarial exploit suite: 25 attack tests neutralizing reentrancy, delegatecall hijacks, cap evasion, unlimited approvals, and privilege escalation.
+  - Adversarial exploit suite: 23 attack scenarios (32 tests in `test/attacks`) covering reentrancy, delegatecall hijacks, cap evasion, unlimited approvals and privilege escalation; attack 13 (timelock bypass) is a placeholder until the B4 timelock ships.
 - [x] **EIP-170 Compliance**: Runtime code size is **22,029 bytes** (+2,547 bytes headroom below the 24,576-byte EVM limit).
 - [x] **Demo & Local Verification**: 5-transaction canonical rogue agent scenario runs on local Anvil node in **5 seconds** with **100% agreement and 0 drift**.
 - [x] **Declaration of pre-existing work & AI use**: `DECLARATION.md` and complete audit log in `docs/ai-log.md` detailing every AI-assisted change.

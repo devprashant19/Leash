@@ -53,21 +53,19 @@ runtime: 22029 bytes (20167 code, 1862 data, 0 embedded)
 
 ---
 
-## 2. Comparative Benchmark Summary (vs Zodiac Roles & Safe)
+## 2. Measured gas (reproducible)
 
-All benchmarks measured on local Anvil (EVM Cancun / Shanghai) using Gnosis Safe v1.4.1 and identical transaction payloads (0.05 ETH transfer, 100 DAI transfer, and Uniswap V3 swap).
+Gas used by each transaction of the canonical demo, end to end (agent → `LeashModule.tryExecute` → test Safe → target), from `demo/run.json` (Anvil) and the in-memory EVM runs in `web/public/recorded/`:
 
-| Execution Pattern | Total Gas Used | Policy Overhead | State SLOAD/SSTORE | Revert Safety |
-|---|---|---|---|---|
-| **Plain Safe Multi-sig Direct Exec** | 31,420 gas | 0 gas (no guards) | 1 SLOAD (nonce) | None (post-facto) |
-| **Zodiac Roles Modifier v2 (Gnosis Guild)** | 68,940 gas | ~37,520 gas | 6 SLOADs, 2 SSTOREs | On-chain revert |
-| **LeashModule (Fe 26.6.0)** | **49,280 gas** | **~17,860 gas** | **2 SLOADs, 1 SSTORE** | **Off-chain 0-gas + On-chain revert** |
-| **Leash with Pre-Flight Prediction (`leash check`)** | **0 gas** (denied) | **0 gas** (rejection caught off-chain) | **0** | **100% prevented** |
+| Step | Verdict | Gas (Anvil run, `demo/run.json`) |
+|---|---|---|
+| 0.05 ETH to the treasury | ALLOW | 280,202 |
+| Transfer 50 tokens | ALLOW | 204,813 |
+| 0.2 ETH (over the per-tx cap) | DENY 7 | 175,401 |
+| Unlisted contract | DENY 4 | 157,884 |
+| Unlimited approve | DENY 10 | 184,406 |
 
-### Key Insight: 28% Lower Overhead than Zodiac Roles
-Leash executes policy evaluation at **17,860 gas overhead** compared to **37,520 gas** for Zodiac Roles Modifier.
-1. **Packed In-Memory Rolling Buckets**: Leash computes the 24-hour sliding window entirely in memory using packed 64-bit timestamps and uint256 amounts, requiring only **1 storage slot write** (`ledgers.set`) per transaction.
-2. **Direct Byte Parsing**: Rather than traversing nested contract delegatecall trees (as Zodiac does for parameter unscoping), Leash inspects calldata directly in pure Fe with zero sub-contract calls.
+Reproduce with `make demo` (Anvil) or `npm run test:web` (in-memory EVM). No benchmark harness for Zodiac Roles or other modules is included in this repository, so this document makes no comparative gas claim.
 
 ---
 
@@ -98,12 +96,8 @@ Fe 26.6.0 provides high-level type safety. Here is how Fe abstractions translate
 
 ---
 
-## 4. Operation-by-Operation Gas Benchmarks
+## 4. Operation-by-Operation Gas
 
-| Operation | Target Gas | Measured Gas | Status |
-|---|---|---|---|
-| `Execute` (Allowed ETH transfer) | < 80,000 | ~49,280 | PASS |
-| `TryExecute` (Allowed ETH transfer) | < 85,000 | ~51,400 | PASS |
-| `TryExecute` (Denied, emits event) | < 35,000 | ~24,500 | PASS |
-| `Preview` (Read-only check) | 0 (off-chain) | ~18,000 | PASS |
-| `Pause` / `Unpause` | < 35,000 | ~22,000 | PASS |
+Per-operation figures (Execute, Preview, Pause) are not measured by any script in this repository, so none are quoted here. The end-to-end figures in section 2 are measured and reproducible.
+
+---

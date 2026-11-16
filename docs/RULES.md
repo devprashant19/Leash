@@ -7,7 +7,7 @@ Every transaction evaluated by `policy::decide` follows a deterministic, non-bra
 | Step | Rule | Deny Reason | Code | Inputs | Rationale for Position |
 |---|---|---|---|---|---|
 | 1 | Global Pause | `Paused` | 1 | `state.paused` | Cheapest global kill-switch. If paused, zero compute should be spent. |
-| 2 | Circuit Breaker | `CircuitTripped` | 15 | `state.tripped` | Halts automated execution after consecutive denial threshold. |
+| 2 | Circuit Breaker | `CircuitTripped` | 15 | `state.tripped` | Halts the agent after 3 `tryExecute` denials since it was set or last reset (hard-coded in `LeashModule`). |
 | 3 | Session Expiry | `SessionExpired` | 2 | `tx.now`, `state.expiry` | Immediate timestamp check. Expired sessions are invalid regardless of action. |
 | 4 | Cooldown Period | `CooldownActive` | 13 | `tx.now`, `state.last_action`, `policy.cooldown` | Prevents rapid back-to-back tx bursts. |
 | 5 | DelegateCall Safety | `DelegateCallBlocked` | 3 | `tx.op`, `target.delegate_ok` | Evaluated before targets because unverified DelegateCall is critical code execution risk. |
@@ -32,7 +32,7 @@ Every transaction evaluated by `policy::decide` follows a deterministic, non-bra
 ### 2. CircuitTripped (`code 15`)
 - **Inputs**: `state.tripped: bool`
 - **Deny Reason**: `DenyReason::CircuitTripped`
-- **Edge cases**: If enabled (`breaker_threshold > 0`), consecutive policy rejections trip the breaker. Requires guardian reset.
+- **Edge cases**: `LeashModule` counts denials returned by `tryExecute` and trips at 3 (allowed calls do not reset the count; the `breaker_threshold` policy field is not used by the module). Only the Safe can reset it, with `resetBreaker(agent)`; `setAgent` also clears it.
 
 ### 3. SessionExpired (`code 2`)
 - **Inputs**: `tx.now: Timestamp`, `state.expiry: Timestamp`
