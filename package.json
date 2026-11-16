@@ -14,7 +14,9 @@
     "test:web": "tsx test/web/web_test.ts",
     "build:web": "node scripts/build-web.mjs",
     "dev:web": "node scripts/dev-vite.mjs",
-    "dev": "node scripts/dev-vite.mjs"
+    "dev": "node scripts/dev-vite.mjs",
+    "bundle:api": "node scripts/bundle-api.mjs",
+    "test:bundle": "node scripts/bundle-api.mjs && node --no-experimental-require-module test/web/bundle_test.cjs"
   },
   "dependencies": {
     "@ethereumjs/block": "10.1.3",
@@ -32,6 +34,7 @@
     "@types/react": "18.3.31",
     "@types/react-dom": "18.3.7",
     "@vitejs/plugin-react": "4.7.0",
+    "esbuild": "0.25.12",
     "lenis": "1.3.27",
     "motion": "12.43.0",
     "react": "18.3.1",

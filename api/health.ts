@@ -1,3 +1,4 @@
+import { engine } from './_lib/load';
 import { errorMessage, sendJson, type Req, type Res } from './_lib/http';
 
 /**
@@ -6,11 +7,9 @@ import { errorMessage, sendJson, type Req, type Res } from './_lib/http';
  */
 export default async function handler(_req: Req, res: Res): Promise<void> {
   try {
-    const { cliInfo } = await import('./_lib/leash');
-    const info = cliInfo();
+    const info = engine().cliInfo();
     sendJson(res, 200, { ok: true, predictionSource: info.source, cliVersion: info.version, fingerprint: info.fingerprint });
   } catch (e) {
-    const stack = e instanceof Error && e.stack ? e.stack.split('\n').slice(0, 6).map((l) => l.trim()) : [];
-    sendJson(res, 500, { ok: false, error: errorMessage(e), stack, node: process.version });
+    sendJson(res, 500, { ok: false, error: errorMessage(e) });
   }
 }

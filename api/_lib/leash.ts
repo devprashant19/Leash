@@ -109,23 +109,24 @@ export function cliInfo(): { source: PredictionSource; version: string; fingerpr
   return { source, version, fingerprint: cliFingerprint() };
 }
 
-import { getEmbeddedArtifact } from './embedded-artifacts';
+const artifactCache = new Map<string, { abi: Abi; bytecode: Hex }>();
 
+/** ABI and bytecode of a Fe-compiled contract, from api/_assets/artifacts (copied there by 'npm run sync:web'). */
 function artifact(name: string): { abi: Abi; bytecode: Hex } {
-  try {
-    return getEmbeddedArtifact(name);
-  } catch {
-    const assetsDir = getAssetsDir();
-    const abiPath = path.join(assetsDir, 'artifacts', `${name}.abi.json`);
-    const binPath = path.join(assetsDir, 'artifacts', `${name}.bin`);
-    if (!fs.existsSync(abiPath) || !fs.existsSync(binPath)) {
-      throw new Error(`Artifact ${name} not found in ${assetsDir}/artifacts. Run 'npm run sync:web' or 'fe build' first.`);
-    }
-    return {
-      abi: JSON.parse(fs.readFileSync(abiPath, 'utf8')),
-      bytecode: ('0x' + fs.readFileSync(binPath, 'utf8').trim()) as Hex,
-    };
+  const hit = artifactCache.get(name);
+  if (hit) return hit;
+  const dir = path.join(getAssetsDir(), 'artifacts');
+  const abiPath = path.join(dir, `${name}.abi.json`);
+  const binPath = path.join(dir, `${name}.bin`);
+  if (!fs.existsSync(abiPath) || !fs.existsSync(binPath)) {
+    throw new Error(`Contract artifact ${name} not found in ${dir}. Run 'npm run sync:web' first.`);
   }
+  const art = {
+    abi: JSON.parse(fs.readFileSync(abiPath, 'utf8')) as Abi,
+    bytecode: ('0x' + fs.readFileSync(binPath, 'utf8').trim()) as Hex,
+  };
+  artifactCache.set(name, art);
+  return art;
 }
 
 export interface Env {

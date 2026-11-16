@@ -171,3 +171,7 @@ jobs:
         env:
           LEASH_REQUIRE_NATIVE: "1"
         run: npm run test:web
+      - name: API bundle loads without require(esm), as on Vercel's runtime
+        env:
+          LEASH_REQUIRE_NATIVE: "1"
+        run: npm run test:bundle

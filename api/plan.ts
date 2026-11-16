@@ -1,4 +1,4 @@
-import { parsePlan, runPlan } from './_lib/plan';
+import { engine } from './_lib/load';
 import { errorMessage, readBody, sendJson, type Req, type Res } from './_lib/http';
 
 /**
@@ -12,12 +12,12 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   }
   let plan;
   try {
-    plan = parsePlan(await readBody(req));
+    plan = engine().parsePlan(await readBody(req));
   } catch (e) {
     return sendJson(res, 400, { error: errorMessage(e) });
   }
   try {
-    sendJson(res, 200, await runPlan(plan));
+    sendJson(res, 200, await engine().runPlan(plan));
   } catch (e) {
     console.error('plan failed', e);
     sendJson(res, 500, { error: errorMessage(e) });

@@ -1,4 +1,4 @@
-import { parseCheckInput, runCheck } from './_lib/leash';
+import { engine } from './_lib/load';
 import { errorMessage, readBody, sendJson, type Req, type Res } from './_lib/http';
 
 /** POST /api/check { to, valueEth, data, operation }: one transaction, predicted by the Fe CLI and executed on-chain. */
@@ -9,12 +9,12 @@ export default async function handler(req: Req, res: Res): Promise<void> {
   }
   let input;
   try {
-    input = parseCheckInput(await readBody(req));
+    input = engine().parseCheckInput(await readBody(req));
   } catch (e) {
     return sendJson(res, 400, { error: errorMessage(e) });
   }
   try {
-    sendJson(res, 200, await runCheck(input));
+    sendJson(res, 200, await engine().runCheck(input));
   } catch (e) {
     console.error('check failed', e);
     sendJson(res, 500, { error: errorMessage(e) });
