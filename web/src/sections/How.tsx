@@ -150,7 +150,7 @@ export function HowItWorks() {
 
 const LADDER = [
   { k: 'Compiles', t: 'Fits the EVM', p: '22,029 bytes of runtime, 2,547 under the 24,576-byte limit.' },
-  { k: 'Tested', t: 'On both targets', p: '159 EVM tests, 119 native tests and 77 shared vectors run against both builds.' },
+  { k: 'Tested', t: 'On both targets', p: '153 EVM tests, 119 native tests and 77 shared vectors run against both builds.' },
   { k: 'Matched', t: 'Prediction = decision', p: 'Every demo run compares the CLI verdict with the contract’s, transaction by transaction.' },
   { k: 'Released', t: 'Binaries in CI', p: 'cli-v0.1.0 ships leash for Linux x86-64 and macOS arm64, built and smoke-tested in CI.' },
 ];
@@ -198,9 +198,9 @@ export function Proof() {
               <div className="size-track"><motion.div className="size-fill" initial={{ width: 0 }} animate={barsSeen ? { width: `${(22029 / 24576) * 100}%` } : {}} transition={{ duration: 2, ease: [0.5, 1, 0.89, 1] }} /></div>
             </div>
             <div className="tests">
-              {[['EVM tests', 159], ['Native tests', 119], ['Shared vectors', 77]].map(([k, n], i) => (
+              {[['EVM tests', 153], ['Native tests', 119], ['Shared vectors', 77]].map(([k, n], i) => (
                 <div className="test-bar" key={k}>
-                  <motion.div className="test-fill" initial={{ height: 0 }} animate={barsSeen ? { height: `${((n as number) / 159) * 100}%` } : {}} transition={{ delay: 0.4 + i * 0.1, duration: 0.9, ease: EASE }} />
+                  <motion.div className="test-fill" initial={{ height: 0 }} animate={barsSeen ? { height: `${((n as number) / 153) * 100}%` } : {}} transition={{ delay: 0.4 + i * 0.1, duration: 0.9, ease: EASE }} />
                   <div className="t-code test-n">{n}</div>
                   <div className="t-mono">{k}</div>
                 </div>

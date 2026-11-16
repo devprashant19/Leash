@@ -70,7 +70,7 @@ export function Checks() {
 const STATS = [
   { v: '22,029', k: 'Bytes of runtime', d: 'LeashModule compiled from Fe, 2,547 bytes under the EVM limit.' },
   { v: '21', k: 'Deny codes', d: 'Every refusal has a stable number the agent and the chain agree on.' },
-  { v: '159', k: 'EVM tests', d: 'Plus 119 native tests and 77 shared vectors run on both targets.' },
+  { v: '153', k: 'EVM tests', d: 'Plus 119 native tests and 77 shared vectors run on both targets.' },
   { v: '1', k: 'Fingerprint', d: 'The CLI and the contract hash the same policy to the same value.' },
 ];
 

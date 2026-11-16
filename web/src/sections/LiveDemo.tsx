@@ -319,7 +319,7 @@ export function LiveDemo() {
                   </div>
                   <div className="dm-card">
                     <div className="t-mono dm-k">Tests</div>
-                    <div className="dm-v">159 + 119</div>
+                    <div className="dm-v">153 + 119</div>
                     <div className="dm-sub">EVM + native, plus 77 shared vectors</div>
                   </div>
                 </div>

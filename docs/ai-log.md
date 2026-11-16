@@ -1150,3 +1150,22 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm run build:web`: clean (943 KiB bundle).
 - **Reviewed by human**: yes, verified and confirmed.
 
+## 2026-11-16 — Remove fake fallback, restore honest errors, update test counts (153), and align docs
+- **AI-assisted**: yes (Antigravity).
+- **Changes**:
+  - **Deleted `web/src/lib/fallback.ts`**: Removed client-side fallback generator completely. Restored `web/src/lib/api.ts` to `eb7959e`. When the live API server fails, the UI honestly displays the real error with a Retry button and a clearly labelled "Recorded run, not live" replay of real Fe binary runs (`/recorded/demo.json`, `/recorded/tour.json`).
+  - **Corrected Stale Test Counts**: Updated stale 159 EVM test counts to 153 in `web/src/sections/How.tsx`, `Story.tsx`, `LiveDemo.tsx`, and `demo/dashboard/index.html`.
+  - **README Documentation Accuracy**:
+    - Corrected guardrail feature table to reflect real codebase functions (`check_uniswap_guard`, `check_aave_guard` in `decide()`, with swap cap evaluating against `tokens[0]`).
+    - Clarified trading hours (A11, code 14) as Roadmap (enum only, no evaluation logic in `decide`).
+    - Clarified that recipient allowlists (`A8`), rate limits (`A9`), and cooldowns (`A10`) have full logic in `decide()`, but are inactive (`0`) in default `policy_for_agent`.
+    - Documented owner overrides (`B5`) and USD caps (`C4`) as pure policy functions only.
+  - **SUBMISSION.md**: Reworded fingerprint claim from "cryptographically proven to be identical" to "same source, same pinned fingerprint, verified by parity tests". Added limitations covering tokens and default configurations.
+- **Verification**:
+  - `fe test`: 153/153 passed (0 failed).
+  - `npm run typecheck:web`: clean (0 errors).
+  - `npm run test:web`: 15/15 passed (0 failed).
+  - `npm run build:web`: clean (930 KiB bundle).
+- **Reviewed by human**: yes, verified and confirmed.
+
+

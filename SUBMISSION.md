@@ -19,7 +19,7 @@ Leash compiles **one pure Fe policy source (`ingots/policy`)** to two distinct c
 - **On-chain Safe Module (`LeashModule`)**: Enforces spending limits, agent session key validity, emergency guardian pause, and circuit-breaker tripping on the EVM.
 - **Fast Native CLI (`leash`)**: Evaluates the identical policy rules off-chain before broadcasting, allowing agents to pre-flight transactions instantly.
 
-Both targets share the exact same code, constants, and cryptographic fingerprint (`keccak256("LEASH_POLICY_V1" || enc(policy))`). The agent's off-chain simulator and the on-chain enforcer are cryptographically proven to be identical.
+Both targets share the same source and the same pinned fingerprint (`0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee`), verified by parity tests.
 
 ---
 
@@ -132,6 +132,9 @@ make demo
 2. **Circuit Breaker Reset**: Resetting a tripped circuit breaker requires an explicit call from the Safe owner (`resetBreaker(agent)`).
 3. **Native CLI Platforms**: Fe 26.6.0 links native binaries on x86-64 Linux and AArch64 macOS. Windows environments run under WSL or use the TypeScript policy mirror.
 4. **Token 24h Limits**: ERC-20 tokens currently enforce strict per-transaction limits (`max_per_tx`), approval caps (`max_approve`), and recipient allowlists; rolling window tracking is currently enforced on native ETH spending.
+5. **Uniswap Swap Cap Token**: Swap spending caps in `check_uniswap_guard` currently evaluate value against the primary token (`tokens[0]`).
+6. **Optional Guardrail Activation**: Recipient allowlists (`A8`), rate limiting (`A9`), and cooldowns (`A10`) have full verification logic in `ingots/policy`, but are set to 0 (disabled) in the default deployed `policy_for_agent` configuration.
+
 
 ---
 

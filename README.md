@@ -190,19 +190,20 @@ Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb7
 | **Native ETH Per-Tx Cap** | A4 | `PerTxCapExceeded` (7) | Yes | Yes | **Shipped** |
 | **Rolling 24h Window Cap** | A5 | `WindowCapExceeded` (8) | Yes (24 hourly buckets for ETH) | Yes (`--state`) | **Shipped** |
 | **ERC-20 Per-Tx & Approval Hygiene**| A6/A7 | `TokenCapExceeded` (9), `UnlimitedApproval` (10) | Yes (`max_per_tx`, `max_approve`) | Yes | **Shipped** |
-| **Recipient Allowlist** | A8 | `RecipientNotAllowed` (11) | Yes | Yes | **Shipped** |
-| **Tx-Count Rate Limiting** | A9 | `RateLimited` (12) | Yes | Yes | **Shipped** |
-| **Transaction Cooldown** | A10 | `CooldownActive` (13) | Yes | Yes | **Shipped** |
+| **Recipient Allowlist** | A8 | `RecipientNotAllowed` (11) | In `decide` (inactive in default policy: `n_recipients: 0`) | Yes | **Shipped** (Policy Rule) |
+| **Tx-Count Rate Limiting** | A9 | `RateLimited` (12) | In `decide` (inactive in default policy: `max_actions: 0`) | Yes | **Shipped** (Policy Rule) |
+| **Transaction Cooldown** | A10 | `CooldownActive` (13) | In `decide` (inactive in default policy: `cooldown: 0`) | Yes | **Shipped** (Policy Rule) |
 | **Per-Agent Dynamic Limits** | B2 | `policy_for_agent` / `SetAgentPolicy` | Yes (`FingerprintOf`) | Yes | **Shipped** |
 | **Auto-Pause Circuit Breaker** | B3 | `CircuitTripped` (15) | Yes (auto-trips on 3 denials) | Yes | **Shipped** |
 | **Compile-time Policy Validation**| 13 | 16-variant `PolicyCheck` | Rejects invalid policies | `validate` | **Shipped** |
 | **Machine-readable JSON Output** | D1 | Structured JSON verdict | N/A | `leash check --json` | **Shipped** |
 | **C Static Header Export** | D7 | `leash.h` / `main.c` bindings | N/A | C FFI Reference Header | **Shipped** |
-| **Trading Hours Schedule** | A11 | `OutsideTradingHours` (14) | Policy function (`policy::decide_with_schedule`) | Yes | **Shipped** (Policy Engine) |
-| **Owner Co-signed Overrides** | B5 | EIP-712 structured bypass | Policy function (`policy::decide_with_override`) | Yes (`--override`) | **Shipped** (Policy Engine) |
-| **Uniswap MEV & Slippage** | C1/C2 | Sandwich protection (`amountOutMin > 0`) | Policy function (`policy::decide_with_swap`) | Yes | **Shipped** (Policy Engine) |
-| **Aave Lending Guard** | C3 | Collateral diversion protection | Policy function (`policy::decide_with_aave`) | Yes | **Shipped** (Policy Engine) |
-| **Oracle USD-Denominated Caps** | C4 | Chainlink staleness & USD caps | Policy function (`policy::decide_with_usd`) | Yes | **Shipped** (Policy Engine) |
+| **Trading Hours Schedule** | A11 | `OutsideTradingHours` (14) | Roadmap (enum only, no evaluation logic) | Roadmap | Roadmap |
+| **Owner Co-signed Overrides** | B5 | EIP-712 structured bypass | Policy function only (`policy::decide_with_override`) | Yes (`--override`) | **Shipped** (Policy Engine) |
+| **Uniswap MEV & Slippage** | C1/C2 | Sandwich protection (`amountOutMin > 0`) | In `decide` (`check_uniswap_guard`; cap uses `tokens[0]`) | Yes | **Shipped** |
+| **Aave Lending Guard** | C3 | Collateral diversion protection | In `decide` (`check_aave_guard`) | Yes | **Shipped** |
+| **Oracle USD-Denominated Caps** | C4 | Chainlink staleness & USD caps | Policy function only (`policy::decide_with_usd`) | Yes | **Shipped** (Policy Engine) |
+
 
 
 ---
@@ -309,6 +310,9 @@ Known limits of this release, each with where it is handled:
 4. **Agent tool server**: `bin/leash-serve.ts` asks the Fe `leash` binary for each verdict when one is present; its multi-step planning session (`record`) keeps its window state in TypeScript.
 5. **Safe on testnet**: `demo/deploy.ts` deploys the Fe `MockSafe` test account. Using a canonical Safe means enabling the module from the Safe's Transaction Builder, as described in [`docs/deployment.md`](docs/deployment.md).
 6. **Token Rolling Window**: ERC-20 tokens currently enforce per-transaction limits (`max_per_tx`), approval caps (`max_approve`), and recipient allowlists. Rolling window tracking is enforced on native ETH spending.
+7. **Uniswap Swap Cap Token**: Swap spending caps in `check_uniswap_guard` currently evaluate value against the primary token (`tokens[0]`).
+8. **Optional Guardrail Activation**: Recipient allowlists (`A8`), rate limiting (`A9`), and cooldowns (`A10`) have full verification logic in `ingots/policy`, but are set to 0 (disabled) in the default deployed `policy_for_agent` configuration.
+
 
 
 ---
