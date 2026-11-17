@@ -108,10 +108,10 @@ export function predictVerdict(opts: CheckOptions): LeashCheckResult {
   const binary = predictionSource() === 'fe-native' ? findLeashBinary() : null;
 
   if (binary) {
-    const args = ['check', '--to', opts.to, '--value-wei', (opts.valueWei || 0n).toString(), '--json'];
+    const now = opts.now !== undefined ? opts.now : Math.floor(Date.now() / 1000);
+    const args = ['check', '--to', opts.to, '--value-wei', (opts.valueWei || 0n).toString(), '--now', now.toString(), '--json'];
     if (opts.data && opts.data !== '0x') args.push('--data', opts.data);
     if (opts.op) args.push('--op', opts.op);
-    if (opts.now !== undefined) args.push('--now', opts.now.toString());
     if (opts.stateHex) args.push('--state', opts.stateHex);
     if (opts.expectedFingerprint) args.push('--expected-fingerprint', opts.expectedFingerprint);
     // No silent fallback: if the real binary misbehaves, the demo must fail loudly.

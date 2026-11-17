@@ -1246,6 +1246,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - **Refreshed Native Linux Binary**: Rebuilt `api/_assets/leash-linux-x86_64` directly from current source using Fe v26.6.0 in an Ubuntu 24.04 container, verifying its version (`0.1.0`), golden fingerprint (`0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee`), and preserving git executable mode `100755`.
   - **Native Differential Fuzzing in CI**: Updated `.github/workflows/ci.yml` so the differential fuzzing step runs with `LEASH_REQUIRE_NATIVE=1` and `LEASH_BIN="$PWD/api/_assets/leash-linux-x86_64"`, guaranteeing CI evaluates differential verdicts using the compiled native binary rather than the TypeScript mirror.
   - **Scripted Prompt Injection Clarification**: Explicitly documented across `demo/prompt_injection_demo.ts`, `demo/lib/scenario.ts`, `DECLARATION.md`, and handoff notes that the agent's malicious calls in the prompt-injection defense demo are scripted simulations representing the output of a compromised agent without calling live LLMs.
+  - **CLI Argument Handling in Web Harness**: Ensured `predictVerdict` in `demo/lib/leash-cli.ts` defaults `--now` to the current unix timestamp when omitted, satisfying Fe CLI's required `--now` argument across all test invocations.
 - **Verification**:
   - `node scripts/sync-web-assets.mjs --check`: `web artifacts match the fresh Fe build` (exit 0).
   - `git ls-files -s api/_assets/leash-linux-x86_64`: `100755 2006c5e2809028361cd81e6643ac9f1eadc9d22e 0 api/_assets/leash-linux-x86_64`.

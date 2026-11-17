@@ -79,6 +79,7 @@ async function main() {
   const fpMismatch = predictVerdict({
     to: TREASURY as `0x${string}`,
     valueWei: 10000000000000000n,
+    now: 1000000,
     expectedFingerprint: '0x1111222233334444555566667777888899990000111122223333444455556666',
   });
   await step('check: mismatched expected fingerprint returns FingerprintMismatch (code 22)', () => {
