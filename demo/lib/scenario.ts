@@ -97,7 +97,7 @@ export function canonicalScenarios(): ScenarioTx[] {
   ];
 }
 
-/** LLM Prompt Injection Attack Scenario: demonstrates adversarial prompts intercepted by Leash. */
+/** Prompt Injection Attack Scenario: scripted tool calls representing an LLM deceived by prompt injection. */
 export function promptInjectionScenario(): ScenarioTx[] {
   return [
     {

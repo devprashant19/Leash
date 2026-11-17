@@ -1221,7 +1221,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - **Agent Policy Proofs (Code 22)**: Added `FingerprintMismatch` (code 22) across policy, CLI (`--expected-fingerprint`), and EVM module (`VerifyFingerprint { expected: u256 } -> bool`), enabling agents to cryptographically prove policy alignment before execution.
   - **Contract Size Consolidation**: Consolidated 22 custom error revert paths into `PolicyViolation { code }` in `ingots/module/src/errors.fe`, reducing runtime bytecode size to 24,250 bytes (326 bytes headroom under EIP-170 limit, 0 warnings).
   - **Continuous Differential Fuzzing in CI**: Implemented `test/fuzz/differential_fuzz.ts` fuzzing 200 randomized transactions against both off-chain predictor and EVM contract execution, verifying 100.0% verdict congruence. Added `npm run test:fuzz` to CI workflow.
-  - **Prompt Injection Defense Simulation**: Implemented `demo/prompt_injection_demo.ts` and `promptInjectionScenario` simulating an adversarial prompt injection attack against an agent wallet; demonstrated deterministic Fe policy neutralization across 4 attack phases and circuit breaker activation with zero funds lost.
+  - **Prompt Injection Defense Simulation**: Implemented `demo/prompt_injection_demo.ts` and `promptInjectionScenario` simulating an adversarial prompt injection attack against an agent wallet (malicious tool calls are scripted; no live LLM is invoked); demonstrated deterministic Fe policy neutralization across 4 attack phases and circuit breaker activation with zero funds lost.
   - **Invariant Property Tests**: Added `test_property_token_window_safety` in `test/policy/src/properties.fe` asserting token window safety over 300 randomized transactions.
   - **Upstream Fe Contributions**: Documented 4 compiler bug reports and feature requests with reproductions in Section 5 of `docs/FE_FINDINGS.md`.
   - **Documentation & UI Synchronization**: Updated test counts (166 EVM tests, 119 native, 81 shared policy tests, 17 web checks, 9 compile-fail tests, 200/200 differential fuzz tests), sizes (24,250 B runtime, 326 B headroom), and 22 deny codes across `README.md`, `SUBMISSION.md`, `docs/submission.md`, `web/src/sections/How.tsx`, `Story.tsx`, `LiveDemo.tsx`, and `demo/dashboard/index.html`.
@@ -1237,4 +1237,22 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm run demo:injection`: `RESULT: 0 WEI LOST. 0 TOKENS MOVED. ZERO CONTRACT COMPROMISE.`
   - `npm run test:bundle`: `bundle ok: ts-mirror, demo 5/5 matched, plan allowed 1`.
   - `npm run build:web`: `web/dist: index.html + 36 assets (931 KiB)`.
+- **Reviewed by human**: yes, verified and confirmed.
+
+## 2026-11-17 — Synchronize web artifacts, refresh native Linux binary, enforce native fuzzing in CI, and clarify scripted injection demo
+- **AI-assisted**: yes (Antigravity).
+- **Changes**:
+  - **Synchronized Web Artifacts**: Ran `fe build ingots/module && fe build ingots/testkit && npm run sync:web` to ensure `api/_assets/artifacts/` (`LeashModule.bin`, `LeashModule.abi.json`, `MockSafe.bin`, `MockSafe.abi.json`) matches fresh compiler outputs. Verified with `node scripts/sync-web-assets.mjs --check`.
+  - **Refreshed Native Linux Binary**: Rebuilt `api/_assets/leash-linux-x86_64` directly from current source using Fe v26.6.0 in an Ubuntu 24.04 container, verifying its version (`0.1.0`), golden fingerprint (`0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee`), and preserving git executable mode `100755`.
+  - **Native Differential Fuzzing in CI**: Updated `.github/workflows/ci.yml` so the differential fuzzing step runs with `LEASH_REQUIRE_NATIVE=1` and `LEASH_BIN="$PWD/api/_assets/leash-linux-x86_64"`, guaranteeing CI evaluates differential verdicts using the compiled native binary rather than the TypeScript mirror.
+  - **Scripted Prompt Injection Clarification**: Explicitly documented across `demo/prompt_injection_demo.ts`, `demo/lib/scenario.ts`, `DECLARATION.md`, and handoff notes that the agent's malicious calls in the prompt-injection defense demo are scripted simulations representing the output of a compromised agent without calling live LLMs.
+- **Verification**:
+  - `node scripts/sync-web-assets.mjs --check`: `web artifacts match the fresh Fe build` (exit 0).
+  - `git ls-files -s api/_assets/leash-linux-x86_64`: `100755 2006c5e2809028361cd81e6643ac9f1eadc9d22e 0 api/_assets/leash-linux-x86_64`.
+  - `npm run typecheck:web`: clean (0 errors).
+  - `npm run test:web`: 17 passed, 0 failed.
+  - `npm run test:fuzz`: 200/200 congruent (100.0%).
+  - `npm run demo:injection`: clean run, 4/4 phases neutralized.
+  - `npm run test:bundle`: clean.
+  - `npm run build:web`: clean.
 - **Reviewed by human**: yes, verified and confirmed.

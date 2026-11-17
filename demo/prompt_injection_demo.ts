@@ -2,6 +2,8 @@
  * Prompt Injection Attack Defense Demo
  * Simulates an autonomous AI agent processing an untrusted document containing
  * a prompt injection designed to hijack agent credentials and drain the Safe treasury.
+ * NOTE: The agent's malicious calls in this demo are scripted (no external LLM is called),
+ * representing the exact tool calls that an exploited model produces when deceived.
  * Demonstrates how Leash protects assets deterministically without trusting LLM self-policing.
  */
 import { setupEnvironment, runStep, type Env } from '../api/_lib/leash';
@@ -10,7 +12,8 @@ import { promptInjectionScenario } from './lib/scenario';
 async function main() {
   console.log('='.repeat(70));
   console.log('  LEASH — PROMPT INJECTION DEFENSE SIMULATION');
-  console.log('  Adversary attempts to hijack an autonomous LLM agent wallet');
+  console.log('  Scripted simulation: adversary hijacks an autonomous agent wallet');
+  console.log('  (Calls are scripted; no live LLM API is invoked)');
   console.log('='.repeat(70));
 
   const untrustedDocument = `

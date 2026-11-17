@@ -85,6 +85,23 @@
   },
   {
     "type": "function",
+    "name": "verifyFingerprint",
+    "inputs": [
+      {
+        "name": "expected",
+        "type": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "pure"
+  },
+  {
+    "type": "function",
     "name": "resetBreaker",
     "inputs": [
       {
@@ -384,102 +401,7 @@
   },
   {
     "type": "error",
-    "name": "Paused",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "SessionExpired",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "DelegateCallBlocked",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "TargetNotAllowed",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "SelectorNotAllowed",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "MalformedCalldata",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "PerTxCapExceeded",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "WindowCapExceeded",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "TokenCapExceeded",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "UnlimitedApproval",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "RecipientNotAllowed",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "RateLimited",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "CooldownActive",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "OutsideTradingHours",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "SwapNotAllowed",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "LendingNotAllowed",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "PriceUnavailable",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "UsdCapExceeded",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "EscalationRequired",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "TokenWindowCapExceeded",
+    "name": "PolicyViolation",
     "inputs": []
   },
   {

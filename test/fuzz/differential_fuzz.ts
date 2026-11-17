@@ -14,6 +14,8 @@ import {
   MAX_PER_TX_WEI,
   ADDR_TOKEN,
   ADDR_TREASURY,
+  predictionSource,
+  findLeashBinary,
 } from '../../demo/lib/leash-cli';
 
 // Deterministic LCG for reproducible fuzz runs
@@ -136,6 +138,9 @@ function generateRandomTx(rng: PRNG, i: number): ScenarioTx {
 
 async function runDifferentialFuzz(iterations = 200) {
   console.log(`=== Starting Differential Fuzzing (${iterations} iterations) ===`);
+  const src = predictionSource();
+  const bin = findLeashBinary();
+  console.log(`  Prediction source: ${src}${bin ? ` (${bin})` : ''}`);
   const rng = new PRNG(42);
   let env: Env = await setupEnvironment();
 
