@@ -51,18 +51,18 @@ runtime: 18892 bytes (16775 code, 2117 data, 0 embedded)
 
 Gas used by each transaction of the canonical demo, end to end (agent → `LeashModule.tryExecute` → test Safe → target), from `demo/run.json` (Anvil) and the in-memory EVM runs in `web/public/recorded/`:
 
-| Step | Verdict | Gas (Anvil run, `demo/run.json`) |
-|---|---|---|
-| 0.05 ETH to the treasury | ALLOW | 299,218 |
-| Transfer 50 tokens | ALLOW | 264,283 |
-| 0.2 ETH (over the per-tx cap) | DENY 7 | 192,947 |
-| Unlisted contract | DENY 4 | 175,484 |
-| Unlimited approve | DENY 10 | 201,701 |
+| Step | Verdict | Gas (Anvil run, `demo/run.json`) | Gas Before (56 words) | Gas Saved |
+|---|---|---|---|---|
+| 0.05 ETH to the treasury | ALLOW | **217,878** | 299,218 | **-81,340 (-27.2%)** |
+| Transfer 50 tokens | ALLOW | **202,807** | 264,283 | **-61,476 (-23.3%)** |
+| 0.2 ETH (over the per-tx cap) | DENY 7 | **135,002** | 192,947 | **-57,945 (-30.0%)** |
+| Unlisted contract | DENY 4 | **117,532** | 175,484 | **-57,952 (-33.0%)** |
+| Unlimited approve | DENY 10 | **143,473** | 201,701 | **-58,228 (-28.9%)** |
 
-`demo/run.json` is the `demo-run-fe-native` artifact of CI run 43936669227 (commit `3fbae35`): Anvil, predictions from the Fe-built `leash` binary, 5/5 matched.
+`demo/run.json` is the `demo-run-fe-native` artifact of CI run 44146399027 (commit `7dc28a7`): Anvil, predictions from the Fe-built `leash` binary, 5/5 matched.
 
-### Gas Cost Breakdown (~260k–300k Gas per Allowed Call)
-Why does an allowed transaction through `LeashModule` consume ~264k–299k gas?
+### Gas Cost Breakdown (~200k–220k Gas per Allowed Call)
+Why does an allowed transaction through `LeashModule` consume ~202k–218k gas?
 1. **Cold Storage Reads (32 Words, down from 56 Words)**: Every transaction loads `AgentLedger` (24 packed hourly ETH buckets in `Window24` [24 words] + 4 token period buckets [8 words] = 32 words). Under EIP-2929, each cold `SLOAD` costs 2,100 gas:
    $$\text{Storage Read Overhead} = 32 \times 2{,}100 = 67{,}200\text{ gas}$$
    By packing ETH ring buffer buckets into single 256-bit words (`(index << 192) | amount`), storage read overhead was reduced by **50,400 gas** (from 117,600 gas to 67,200 gas).

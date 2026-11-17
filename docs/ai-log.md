@@ -1284,4 +1284,10 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm run demo:injection`: `RESULT: 0 WEI LOST. 0 TOKENS MOVED. ZERO CONTRACT COMPROMISE.`
   - `npm run test:bundle`: `bundle ok: ts-mirror, demo 5/5 matched, plan allowed 1`.
   - `npm run build:web`: `web/dist: index.html + 36 assets (931 KiB)`.
+  - **CI Measured Gas (run 44146399027 artifact `demo-run-fe-native`)**:
+    - Step 1 (0.05 ETH transfer): 217,878 gas (was 299,218 gas; **-81,340 gas / -27.2%**)
+    - Step 2 (50 tokens transfer): 202,807 gas (was 264,283 gas; **-61,476 gas / -23.3%**)
+    - Step 3 (0.2 ETH cap denial): 135,002 gas (was 192,947 gas; **-57,945 gas / -30.0%**)
+    - Step 4 (unlisted target denial): 117,532 gas (was 175,484 gas; **-57,952 gas / -33.0%**)
+    - Step 5 (unlimited approve denial): 143,473 gas (was 201,701 gas; **-58,228 gas / -28.9%**)
 - **Reviewed by human**: yes, verified and confirmed.

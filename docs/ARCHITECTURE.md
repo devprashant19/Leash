@@ -90,7 +90,7 @@ In `ingots/cli`, Fe's static effect system proves that subcommands possess stric
    - Total: **32 storage words per agent** (reduced from 56 words via bucket packing).
 
 ### Architectural Tradeoff: Bounded $O(1)$ Execution vs SLOAD Gas
-Reading 32 storage words during execution incurs 32 cold SLOAD operations (67,200 gas) on first access (down from 117,600 gas for 56 words), driving total execution cost through `LeashModule` and the Safe to ~260k–300k gas. This design was chosen deliberately:
+Reading 32 storage words during execution incurs 32 cold SLOAD operations (67,200 gas) on first access (down from 117,600 gas for 56 words), driving total execution cost through `LeashModule` and the Safe to ~200k–220k gas (saving ~61k–81k gas per transaction). This design was chosen deliberately:
 - **Safety**: Bounded $O(1)$ ring-buffer traversal prevents out-of-gas griefing and unbounded transaction-log loops.
 - **Granularity**: ETH spending is tracked with 1-hour resolution across a rolling 24-hour window, while token rules use discrete 24-hour UTC calendar epochs (`now / 86400`) to save 192 additional storage words.
 

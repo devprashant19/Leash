@@ -17,8 +17,8 @@
       "onchain": "ALLOW",
       "onchainCode": 0,
       "matched": true,
-      "txHash": "0x9e08fd87b959d8cf6ddfc9ed7f98cfb1dd808104bdecfee74df413fe4e88425e",
-      "gasUsed": "299218",
+      "txHash": "0x84aca4afa73299906a0ad2f81069dd76a0e7f18f901ddf04f26b9d2177848817",
+      "gasUsed": "217878",
       "remainingEthWindowWei": "450000000000000000"
     },
     {
@@ -29,8 +29,8 @@
       "onchain": "ALLOW",
       "onchainCode": 0,
       "matched": true,
-      "txHash": "0xf1ca45825c7052db496b6926758f7ec82cfc6f32dc182bc61d52ef91857d27f3",
-      "gasUsed": "264283",
+      "txHash": "0x969c7df7dc0424f55a69838ee5e15bbe997ddfd042ad7a2808d0bb1de486ae6c",
+      "gasUsed": "202807",
       "remainingEthWindowWei": "450000000000000000"
     },
     {
@@ -41,8 +41,8 @@
       "onchain": "DENY (code 7)",
       "onchainCode": 7,
       "matched": true,
-      "txHash": "0x52818cc4daf29c64bd10d531abda26a42e2580ccc7edf68dccd781b99326f931",
-      "gasUsed": "192947",
+      "txHash": "0x9a25012d3464d4e578c72856069a22d68087b010e8573de400a3e6ccd04d4350",
+      "gasUsed": "135002",
       "remainingEthWindowWei": "450000000000000000"
     },
     {
@@ -53,8 +53,8 @@
       "onchain": "DENY (code 4)",
       "onchainCode": 4,
       "matched": true,
-      "txHash": "0x5ac0e59f01054d9bac4fc0e282f6ec46d4521558974665d3d79ee08df1a8b554",
-      "gasUsed": "175484",
+      "txHash": "0xe560f3d5bd07315f1852bbd6df1f3cec89c6cf73bfdd03a4411355f4c5e90cdc",
+      "gasUsed": "117532",
       "remainingEthWindowWei": "450000000000000000"
     },
     {
@@ -65,8 +65,8 @@
       "onchain": "DENY (code 10)",
       "onchainCode": 10,
       "matched": true,
-      "txHash": "0x38e3d51d30416f04cffb94a1e5c85a6da9ce33a30788782587b7d87db3e07177",
-      "gasUsed": "201701",
+      "txHash": "0xe4a636c62e8a590a67e572f1dd51ed92ec492e5c176865c6ce18fdf888c1e1e0",
+      "gasUsed": "143473",
       "remainingEthWindowWei": "450000000000000000"
     }
   ]
