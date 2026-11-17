@@ -1,3 +1,4 @@
+// Demonstrates Fe's compile-time const evaluation checks for non-zero target addresses.
 pub const fn static_check_nonzero_addr(addr: u256) -> u32 {
     if addr != 0 { 1 } else { 1 / 0 }
 }

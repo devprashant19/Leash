@@ -1191,3 +1191,23 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `web/public/recorded/{demo,tour}.json` re-recorded on Amazon Linux 2023 with the new binary: 5/5 and 18/18 matched, `fe-native`.
 - History restored to the original commits on 2026-11-17; see DECLARATION.md.
 - **Reviewed by human**: yes, verified and confirmed.
+
+## 2026-11-17 — Technical quality, circuit breaker accounting, compile-fail diagnostics, and parity transparency
+- **AI-assisted**: yes (Antigravity).
+- **Changes**:
+  - **Circuit Breaker EVM Semantics**: Added architectural documentation in `README.md`, `docs/RULES.md`, `docs/ARCHITECTURE.md`, `SUBMISSION.md`, and code doc-comments in `ingots/module/src/lib.fe` explaining why `execute` reverts atomically (EVM rolls back state, meaning denials cannot be persisted in storage) while `tryExecute` logs denials in storage and trips the breaker.
+  - **Compile-Fail Test Verification**: Updated `scripts/compile-fail.sh` to actively check compiler stderr against expected diagnostics (`type mismatch` for `units_mixing.fe`, `division by zero in const context` for const guards) rather than accepting any non-zero exit code. Replaced the overclaim "Compile-time policy validation" with "Pre-Deployment Policy Validation & Compile-Time Type Safety", distinguishing runtime `validate()` checks from Fe's compile-time dimensional unit and effect safety.
+  - **Parity Testing Transparency**: Disclosed the exact execution structure of the 10,000-transaction parity suite across `README.md`, `SUBMISSION.md`, and `docs/submission.md`: EVM runs all 10 chunks (10,000 txs) live; native runs chunk 0 (1,000 txs) live and validates all 10 chunks against stored golden chunk digests to assert convergence with `PARITY_GOLDEN_DIGEST`.
+  - **Storage Layout & Gas Economics**: Documented the 56 storage words (`AgentLedger`: 48 words for 24 hourly ETH buckets + 8 words for 4 token periods) in `README.md`, `docs/GAS.md`, and `docs/ARCHITECTURE.md`, detailing the cold SLOAD cost (~117k gas) and why this bounded $O(1)$ ring buffer was chosen over transaction logs to eliminate out-of-gas griefing.
+  - **Policy Configuration & Headroom**: Documented why default policy addresses and caps are compiled constants (staying within EIP-170 at 24,308 bytes, 268 bytes headroom, and ensuring exact fingerprint equivalence between native CLI and EVM module), and detailed the procedure for custom policy compilation.
+  - **Safe Standard Integration**: Documented compatibility with canonical Safe v1.3.0/v1.4.1 module dispatch (`execTransactionFromModule`) and cross-referenced the step-by-step production Safe setup guide in `docs/deployment.md`.
+- **Verification**:
+  - `fe check`: passed (clean).
+  - `fe build ingots/module --emit sizes`: 24,308 bytes (268 bytes headroom).
+  - `fe test ingots/policy`: 80 passed, 0 failed.
+  - `fe test ingots/module`: 18 passed, 0 failed.
+  - `fe test`: 153 passed, 0 failed.
+  - `bash scripts/compile-fail.sh`: 6/6 rejected with matching expected diagnostics.
+  - `npm run typecheck:web`: clean (0 errors).
+  - `npm run test:web`: 16/16 passed.
+- **Reviewed by human**: yes, verified and confirmed.

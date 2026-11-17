@@ -61,7 +61,23 @@ Gas used by each transaction of the canonical demo, end to end (agent → `Leash
 | Unlisted contract | DENY 4 | 175,484 |
 | Unlimited approve | DENY 10 | 201,701 |
 
-`demo/run.json` is the `demo-run-fe-native` artifact of CI run 43936669227 (commit `3fbae35`): Anvil, predictions from the Fe-built `leash` binary, 5/5 matched. Every call reads the agent's ledger, now 56 words (24 hourly ETH buckets and 4 token periods), about 17.5k gas more per call than before the token cap (measured on the three denied steps); the first token transfer of a period also writes a fresh `(period, amount)` pair, about 42k more (two zero-to-nonzero stores). Reproduce with `make demo` (Anvil) or `npm run test:web` (in-memory EVM). No benchmark harness for Zodiac Roles or other modules is included in this repository, so this document makes no comparative gas claim.
+`demo/run.json` is the `demo-run-fe-native` artifact of CI run 43936669227 (commit `3fbae35`): Anvil, predictions from the Fe-built `leash` binary, 5/5 matched.
+
+### Gas Cost Breakdown (~260k–300k Gas per Allowed Call)
+Why does an allowed transaction through `LeashModule` consume ~264k–299k gas?
+1. **Cold Storage Reads (56 Words)**: Every transaction loads `AgentLedger` (24 hourly ETH buckets in `Window24` [48 words] + 4 token period buckets [8 words] = 56 words). Under EIP-2929, each cold `SLOAD` costs 2,100 gas:
+   $$\text{Storage Read Overhead} = 56 \times 2{,}100 = 117{,}600\text{ gas}$$
+2. **Safe Module Subcall Overhead**: `LeashModule` dispatches to Safe via `execTransactionFromModule`, which performs Safe signature checks, reentrancy guards, and context switching.
+3. **Storage Writes (`SSTORE`)**: Recording spent amounts updates the active bucket. The first token transfer in a 24h UTC period writes a fresh `(period, amount)` pair (two zero-to-nonzero `SSTORE`s costing ~40,000 gas; subsequent updates within the period cost ~2,900 gas warm).
+4. **Target Execution**: Gas consumed by the target contract (e.g. ERC-20 `transfer` updating sender and receiver balances, or plain ETH transfers).
+
+### The Tradeoff: Fixed Storage Ring Buffer vs Unbounded $O(N)$ Logs
+Why not use an append-only transaction log or dynamic array?
+- **Griefing Defense**: If an agent wallet used an unbounded transaction array, an attacker or compromised agent could submit hundreds of tiny 1-wei transactions, causing subsequent loop evaluations to exceed the block gas limit (out-of-gas denial-of-service).
+- **Predictable $O(1)$ Complexity**: A fixed 24-bucket ring buffer guarantees that loop traversal is strictly bounded ($O(1)$) and gas consumption remains constant over the entire lifetime of the agent session.
+- **The Tradeoff**: High baseline cold SLOAD cost (~117k gas per transaction), in exchange for mathematical immunity against state exhaustion and loop-griefing attacks.
+
+Reproduce with `make demo` (Anvil) or `npm run test:web` (in-memory EVM). No benchmark harness for Zodiac Roles or other modules is included in this repository, so this document makes no comparative gas claim.
 
 ---
 

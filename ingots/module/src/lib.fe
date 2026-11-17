@@ -291,6 +291,11 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             (code, rem_tx, rem_win)
         }
 
+        // Atomic execution: evaluates the policy and, if allowed, records spend and forwards to Safe.
+        // NOTE: On any policy denial, Execute reverts the EVM transaction atomically (revert_error).
+        // Under EVM semantics, state changes in a reverting frame are rolled back; therefore,
+        // denial counters and breaker tripping cannot persist during an Execute revert.
+        // Callers desiring denial recording and auto-pause trip behavior should call TryExecute.
         Execute { to, value, data, operation } -> bool
         uses (ctx, safe, mut call, mut log, paused, mut locked, agents, mut ledgers)
         {
@@ -333,6 +338,9 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             success
         }
 
+        // Non-reverting execution: evaluates policy and returns (success, deny_code).
+        // On denial, it increments cfg.denials, trips the circuit breaker if the threshold is met,
+        // and emits the Denied event without reverting the EVM frame, persisting the denial state.
         TryExecute { to, value, data, operation } -> (bool, u8)
         uses (ctx, safe, mut call, mut log, paused, mut locked, mut agents, mut ledgers)
         {

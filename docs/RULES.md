@@ -38,7 +38,13 @@ Codes 14 (`OutsideTradingHours`), 18–20 are produced by the variants described
 `state.paused`. Set by the guardian or the Safe with `pause()`; only the Safe can `unpause()`.
 
 ### 2. CircuitTripped (code 15)
-`state.tripped`. `LeashModule` counts calls refused through `tryExecute` and trips the breaker at `policy::BREAKER_DENIALS` (3), via `policy::breaker_trips`. Allowed calls do not reset the count, and refusals through `execute` revert instead of counting. Only the Safe can reset it, with `resetBreaker(agent)`; `setAgent` also clears it. The policy's `breaker_threshold` field is part of the fingerprinted encoding but is not read.
+`state.tripped`. `LeashModule` tracks repeated policy violations and trips the circuit breaker at `policy::BREAKER_DENIALS` (3) via `policy::breaker_trips`.
+- **`tryExecute` vs `execute` Accounting**:
+  - `tryExecute` does not revert the top-level EVM execution frame on denial; it increments `cfg.denials`, sets `cfg.tripped = true` on the 3rd denial, emits `CircuitTrippedEvent`, and commits the updated agent configuration to contract storage.
+  - `execute` provides atomic transaction semantics: any policy violation triggers `revert_for(r)` (`revert_error(PolicyViolation { code })`), which atomically reverts the EVM transaction. Under EVM state rollback semantics, any storage mutations within a reverted transaction are discarded; therefore, refusals through `execute` do not increment the persistent denial counter.
+  - Once the circuit breaker is tripped (`cfg.tripped == true`), subsequent attempts to execute via *both* `execute` (which reverts with `CircuitTripped`) and `tryExecute` (which returns `(false, 15)`) are locked out.
+- **Resetting**: Only the Safe owner can reset the breaker with `resetBreaker(agent)`, which resets `cfg.tripped = false` and `cfg.denials = 0`. Calling `setAgent` also clears the tripped flag.
+- The policy's `breaker_threshold` field is part of the fingerprinted encoding but the on-chain threshold is checked via `BREAKER_DENIALS` constant.
 
 ### 3. SessionExpired (code 2)
 Denied when `state.expiry > 0` and `tx.now >= state.expiry`. `expiry == 0` means no expiry. `LeashModule.setAgent` refuses an expiry that is not in the future.

@@ -1,3 +1,5 @@
+// Demonstrates Fe's compile-time dimensional unit safety.
+// Wei and Duration are distinct strongly-typed units; adding them fails at compile-time.
 use std::evm::units::{Duration, Wei}
 
 pub fn bad_math() -> Wei {

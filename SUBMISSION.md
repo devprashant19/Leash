@@ -29,7 +29,7 @@ Every policy rule is an **effect-checked pure function**:
 - `policy::decide` has **no `uses` clause**: the Fe compiler statically forbids any storage access, I/O, or external calls inside the policy evaluator. A reviewer can verify from function signatures alone that `decide` cannot alter state.
 - Only `policy::record` (and `record_denial` for the breaker) takes `mut AgentState` to update spending ledgers.
 - Guardian emergency pause declares `uses (ctx, safe, guardian, mut paused, mut log)`: the compiler guarantees the guardian cannot touch funds, register agents, or alter spending limits.
-- The identical Fe source compiles to EVM bytecode (`fe build`) and native x86-64/AArch64 machine code (`fe build --backend native`), verified by a 10,000-transaction parity test suite yielding identical Keccak-256 digests on both backends.
+- The identical Fe source compiles to EVM bytecode (`fe build`) and native x86-64/AArch64 machine code (`fe build --backend native`), verified by a 10,000-transaction parity test suite (EVM executes all 10,000 transactions live; native executes chunk 0 live and validates all 10 chunks against stored golden chunk digests, yielding identical root Keccak-256 digests on both backends).
 
 ```fe
 // ingots/policy/src/rules.fe
@@ -129,12 +129,15 @@ make demo
 ## Limitations
 
 1. **Hourly Bucket Approximation**: The 24-hour rolling window uses 24 discrete 1-hour buckets. Spend within the current hour rolls over cleanly, but timestamps within the same 60-minute bucket are grouped together.
-2. **Circuit Breaker Reset**: Resetting a tripped circuit breaker requires an explicit call from the Safe owner (`resetBreaker(agent)`).
-3. **Native CLI Platforms**: Fe 26.6.0 links native binaries on x86-64 Linux and AArch64 macOS. Windows environments run under WSL or use the TypeScript policy mirror.
-4. **Token window is fixed, not sliding**: each token rule's `max_per_window` (code 21) applies per fixed 24 h period from 00:00 UTC, so across a period boundary an agent can move up to twice the cap in a short span. The ETH window slides hour by hour.
-5. **Swaps are refused**: a Uniswap call's recipient and token path lie past the 100 calldata bytes the policy decodes, so every call to a listed router is refused (`SwapNotAllowed`, 16).
-6. **One policy for every agent**: `LeashModule` enforces `default_policy()`, the policy the CLI predicts with. Recipient allowlists (`A8`), rate limiting (`A9`) and cooldowns (`A10`) are implemented and tested in `ingots/policy` but off in that policy.
-7. **Small size headroom**: `LeashModule` is 268 bytes under the EIP-170 limit; new on-chain rules need size work first.
+2. **Circuit Breaker Denial Accounting (`Execute` vs `TryExecute`)**: Under EVM execution semantics, `Execute` reverts on policy denial via `revert_error(PolicyViolation { code })` to maintain atomic execution, which rolls back transaction storage modifications (so denials are not counted in storage on revert). Callers requiring on-chain denial tracking and auto-pause trip behavior call `TryExecute`, which increments `cfg.denials` and trips the breaker without reverting the EVM frame. Once tripped, subsequent calls to both `Execute` and `TryExecute` are rejected until the Safe owner calls `resetBreaker(agent)`.
+3. **Storage and Gas Overhead (56 Storage Words, ~260k–300k gas)**: Every transaction evaluation accesses 56 storage words (24 hourly ETH buckets + 4 token period buckets) in `AgentLedger`. At 2,100 gas per cold SLOAD, storage reading alone consumes ~117k gas, bringing total transaction execution through `LeashModule` to ~260k–300k gas. This fixed ring-buffer design guarantees bounded $O(1)$ loop execution and eliminates out-of-gas griefing, but incurs higher baseline SLOAD gas than single-word nonce checks.
+4. **Compile-Time Policy Constants vs Deploy-Time Configuration**: Default policy targets (`ADDR_TOKEN`, `ADDR_TREASURY`) and caps are compiled constants in `ingots/policy/src/config.fe` to stay within EIP-170 (runtime size 24,308 bytes, 268 bytes headroom) and guarantee byte-for-byte fingerprint parity between native CLI and EVM contract. Custom policies are configured by editing `config.fe` and compiling with `fe build`.
+5. **Native CLI Platforms**: Fe 26.6.0 links native binaries on x86-64 Linux and AArch64 macOS. Windows environments run under WSL or use the TypeScript policy mirror.
+6. **Token window is fixed, not sliding**: each token rule's `max_per_window` (code 21) applies per fixed 24 h period from 00:00 UTC (two storage words per token rule; a sliding window would require 48 words per token, or 192 storage words for 4 tokens). Across a period boundary an agent can move up to twice the cap in a short span. The ETH window slides hour by hour.
+7. **Swaps are refused**: a Uniswap call's recipient and token path lie past the 100 calldata bytes the policy decodes, so every call to a listed router is refused (`SwapNotAllowed`, 16).
+8. **One policy for every agent & Inactive Default Rules**: `LeashModule` enforces `default_policy()` for every agent, the policy the CLI predicts with. Recipient allowlists (`A8`), rate limiting (`A9`) and cooldowns (`A10`) are implemented and tested in `ingots/policy` but disabled in `default_policy()` to keep storage minimal.
+9. **Safe on Testnet & Production Safe**: Automated tests and demo run against `MockSafe` to test `execTransactionFromModule`. Attaching `LeashModule` to a live production Safe on Sepolia/Mainnet via Safe Transaction Builder is documented in `docs/deployment.md`.
+10. **Small size headroom**: `LeashModule` is 268 bytes under the EIP-170 limit; new on-chain rules need size work first.
 
 
 ---

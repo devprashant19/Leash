@@ -51,8 +51,8 @@ Fe's static effect system enforces minimal privilege for each message handler:
 
 | Message | Caller | Effects Declared | Description |
 |---|---|---|---|
-| `Execute { to, value, data, operation }` | Active agent | `mut self.locked, mut self.ledgers, call: mut Call, log: mut Log` | Evaluates `policy::decide`. Reverts with typed custom error if denied. If allowed, records spend and executes `Safe.execTransactionFromModule`. |
-| `TryExecute { to, value, data, operation }` | Active agent | `mut self.locked, mut self.ledgers, call: mut Call, log: mut Log` | Same as `Execute`, but on denial does NOT revert: emits `Denied(agent, to, code)` and returns `(false, code)`. On success executes and returns `(true, 0)`. |
+| `Execute { to, value, data, operation }` | Active agent | `mut self.locked, mut self.ledgers, call: mut Call, log: mut Log, agents` | Evaluates `policy::decide`. Reverts with typed custom error if denied (atomic EVM rollback). If allowed, records spend and executes `Safe.execTransactionFromModule`. |
+| `TryExecute { to, value, data, operation }` | Active agent | `mut self.locked, mut self.agents, mut self.ledgers, call: mut Call, log: mut Log` | Same as `Execute`, but on denial does NOT revert: increments `cfg.denials`, trips breaker on 3rd denial, emits `Denied(agent, to, code)` and returns `(false, code)`. On success executes and returns `(true, 0)`. |
 | `Preview { agent, to, value, data, operation }` | Anyone | Read-only (no storage mutation) | Returns `(code, remaining_eth_per_tx, remaining_eth_window)`. Zero state modifications. |
 | `State { agent }` | Anyone | Read-only (no storage mutation) | Returns canonical `policy::encode_state(agent_state)` bytes for off-chain CLI prediction. |
 | `Pause` | Safe or Guardian | `mut self.paused, log: mut Log` | Emergency kill switch. Guardian cannot touch funds or agent registrations. |
@@ -79,3 +79,24 @@ In `ingots/cli`, Fe's static effect system proves that subcommands possess stric
 | `leash explain` | `(out: mut Stdout)` | **Stdout only.** Cannot touch args, stderr, or filesystem. |
 | `leash fingerprint` | `(out: mut Stdout)` | **Stdout only.** Computes Keccak-256 digest in-memory and writes 64 hex characters to stdout. |
 | `leash replay` | `(args: Args, out: mut Stdout, err: mut Stderr, fs: Fs)` | **Sole holder of `Fs`.** Only `replay` can access disk I/O to read historical CSV audit records. |
+
+## 7. Storage Layout & Gas Economics
+
+`LeashModule` maintains two primary storage mappings per agent:
+1. `agents: StorageMap<Address, AgentConfig>` (1 slot per agent holding active status, expiry, label, circuit-breaker tripped flag, and denial count).
+2. `ledgers: StorageMap<Address, AgentLedger>`:
+   - `eth_window: Window24`: 24 hourly buckets, each consisting of `(index: u64, amount: u256)` = 48 words.
+   - `token_spent: [Bucket; MAX_TOKENS]`: 4 token period buckets of `(index: u64, amount: u256)` = 8 words.
+   - Total: **56 storage words per agent**.
+
+### Architectural Tradeoff: Bounded $O(1)$ Execution vs SLOAD Gas
+Reading 56 storage words during execution incurs 56 cold SLOAD operations (~117,600 gas) on first access, driving total execution cost through `LeashModule` and the Safe to ~260k–300k gas. This design was chosen deliberately:
+- **Safety**: Bounded $O(1)$ ring-buffer traversal prevents out-of-gas griefing and unbounded transaction-log loops.
+- **Granularity**: ETH spending is tracked with 1-hour resolution across a rolling 24-hour window, while token rules use discrete 24-hour UTC calendar epochs (`now / 86400`) to save 192 additional storage words.
+
+## 8. Safe Core Standard Compatibility
+
+`LeashModule` implements the standard Safe Module pattern (`ISafe.sol`):
+- Forwards authorized transactions via `Safe.execTransactionFromModule(to, value, data, operation)` (`0x468721a7`).
+- Compatible with canonical Safe v1.3.0 and v1.4.1 accounts.
+- In CI and local Anvil runs, `MockSafe` simulates exact module authorization and reentrancy behaviors. Detailed steps to attach `LeashModule` to a live production Safe on Sepolia/Mainnet via the Safe Transaction Builder are documented in [`docs/deployment.md`](deployment.md#using-a-canonical-safe-instead-of-the-mock).
