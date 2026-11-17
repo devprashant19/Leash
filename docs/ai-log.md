@@ -1189,4 +1189,5 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `LEASH_REQUIRE_NATIVE=1 npm run test:web` with the bundled binary on Amazon Linux 2023: `All 17 web checks passed.`; `npm run test:bundle`: `bundle ok: fe-native, demo 5/5 matched, plan allowed 1`.
   - `npx tsx test/serve/session_test.ts`: `All 9 scripted tool session steps PASSED green!`
   - `web/public/recorded/{demo,tour}.json` re-recorded on Amazon Linux 2023 with the new binary: 5/5 and 18/18 matched, `fe-native`.
-- **Reviewed by human**: pending.
+- History restored to the original commits on 2026-11-17; see DECLARATION.md.
+- **Reviewed by human**: yes, verified and confirmed.

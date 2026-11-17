@@ -32,11 +32,8 @@
 
 ## 4. How to Start Every Session
 1. Load `AGENTS.md`, `GLOSSARY.md`, `CONSTRAINTS.md`.
-2. Load the `fe-26` skill from `.claude/skills/fe-26/`.
-3. Read `phases/00-project-context.md` (the shared contracts).
-4. Read the current phase file from `phases/`.
-5. Read `phases/quality-gates.md`, the latest file in `docs/handoff/`, and the tail of `docs/ai-log.md`.
-6. Confirm the current phase and state the 3–5 line plan.
+2. Read the latest file in `docs/handoff/`, and the tail of `docs/ai-log.md`.
+3. Confirm the current task and state the 3–5 line plan.
 
 ---
 
