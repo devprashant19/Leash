@@ -27,9 +27,9 @@ interface JsonRpcResponse {
   };
 }
 
-// In-memory planning state: the agent's ledger in the layout `leash check --state` reads (60 words,
+// In-memory planning state: the agent's ledger in the layout `leash check --state` reads (36 words,
 // ingots/policy/src/encoding.fe). Bookkeeping only, as ledger.fe records an allowed call: ETH in hourly
-// buckets, token transfers in the token rule's 24 h period. Every verdict still comes from the policy.
+// packed buckets, token transfers in the token rule's 24 h period. Every verdict still comes from the policy.
 const BUCKETS = 24;
 const BUCKET_LEN = 3600n;
 const TOKEN_PERIOD = 86400n;
@@ -88,10 +88,14 @@ class SimulationSession {
     return total;
   }
 
-  /** paused, tripped, expiry (0 = none), 24 ETH buckets, last_action, 4 token periods. */
+  /** paused, tripped, expiry (0 = none), 24 packed ETH buckets, last_action, 4 token periods. */
   public stateHex(): `0x${string}` {
+    const mask192 = (1n << 192n) - 1n;
     const words: bigint[] = [0n, 0n, 0n];
-    for (const [index, amount] of this.buckets) words.push(index, amount);
+    for (const [index, amount] of this.buckets) {
+      const satAmount = amount > mask192 ? mask192 : amount;
+      words.push((index << 192n) | satAmount);
+    }
     words.push(0n, this.tokenPeriod[0], this.tokenPeriod[1], 0n, 0n, 0n, 0n, 0n, 0n);
     return ('0x' + words.map((w) => w.toString(16).padStart(64, '0')).join('')) as `0x${string}`;
   }

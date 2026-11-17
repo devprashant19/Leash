@@ -1,4 +1,4 @@
-use ingot::ledger::{bucket_index_of, spent_in_window}
+use ingot::ledger::{bucket_index_of, spent_in_window, unpack_bucket_amount, unpack_bucket_index}
 use ingot::types::{AgentState, BUCKETS, Policy, Timestamp}
 
 pub struct Budget {
@@ -20,10 +20,12 @@ pub fn remaining(_ policy: ref Policy, _ state: ref AgentState, _ now: Timestamp
 
     var i: usize = 0
     while i < BUCKETS {
-        let b = state.eth_window.buckets[i]
-        if b.amount > 0 && b.index <= current_index && (current_index - b.index) < buckets_count {
-            if b.index < min_index {
-                min_index = b.index
+        let packed = state.eth_window.buckets[i]
+        let b_amount = unpack_bucket_amount(packed)
+        let b_index = unpack_bucket_index(packed)
+        if b_amount > 0 && b_index <= current_index && (current_index - b_index) < buckets_count {
+            if b_index < min_index {
+                min_index = b_index
                 oldest_reset = ((min_index + buckets_count) as u256) * 3600
             }
         }

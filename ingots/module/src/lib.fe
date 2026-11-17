@@ -41,7 +41,7 @@ pub msg LeashMsg {
         u256,
     ),
     #[selector = sol("state(address)")]
-    State { agent: Address } -> [u256; 60],
+    State { agent: Address } -> [u256; 36],
     #[selector = sol("pause()")]
     Pause,
     #[selector = sol("unpause()")]
@@ -241,25 +241,23 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             log.emit(CircuitResetEvent { agent })
         }
 
-        State { agent } -> [u256; 60] uses (agents, ledgers, paused) {
+        State { agent } -> [u256; 36] uses (agents, ledgers, paused) {
             let cfg = agents.get(key: agent)
             let ledger = ledgers.get(key: agent)
-            var words: [u256; 60] = [0; 60]
+            var words: [u256; 36] = [0; 36]
             words[0] = if paused { 1 } else { 0 }
             words[1] = if cfg.tripped { 1 } else { 0 }
             words[2] = cfg.expiry.as_seconds()
             var b: usize = 0
             var idx: usize = 3
             while b < 24 {
-                words[idx] = ledger.eth_window.buckets[b].index as u256
-                idx += 1
-                words[idx] = ledger.eth_window.buckets[b].amount
+                words[idx] = ledger.eth_window.buckets[b]
                 idx += 1
                 b += 1
             }
-            words[51] = 0
+            words[27] = 0
             var t: usize = 0
-            idx = 52
+            idx = 28
             while t < MAX_TOKENS {
                 words[idx] = ledger.token_spent[t].index as u256
                 idx += 1

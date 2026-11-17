@@ -314,13 +314,13 @@ export function LiveDemo() {
                   </div>
                   <div className="dm-card">
                     <div className="t-mono dm-k">Contract size</div>
-                    <div className="dm-v">24,250 B</div>
-                    <div className="dm-sub">326 B (1.3%) under the 24,576 B limit</div>
+                    <div className="dm-v">18,892 B</div>
+                    <div className="dm-sub">5,684 B (23.1%) under the 24,576 B limit</div>
                   </div>
                   <div className="dm-card">
                     <div className="t-mono dm-k">Tests</div>
-                    <div className="dm-v">166 + 119</div>
-                    <div className="dm-sub">EVM + native, plus 81 shared policy tests</div>
+                    <div className="dm-v">167 + 132</div>
+                    <div className="dm-sub">EVM + native, plus 82 shared policy tests</div>
                   </div>
                 </div>
                 {mode === 'quick' ? (

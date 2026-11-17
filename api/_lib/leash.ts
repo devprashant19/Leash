@@ -196,7 +196,7 @@ async function read(env: Env, to: Hex, abi: Abi, functionName: string, args: unk
   return decodeFunctionResult({ abi, functionName, data } as never);
 }
 
-/** The agent's on-chain state, encoded the way `leash check --state` expects (60 words, hex). */
+/** The agent's on-chain state, encoded the way `leash check --state` expects (36 words, hex). */
 async function stateHex(env: Env): Promise<Hex> {
   const words = (await read(env, env.module, env.moduleAbi, 'state', [env.agent.address])) as bigint[];
   return ('0x' + words.map((w) => w.toString(16).padStart(64, '0')).join('')) as Hex;

@@ -317,14 +317,14 @@ impl Bucket {
     }
 }
 
-pub struct Window24 { pub buckets: [Bucket; BUCKETS] }
+pub struct Window24 { pub buckets: [u256; BUCKETS] }
 
 impl Copy for Window24 {}
 impl Snapshot for Window24 {}
 
 impl Window24 {
-    pub fn empty() -> Self {
-        Window24 { buckets: [Bucket { index: 0, amount: 0 }; BUCKETS] }
+    pub const fn empty() -> Self {
+        Window24 { buckets: [0; BUCKETS] }
     }
 }
 

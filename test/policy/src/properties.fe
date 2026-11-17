@@ -10,10 +10,13 @@ use policy::{
     decode_state,
     default_policy,
     encode_state,
+    pack_bucket,
     record,
     record_denial,
     seconds,
     spent_in_window,
+    unpack_bucket_amount,
+    unpack_bucket_index,
     verdict_code,
 }
 use testkit::{SplitMix64, gen_tx, parity_policy, rng_next_pct, rng_next_range, rng_next_u64}
@@ -156,7 +159,7 @@ pub fn test_property_encoding_roundtrip() {
 
         let b_idx: u64 = rng_next_u64(rng: mut rng)
         let b_amt: u256 = rng_next_range(rng: mut rng, min: 0, max: 1000000000)
-        s.eth_window.buckets[0] = Bucket { index: b_idx, amount: b_amt }
+        s.eth_window.buckets[0] = pack_bucket(b_idx, b_amt)
 
         let encoded = encode_state(s)
         let decoded = decode_state(encoded)
@@ -166,10 +169,10 @@ pub fn test_property_encoding_roundtrip() {
         assert(decoded.expiry == s.expiry)
         assert(decoded.last_action == s.last_action)
         assert(
-            decoded.eth_window.buckets[0].index == s.eth_window.buckets[0].index,
+            unpack_bucket_index(decoded.eth_window.buckets[0]) == b_idx,
         )
         assert(
-            decoded.eth_window.buckets[0].amount == s.eth_window.buckets[0].amount,
+            unpack_bucket_amount(decoded.eth_window.buckets[0]) == b_amt,
         )
 
         i += 1

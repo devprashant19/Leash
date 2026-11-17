@@ -207,7 +207,8 @@ export function predictVerdict(opts: CheckOptions): LeashCheckResult {
 const BUCKETS = 24;
 const BUCKET_LEN = 3600n;
 const TOKEN_PERIOD = 86400n;
-const STATE_WORDS = 60;
+const STATE_WORDS = 36;
+const MASK_192 = (1n << 192n) - 1n;
 
 interface DecodedState {
   paused: boolean;
@@ -219,16 +220,21 @@ interface DecodedState {
 }
 
 /**
- * Decodes `leash check --state` hex (60 words, policy/src/encoding.fe): paused, tripped, expiry,
- * 24 (index, amount) ETH buckets, last_action, then 4 (period, amount) token periods.
+ * Decodes `leash check --state` hex (36 words, policy/src/encoding.fe): paused, tripped, expiry,
+ * 24 packed ETH buckets ((index << 192) | amount), last_action, then 4 (period, amount) token periods.
  */
 function decodeStateHex(hex: string): DecodedState | null {
   const h = hex.replace(/^0x/, '');
   if (h.length !== STATE_WORDS * 64) return null;
   const w = (i: number) => BigInt('0x' + h.slice(i * 64, (i + 1) * 64));
   const buckets: Array<[bigint, bigint]> = [];
-  for (let b = 0; b < BUCKETS; b++) buckets.push([w(3 + b * 2), w(4 + b * 2)]);
-  return { paused: w(0) !== 0n, tripped: w(1) !== 0n, expiry: w(2), buckets, tokenSpent: [w(52), w(53)] };
+  for (let b = 0; b < BUCKETS; b++) {
+    const packed = w(3 + b);
+    const index = packed >> 192n;
+    const amount = packed & MASK_192;
+    buckets.push([index, amount]);
+  }
+  return { paused: w(0) !== 0n, tripped: w(1) !== 0n, expiry: w(2), buckets, tokenSpent: [w(28), w(29)] };
 }
 
 /** Same as ledger.fe spent_in_window: sum of buckets from the last 24 hourly slots. */

@@ -149,8 +149,8 @@ export function HowItWorks() {
 }
 
 const LADDER = [
-  { k: 'Compiles', t: 'Fits the EVM', p: '24,250 bytes of runtime, 326 under the 24,576-byte limit.' },
-  { k: 'Tested', t: 'On both targets', p: '166 EVM tests, 119 native tests and 81 shared policy tests run against both builds.' },
+  { k: 'Compiles', t: 'Fits the EVM', p: '18,892 bytes of runtime, 5,684 under the 24,576-byte limit.' },
+  { k: 'Tested', t: 'On both targets', p: '167 EVM tests, 132 native tests and 82 shared policy tests run against both builds.' },
   { k: 'Matched', t: 'Prediction = decision', p: 'Every demo run compares the CLI verdict with the contract’s, transaction by transaction.' },
   { k: 'Released', t: 'Binaries in CI', p: 'cli-v0.1.0 ships leash for Linux x86-64 and macOS arm64, built and smoke-tested in CI.' },
 ];
@@ -188,19 +188,19 @@ export function Proof() {
 
         <div className="pad big">
           <Reveal className="big-copy">
-            <Fade d={0}><Eyebrow>Fits, just</Eyebrow></Fade>
-            <div className="t-stat big-n"><Odometer value="326" /> <span className="big-unit">bytes</span></div>
-            <Fade as="p" className="t-small" d={0.9}>of headroom under the EVM’s 24,576-byte contract limit, with every rule, guard, the token ledger and the circuit breaker in. Little room: a new on-chain rule needs size work first.</Fade>
+            <Fade d={0}><Eyebrow>Substantial headroom</Eyebrow></Fade>
+            <div className="t-stat big-n"><Odometer value="5684" /> <span className="big-unit">bytes</span></div>
+            <Fade as="p" className="t-small" d={0.9}>of headroom (23.1%) under the EVM’s 24,576-byte contract limit, after packed storage optimization freed 5,358 bytes.</Fade>
           </Reveal>
           <div className="big-bars" ref={barsRef} aria-label="Contract size and test counts">
             <div className="size-bar">
-              <div className="t-mono size-k"><span>LeashModule runtime</span><span><CountUp to={24250} play={barsSeen} format={(n) => n.toLocaleString('en-US')} /> / 24,576 B</span></div>
-              <div className="size-track"><motion.div className="size-fill" initial={{ width: 0 }} animate={barsSeen ? { width: `${(24250 / 24576) * 100}%` } : {}} transition={{ duration: 2, ease: [0.5, 1, 0.89, 1] }} /></div>
+              <div className="t-mono size-k"><span>LeashModule runtime</span><span><CountUp to={18892} play={barsSeen} format={(n) => n.toLocaleString('en-US')} /> / 24,576 B</span></div>
+              <div className="size-track"><motion.div className="size-fill" initial={{ width: 0 }} animate={barsSeen ? { width: `${(18892 / 24576) * 100}%` } : {}} transition={{ duration: 2, ease: [0.5, 1, 0.89, 1] }} /></div>
             </div>
             <div className="tests">
-              {[['EVM tests', 166], ['Native tests', 119], ['Shared policy tests', 81]].map(([k, n], i) => (
+              {[['EVM tests', 167], ['Native tests', 132], ['Shared policy tests', 82]].map(([k, n], i) => (
                 <div className="test-bar" key={k}>
-                  <motion.div className="test-fill" initial={{ height: 0 }} animate={barsSeen ? { height: `${((n as number) / 166) * 100}%` } : {}} transition={{ delay: 0.4 + i * 0.1, duration: 0.9, ease: EASE }} />
+                  <motion.div className="test-fill" initial={{ height: 0 }} animate={barsSeen ? { height: `${((n as number) / 167) * 100}%` } : {}} transition={{ delay: 0.4 + i * 0.1, duration: 0.9, ease: EASE }} />
                   <div className="t-code test-n">{n}</div>
                   <div className="t-mono">{k}</div>
                 </div>

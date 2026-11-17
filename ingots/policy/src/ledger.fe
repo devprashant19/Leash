@@ -13,9 +13,40 @@ use ingot::types::{
 }
 
 pub const U256_MAX: u256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+pub const ETH_AMOUNT_MAX: u256 = 0x0000000000000000ffffffffffffffffffffffffffffffffffffffffffffffff
 
 pub fn checked_add_saturate(_ a: u256, _ b: u256) -> u256 {
     if U256_MAX - a < b { U256_MAX } else { a + b }
+}
+
+pub fn checked_add_saturate_192(_ a: u256, _ b: u256) -> u256 {
+    let safe_a = if a > ETH_AMOUNT_MAX {
+        ETH_AMOUNT_MAX
+    } else {
+        a
+    }
+    if ETH_AMOUNT_MAX - safe_a < b {
+        ETH_AMOUNT_MAX
+    } else {
+        safe_a + b
+    }
+}
+
+pub fn pack_bucket(_ index: u64, _ amount: u256) -> u256 {
+    let sat_amount = if amount > ETH_AMOUNT_MAX {
+        ETH_AMOUNT_MAX
+    } else {
+        amount
+    }
+    ((index as u256) << 192) | sat_amount
+}
+
+pub fn unpack_bucket_index(_ packed: u256) -> u64 {
+    (packed >> 192).downcast_truncate()
+}
+
+pub fn unpack_bucket_amount(_ packed: u256) -> u256 {
+    packed & ETH_AMOUNT_MAX
 }
 
 pub fn bucket_index_of(_ now: Timestamp) -> u64 {
@@ -28,10 +59,12 @@ pub fn spent_in_window(_ window: ref Window24, _ now: Timestamp) -> u256 {
     var total: u256 = 0
     var i: usize = 0
     while i < BUCKETS {
-        let b = window.buckets[i]
-        if b.index <= current_index {
-            if current_index - b.index < buckets_count {
-                total = checked_add_saturate(total, b.amount)
+        let packed = window.buckets[i]
+        let b_index = unpack_bucket_index(packed)
+        let b_amount = unpack_bucket_amount(packed)
+        if b_index <= current_index {
+            if current_index - b_index < buckets_count {
+                total = checked_add_saturate_192(total, b_amount)
             }
         }
         i += 1
@@ -44,10 +77,14 @@ pub fn record_spend(_ window: mut Window24, _ now: Timestamp, _ amount: u256) {
     let buckets_count: u64 = BUCKETS.downcast_truncate()
     let slot_u64: u64 = current_index % buckets_count
     let slot: usize = slot_u64.downcast_truncate()
-    if window.buckets[slot].index == current_index {
-        window.buckets[slot].amount = checked_add_saturate(window.buckets[slot].amount, amount)
+    let packed = window.buckets[slot]
+    let b_index = unpack_bucket_index(packed)
+    if b_index == current_index {
+        let cur_amount = unpack_bucket_amount(packed)
+        let new_amount = checked_add_saturate_192(cur_amount, amount)
+        window.buckets[slot] = pack_bucket(current_index, new_amount)
     } else {
-        window.buckets[slot] = Bucket { index: current_index, amount }
+        window.buckets[slot] = pack_bucket(current_index, checked_add_saturate_192(0, amount))
     }
 }
 

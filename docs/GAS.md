@@ -7,45 +7,43 @@ EIP-3860 sets a maximum initcode limit of **49,152 bytes** (0xc000).
 
 | Contract | Runtime size (bytes) | EIP-170 limit | Headroom | Initcode size (bytes) | EIP-3860 limit | Status |
 |---|---|---|---|---|---|---|
-| `LeashModule` | **24,308** | 24,576 | **+268 bytes (1.1%)** | 24,563 | 49,152 | **PASS (0 warnings)** |
+| `LeashModule` | **18,892** | 24,576 | **+5,684 bytes (23.1%)** | 19,147 | 49,152 | **PASS (0 warnings)** |
 
-Measured with `fe build ingots/module --emit sizes` (Fe 26.6.0, default optimization level `-O 1`, which the artifacts are built with; `-O s` gives 24,217 bytes and `-O 2` 24,187). The headroom is small: new on-chain rules need size work first.
+Measured with `fe build ingots/module --emit sizes` (Fe 26.6.0, default optimization level `-O 1`, which the artifacts are built with). Storage bucket packing into single 256-bit words (`(index << 192) | amount`) freed 5,358 bytes of runtime code, providing substantial headroom (+5,684 bytes) for extensible protocol rules.
 
 ### Top Runtime Functions Breakdown (`LeashModule`)
 
 From `fe build ingots/module --emit sizes`:
 
 ```text
-runtime: 24308 bytes (22223 code, 2085 data, 0 embedded)
-    9318 eval_tx
-    3859 contract_runtime_root_LeashModule
-    2426 contract_recv_abi_LeashModule_1368675399 (Preview)
-    1504 contract_recv_abi_LeashModule_837179557 (TryExecute)
-    1459 contract_recv_abi_LeashModule_2197115671 (Execute)
-    1217 default_policy
+runtime: 18892 bytes (16775 code, 2117 data, 0 embedded)
+    8876 eval_tx
+    3702 contract_runtime_root_LeashModule
+    1343 contract_recv_abi_LeashModule_1368675399 (Preview)
+     848 contract_recv_abi_LeashModule_2197115671 (Execute)
      406 forward
-     335 reason_code
-     288 revert_for
+     351 reason_code
      180 check_transfer
-     125 spent_in_window
+     144 record_spend
+     144 spent_in_window
      116 copy_dynamic_payload_from_with_input_len
       93 find_token_rule_idx
       90 is_address_word
       86 is_recipient_allowed
       84 lib__decode__read_word
       75 selector_of
-      72 record_spend
       37 checked_add_saturate
       25 require_safe
 ```
 
 ### What keeps it under the limit
 
-1. **One decision, one decode**: `policy::decide_spend` returns the verdict and the token amount an allowed call moves; the module books that amount with `record_allowed`. Decoding the calldata a second time for the ledger cost about 2.7 KB.
-2. **Pass-by-reference (`ref` and `mut`)** for `Tx`, `Policy` and `Calldata`, and index-based target and token lookups (`find_target_idx`, `find_token_rule_idx`) instead of copying 416-byte `TargetRule` structs.
-3. **Lean storage model (`AgentLedger`)**: per agent, only the 24 hourly ETH buckets and one `(period, amount)` pair per token rule are stored; no action window (rate limiting is off in the module policy).
-4. **One policy for every agent**: the module evaluates `default_policy()`; per-agent caps were removed (they also broke CLI parity).
-5. **Compile-time fingerprint**: `fingerprint()` returns the default policy's fingerprint as a constant instead of hashing 138 policy words on-chain. The `module` test `test_fingerprint_golden` checks it against `fingerprint(default_policy())`.
+1. **Packed Hourly Buckets**: Storing each of the 24 hourly ETH buckets in a single 256-bit word `(index << 192) | amount` (saturating at $2^{192}-1$) eliminated struct array overhead, reducing runtime size by 5,358 bytes and expanding EIP-170 headroom from 268 B to 5,684 B.
+2. **One decision, one decode**: `policy::decide_spend` returns the verdict and the token amount an allowed call moves; the module books that amount with `record_allowed`. Decoding the calldata a second time for the ledger cost about 2.7 KB.
+3. **Pass-by-reference (`ref` and `mut`)** for `Tx`, `Policy` and `Calldata`, and index-based target and token lookups (`find_target_idx`, `find_token_rule_idx`) instead of copying 416-byte `TargetRule` structs.
+4. **Lean storage model (`AgentLedger`)**: per agent, only the 24 packed hourly ETH buckets (24 words) and one `(period, amount)` pair per token rule (8 words) are stored (32 words total, down from 56 words).
+5. **One policy for every agent**: the module evaluates `default_policy()`; per-agent caps were removed (they also broke CLI parity).
+6. **Compile-time fingerprint**: `fingerprint()` returns the default policy's fingerprint as a constant instead of hashing 138 policy words on-chain. The `module` test `test_fingerprint_golden` checks it against `fingerprint(default_policy())`.
 
 ---
 
@@ -65,8 +63,9 @@ Gas used by each transaction of the canonical demo, end to end (agent → `Leash
 
 ### Gas Cost Breakdown (~260k–300k Gas per Allowed Call)
 Why does an allowed transaction through `LeashModule` consume ~264k–299k gas?
-1. **Cold Storage Reads (56 Words)**: Every transaction loads `AgentLedger` (24 hourly ETH buckets in `Window24` [48 words] + 4 token period buckets [8 words] = 56 words). Under EIP-2929, each cold `SLOAD` costs 2,100 gas:
-   $$\text{Storage Read Overhead} = 56 \times 2{,}100 = 117{,}600\text{ gas}$$
+1. **Cold Storage Reads (32 Words, down from 56 Words)**: Every transaction loads `AgentLedger` (24 packed hourly ETH buckets in `Window24` [24 words] + 4 token period buckets [8 words] = 32 words). Under EIP-2929, each cold `SLOAD` costs 2,100 gas:
+   $$\text{Storage Read Overhead} = 32 \times 2{,}100 = 67{,}200\text{ gas}$$
+   By packing ETH ring buffer buckets into single 256-bit words (`(index << 192) | amount`), storage read overhead was reduced by **50,400 gas** (from 117,600 gas to 67,200 gas).
 2. **Safe Module Subcall Overhead**: `LeashModule` dispatches to Safe via `execTransactionFromModule`, which performs Safe signature checks, reentrancy guards, and context switching.
 3. **Storage Writes (`SSTORE`)**: Recording spent amounts updates the active bucket. The first token transfer in a 24h UTC period writes a fresh `(period, amount)` pair (two zero-to-nonzero `SSTORE`s costing ~40,000 gas; subsequent updates within the period cost ~2,900 gas warm).
 4. **Target Execution**: Gas consumed by the target contract (e.g. ERC-20 `transfer` updating sender and receiver balances, or plain ETH transfers).

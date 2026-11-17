@@ -1,6 +1,7 @@
 use ingot::config::default_policy
 use ingot::encoding::{decode_state, encode_state}
 use ingot::fingerprint::{explain_reason, fingerprint}
+use ingot::ledger::{pack_bucket, unpack_bucket_amount, unpack_bucket_index}
 use ingot::types::{AgentState, DenyReason, Timestamp}
 use std::evm::units::{ether, hours, seconds, wei}
 
@@ -38,10 +39,8 @@ fn test_state_encode_decode_roundtrip() {
     s.expiry = Timestamp::from_seconds(12345678)
     s.last_action = Timestamp::from_seconds(12340000)
 
-    s.eth_window.buckets[0].index = 5
-    s.eth_window.buckets[0].amount = 999
-    s.eth_window.buckets[23].index = 28
-    s.eth_window.buckets[23].amount = 888
+    s.eth_window.buckets[0] = pack_bucket(5, 999)
+    s.eth_window.buckets[23] = pack_bucket(28, 888)
 
     let words = encode_state(s)
     let restored = decode_state(words)
@@ -51,10 +50,14 @@ fn test_state_encode_decode_roundtrip() {
     assert(restored.expiry == s.expiry)
     assert(restored.last_action == s.last_action)
 
-    assert(restored.eth_window.buckets[0].index == 5)
-    assert(restored.eth_window.buckets[0].amount == 999)
-    assert(restored.eth_window.buckets[23].index == 28)
-    assert(restored.eth_window.buckets[23].amount == 888)
+    assert(unpack_bucket_index(restored.eth_window.buckets[0]) == 5)
+    assert(
+        unpack_bucket_amount(restored.eth_window.buckets[0]) == 999,
+    )
+    assert(unpack_bucket_index(restored.eth_window.buckets[23]) == 28)
+    assert(
+        unpack_bucket_amount(restored.eth_window.buckets[23]) == 888,
+    )
 }
 
 #[test]

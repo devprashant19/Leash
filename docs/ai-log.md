@@ -1257,3 +1257,31 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm run test:bundle`: clean.
   - `npm run build:web`: clean.
 - **Reviewed by human**: yes, verified and confirmed.
+
+## 2026-11-17 — Phase 3 — Storage bucket packing, saturation at 2^192 - 1, and gas economics
+- **AI-assisted**: yes (Antigravity).
+- **Changes**:
+  - **Packed ETH Buckets**: Refactored `Window24` in `ingots/policy/src/types.fe` to `pub struct Window24 { pub buckets: [u256; BUCKETS] }`. Each hourly bucket packs `(index << 192) | amount`.
+  - **Saturation at 2^192 - 1**: In `ingots/policy/src/ledger.fe`, defined `ETH_AMOUNT_MAX: u256 = 0x0000000000000000ffffffffffffffffffffffffffffffffffffffffffffffff`, `checked_add_saturate_192`, `pack_bucket`, `unpack_bucket_index`, and `unpack_bucket_amount`, saturating additions at 2^192 - 1 rather than 2^256 - 1.
+  - **Saturation Edge Test**: Added `test_eth_bucket_packing_and_saturation` in `ingots/policy/src/test_ledger.fe` testing boundary spend at `ETH_AMOUNT_MAX - 50`, saturation at `ETH_AMOUNT_MAX`, and subsequent spend without index corruption.
+  - **Token Period Layout Maintained**: Kept 4 token periods as `[Bucket; 4]` (8 words) without adding 96-word hourly token buckets, adhering strictly to gas optimization goals.
+  - **State Encoding (36 words)**: Updated `STATE_WORDS = 36` across `ingots/policy/src/encoding.fe`, CLI `--state` parsing, TS mirror (`demo/lib/leash-cli.ts`), server (`bin/leash-serve.ts`), and test harnesses (`api/_lib/leash.ts`, `test_fingerprint.fe`, `properties.fe`).
+  - **Bytecode Headroom Expansion**: Dropped `LeashModule` runtime bytecode size from 24,250 bytes to 18,892 bytes (saving 5,358 bytes), expanding EIP-170 headroom from 326 bytes to 5,684 bytes (+23.1% headroom, 0 compiler warnings).
+  - **Storage SLOAD Gas Reduction**: Reduced `AgentLedger` slots from 56 words to 32 words (24 packed ETH + 8 token), lowering cold storage read overhead from 117,600 gas to 67,200 gas (50,400 gas saved per transaction).
+  - **Artifacts & Native Binary Rebuilt**: Rebuilt `LeashModule.bin`, `LeashModule.abi.json`, and native CLI `api/_assets/leash-linux-x86_64` (fingerprint `0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee`, mode 100755).
+  - **Documentation & UI Synchronization**: Updated test counts (167 EVM tests, 132 native tests, 82 shared policy tests), runtime sizes (18,892 B, 5,684 B headroom), and 32 storage words across `README.md`, `SUBMISSION.md`, `docs/submission.md`, `docs/GAS.md`, `docs/ARCHITECTURE.md`, `web/src/sections/How.tsx`, `Story.tsx`, `LiveDemo.tsx`, and `demo/dashboard/index.html`.
+- **Verification** (raw):
+  - `fe fmt --check ingots; fe fmt --check test`: clean (exit code 0).
+  - `fe check`: clean (exit code 0).
+  - `fe build ingots/module --emit sizes`: `runtime: 18892 bytes (16775 code, 2117 data, 0 embedded)`, `creation: 19147 bytes`.
+  - `fe test`: `test result: ok. 167 passed; 0 failed`.
+  - `fe test --backend native`: `test result: ok. 132 passed; 0 failed`.
+  - `bash scripts/compile-fail.sh`: `compile-fail suite passed: 9 file(s) correctly rejected with matching diagnostics`.
+  - `node scripts/sync-web-assets.mjs --check`: `web artifacts match the fresh Fe build`.
+  - `npm run typecheck:web`: clean (0 errors).
+  - `npm run test:web` (with `LEASH_REQUIRE_NATIVE=1`): `All 18 web checks passed.` (`fe-native`).
+  - `npm run test:fuzz` (with `LEASH_REQUIRE_NATIVE=1`): `200/200 (100.0%) congruent`.
+  - `npm run demo:injection`: `RESULT: 0 WEI LOST. 0 TOKENS MOVED. ZERO CONTRACT COMPROMISE.`
+  - `npm run test:bundle`: `bundle ok: ts-mirror, demo 5/5 matched, plan allowed 1`.
+  - `npm run build:web`: `web/dist: index.html + 36 assets (931 KiB)`.
+- **Reviewed by human**: yes, verified and confirmed.
