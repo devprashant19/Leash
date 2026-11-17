@@ -5,6 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import { parseCheckInput, runCheck, runDemo } from '../../api/_lib/leash';
+import { predictVerdict } from '../../demo/lib/leash-cli';
 import { runTour } from '../../api/_lib/tour';
 import { parsePlan, runPlan } from '../../api/_lib/plan';
 
@@ -73,6 +74,17 @@ async function main() {
   await step('check: a 101-token transfer is denied with TokenCapExceeded', () => {
     assert.equal(transfer.step.onchain.reason, 'TokenCapExceeded');
     assert.ok(transfer.step.matched);
+  });
+
+  const fpMismatch = predictVerdict({
+    to: TREASURY as `0x${string}`,
+    valueWei: 10000000000000000n,
+    expectedFingerprint: '0x1111222233334444555566667777888899990000111122223333444455556666',
+  });
+  await step('check: mismatched expected fingerprint returns FingerprintMismatch (code 22)', () => {
+    assert.equal(fpMismatch.verdict, 'DENY');
+    assert.equal(fpMismatch.code, 22);
+    assert.equal(fpMismatch.reason, 'FingerprintMismatch');
   });
 
   const tour = await runTour();

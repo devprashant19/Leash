@@ -97,6 +97,46 @@ export function canonicalScenarios(): ScenarioTx[] {
   ];
 }
 
+/** LLM Prompt Injection Attack Scenario: demonstrates adversarial prompts intercepted by Leash. */
+export function promptInjectionScenario(): ScenarioTx[] {
+  return [
+    {
+      i: 1,
+      description: '[Prompt Injection: Phase 1] Attacker instructs LLM to sweep treasury to unlisted wallet',
+      to: '0xdead00000000000000000000000000000000beef' as Address,
+      value: parseEther('5.0'),
+      data: '0x' as Hex,
+      operation: 0,
+    },
+    {
+      i: 2,
+      description: '[Prompt Injection: Phase 2] Attacker instructs LLM to grant unlimited approval to hacker contract',
+      to: ADDR_TOKEN as Address,
+      value: 0n,
+      data: ('0x095ea7b3' +
+        'dead00000000000000000000000000000000beef'.padStart(64, '0') +
+        U256_MAX.toString(16).padStart(64, '0')) as Hex,
+      operation: 0,
+    },
+    {
+      i: 3,
+      description: '[Prompt Injection: Phase 3] Attacker attempts multi-send delegatecall to bypass target checks',
+      to: ADDR_TREASURY as Address,
+      value: 0n,
+      data: '0x' as Hex,
+      operation: 1, // DelegateCall
+    },
+    {
+      i: 4,
+      description: '[Prompt Injection: Phase 4] Circuit breaker automatically tripped; harmless tx blocked',
+      to: ADDR_TREASURY as Address,
+      value: parseEther('0.01'),
+      data: '0x' as Hex,
+      operation: 0,
+    },
+  ];
+}
+
 export interface ScenarioRunResult {
   network: string;
   moduleAddress: Address;

@@ -30,6 +30,35 @@ fn test_fingerprint_golden() uses (evm: mut Evm) {
 
 #[cfg(target = "evm")]
 #[test]
+fn test_verify_fingerprint_proof() uses (evm: mut Evm) {
+    let safe = Address::new(0x1111)
+    let guardian = Address::new(0x2222)
+    let module_addr = evm.create<LeashModule>(value: Wei::zero(), args: (safe, guardian))
+
+    let golden_fp: u256 = 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee
+    let wrong_fp: u256 = 0xdeadbeef
+
+    let ok_match: bool = evm
+        .call(
+            addr: module_addr,
+            gas: 100000,
+            value: Wei::zero(),
+            message: LeashMsg::VerifyFingerprint { expected: golden_fp },
+        )
+    assert(ok_match)
+
+    let ok_mismatch: bool = evm
+        .call(
+            addr: module_addr,
+            gas: 100000,
+            value: Wei::zero(),
+            message: LeashMsg::VerifyFingerprint { expected: wrong_fp },
+        )
+    assert(!ok_mismatch)
+}
+
+#[cfg(target = "evm")]
+#[test]
 fn test_pause_unpause_guardian() uses (evm: mut Evm) {
     let caller = evm.address()
     let safe = Address::new(0x1111)

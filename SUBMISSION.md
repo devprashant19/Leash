@@ -97,13 +97,13 @@ make setup
 fe fmt --check ingots
 fe check
 
-# 3. Run all tests on EVM backend (153 tests)
+# 3. Run all tests on EVM backend (166 tests)
 fe test
 
 # 4. Run tests on Native backend (Linux / macOS)
 fe test --backend native
 
-# 5. Build EVM smart contracts (Runtime size: 24,308 B; 268 B under 24,576 B limit)
+# 5. Build EVM smart contracts (Runtime size: 24,250 B; 326 B under 24,576 B limit)
 fe build
 
 # 6. Run the local Anvil end-to-end demo
@@ -137,7 +137,7 @@ make demo
 7. **Swaps are refused**: a Uniswap call's recipient and token path lie past the 100 calldata bytes the policy decodes, so every call to a listed router is refused (`SwapNotAllowed`, 16).
 8. **One policy for every agent & Inactive Default Rules**: `LeashModule` enforces `default_policy()` for every agent, the policy the CLI predicts with. Recipient allowlists (`A8`), rate limiting (`A9`) and cooldowns (`A10`) are implemented and tested in `ingots/policy` but disabled in `default_policy()` to keep storage minimal.
 9. **Safe on Testnet & Production Safe**: Automated tests and demo run against `MockSafe` to test `execTransactionFromModule`. Attaching `LeashModule` to a live production Safe on Sepolia/Mainnet via Safe Transaction Builder is documented in `docs/deployment.md`.
-10. **Small size headroom**: `LeashModule` is 268 bytes under the EIP-170 limit; new on-chain rules need size work first.
+10. **Small size headroom**: `LeashModule` is 326 bytes under the EIP-170 limit; new on-chain rules need size work first.
 
 
 ---

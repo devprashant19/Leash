@@ -171,6 +171,8 @@ jobs:
         env:
           LEASH_REQUIRE_NATIVE: "1"
         run: npm run test:web
+      - name: Differential Fuzzing (verdict congruence across pseudo-random transactions)
+        run: npm run test:fuzz
       - name: Web functions test with the bundled binary (what Vercel runs)
         env:
           LEASH_REQUIRE_NATIVE: "1"

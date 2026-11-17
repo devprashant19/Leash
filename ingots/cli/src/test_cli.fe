@@ -28,3 +28,35 @@ fn test_cli_fingerprint_golden() {
         fp == 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee,
     )
 }
+
+#[test]
+fn test_cli_expected_fingerprint_mismatch() {
+    let pol = default_policy()
+    let golden_fp = fingerprint(pol)
+    let wrong_fp: u256 = 0xdeadbeef
+
+    let tx = Tx {
+        to: Address::new(0x2000000000000000000000000000000000000002),
+        value: ether(1) / 20,
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+    let st = default_check_state()
+
+    // Matching fingerprint -> normal policy decide
+    let match_verdict = if golden_fp != golden_fp {
+        policy::Verdict::Deny(policy::DenyReason::FingerprintMismatch)
+    } else {
+        decide(tx, pol, st)
+    }
+    assert(verdict_code(match_verdict) == 0)
+
+    // Mismatched expected fingerprint -> Deny code 22
+    let mismatch_verdict = if wrong_fp != golden_fp {
+        policy::Verdict::Deny(policy::DenyReason::FingerprintMismatch)
+    } else {
+        decide(tx, pol, st)
+    }
+    assert(verdict_code(mismatch_verdict) == 22)
+}

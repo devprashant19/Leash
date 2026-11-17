@@ -18,7 +18,7 @@ use ingot::types::{
 pub const ADDR_TOKEN: Address = Address::new(0x1000000000000000000000000000000000000001)
 pub const ADDR_TREASURY: Address = Address::new(0x2000000000000000000000000000000000000002)
 
-pub fn policy_for_agent(_ max_tx: Wei, _ max_win: Wei) -> Policy {
+pub const fn policy_for_agent(_ max_tx: Wei, _ max_win: Wei) -> Policy {
     var targets: [TargetRule; MAX_TARGETS] = [TargetRule::empty(); MAX_TARGETS]
     targets[0].target = ADDR_TOKEN
     targets[0].kind = TargetKind::Erc20
@@ -57,13 +57,33 @@ pub fn policy_for_agent(_ max_tx: Wei, _ max_win: Wei) -> Policy {
         n_tokens: 1,
         tokens,
         n_recipients: 0,
-        recipients: [Address::zero(); MAX_RECIPIENTS],
+        recipients: [Address::new(0); MAX_RECIPIENTS],
         max_actions_per_window: 0,
         cooldown: seconds(0),
         breaker_threshold: 0,
     }
 }
 
-pub fn default_policy() -> Policy {
+pub const fn default_policy() -> Policy {
     policy_for_agent(max_tx: Wei::zero(), max_win: Wei::zero())
 }
+
+// Pre-Deployment Compile-Time Invariant Validation:
+// Executed by the compiler during const evaluation. Any policy violating fundamental invariants
+// causes compilation failure (division by zero in const context) before any bytecode is emitted.
+pub const fn validate_policy_invariants(pol: Policy) -> u32 {
+    if pol.n_targets == 0 {
+        1 / 0
+    } else if pol.window.as_seconds() == 0 {
+        1 / 0
+    } else if pol.max_per_tx.as_wei() > pol.max_per_window.as_wei() {
+        1 / 0
+    } else if pol.max_per_window.as_wei() == 0 {
+        1 / 0
+    } else {
+        1
+    }
+}
+
+// Compile-time invariant guard: if default_policy violates invariants, compilation aborts here.
+pub const DEFAULT_POLICY_COMPILED_VALID: u32 = validate_policy_invariants(pol: default_policy())

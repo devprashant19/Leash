@@ -9,8 +9,6 @@ pub use rules::{
     BREAKER_DENIALS,
     breaker_trips,
     Decision,
-    GuardCheck,
-    check_aave_guard,
     decide,
     decide_spend,
     decide_with_escalation,
@@ -28,7 +26,17 @@ pub use encoding::{
 pub use fingerprint::{explain_reason, fingerprint}
 pub use validate::{PolicyCheck, check_code, check_name, validate}
 pub use budget::{Budget, remaining}
-pub use guard::{ActionGuard, AaveGuard, Erc20Guard, UniswapGuard}
+pub use guard::{
+    AaveGuard,
+    ActionGuard,
+    Erc20Guard,
+    GuardCheck,
+    UniswapGuard,
+    check_aave_guard,
+    check_erc20_guard,
+    check_uniswap_guard,
+    dispatch_action_guard,
+}
 
 use test_types::*
 use test_decode::*

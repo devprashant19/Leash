@@ -1,5 +1,14 @@
-use ingot::guard::{ActionGuard, Erc20Guard, UniswapGuard}
-use ingot::types::TargetKind
+use ingot::config::{ADDR_TREASURY, default_policy}
+use ingot::guard::{
+    AaveGuard,
+    ActionGuard,
+    Erc20Guard,
+    GuardCheck,
+    UniswapGuard,
+    dispatch_action_guard,
+}
+use ingot::types::{AgentState, Calldata, DenyReason, Operation, TargetKind, Timestamp, Tx}
+use std::evm::units::wei
 
 #[test]
 fn test_action_guard_trait_matching() {
@@ -12,4 +21,35 @@ fn test_action_guard_trait_matching() {
     assert(uni_guard.matches_kind(TargetKind::UniswapRouter))
     assert(!uni_guard.matches_kind(TargetKind::Erc20))
     assert(!uni_guard.matches_kind(TargetKind::AavePool))
+
+    let aave_guard = AaveGuard {}
+    assert(aave_guard.matches_kind(TargetKind::AavePool))
+    assert(!aave_guard.matches_kind(TargetKind::Erc20))
+    assert(!aave_guard.matches_kind(TargetKind::UniswapRouter))
+}
+
+#[test]
+fn test_action_guard_dispatch_uniswap_refused() {
+    let pol = default_policy()
+    let st = AgentState::empty()
+    let tx = Tx {
+        to: ADDR_TREASURY,
+        value: wei(0),
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now: Timestamp::from_seconds(100),
+    }
+    let check = dispatch_action_guard(
+        kind: TargetKind::UniswapRouter,
+        tx: ref tx,
+        policy: ref pol,
+        state: ref st,
+    )
+    match check {
+        GuardCheck::Fail(r) => match r {
+            DenyReason::SwapNotAllowed => {},
+            _ => assert(false),
+        },
+        _ => assert(false),
+    }
 }

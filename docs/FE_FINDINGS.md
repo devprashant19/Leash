@@ -79,3 +79,27 @@ These paths are in the `argotorg/fe` repository at tag v26.6.0, not in this repo
    - In Fe std, `Duration` creation helper functions are defined as `seconds(u64)` rather than associated methods like `Duration::from_seconds(u64)`.
 
 
+
+---
+
+## 5. Upstream Fe Compiler Issues, Reproductions & Feature Requests
+
+### 1. Contract Bytecode Bloat from Per-Error Revert Helpers
+- **Issue**: Each `#[error]` struct generates an individual private revert function in EVM codegen (`revert_error__g00aa`, `revert_error__g0dec`, etc.), occupying ~13 bytes each.
+- **Impact**: In security modules like `LeashModule` with 22 distinct custom deny reasons, this generates 22 nearly identical functions (~286 bytes of bytecode). Under EIP-170 (24,576 bytes limit), this accounts for over 1% of total contract budget.
+- **Feature Request / Upstream Fix**: Fe compiler EVM backend could consolidate zero-argument custom error reverts into a shared runtime helper `revert_with_selector(sel: u32)`.
+
+### 2. `Address::zero()` Non-Const Function Call in Const Context
+- **Issue**: `Address::zero()` is defined as a regular function `pub fn zero() -> Self` in `std::evm::Address` rather than `pub const fn zero() -> Self`.
+- **Impact**: Calling `Address::zero()` inside `const fn` or `pub const` struct initializers fails with `error[3-0024]: non-const function call in const context`.
+- **Workaround**: Use `Address::new(0)`, which is `const fn`.
+- **Upstream Fix**: Add `const` qualifier to `pub const fn zero() -> Self` in `std::evm::Address`.
+
+### 3. Native Executable Linking on Windows Hosts
+- **Issue**: `fe build --backend native` and `fe test --backend native` halt on Windows with `Error: native executable and library output currently require an x86-64 Linux or AArch64 macOS host`.
+- **Impact**: Sonatina IR generation works on Windows, but test runners require a Linux runner (CI / Docker / WSL).
+- **Upstream Fix**: Support Windows PE/COFF linking or fallback to system clang/lld.
+
+### 4. Direct Struct Validation in `const` Contexts
+- **Finding**: Fe 26.6.0 successfully supports passing structs to `const fn` and evaluating assertions via division-by-zero traps (`if invalid { 1 / 0 } else { 1 }`).
+- **Feature Request**: Native `const assert(condition, "error message")` macro in const contexts to provide ergonomic, readable compiler diagnostics instead of arithmetic trap workarounds.

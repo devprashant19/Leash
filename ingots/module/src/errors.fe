@@ -115,28 +115,12 @@ pub struct InvalidExpiry {}
 pub struct ZeroAddress {}
 // 0xd92e233d
 
+#[error]
+pub struct FingerprintMismatch {}
+
+#[error]
+pub struct PolicyViolation {}
+
 pub fn revert_for(_ reason: DenyReason) -> ! {
-    match reason {
-        DenyReason::Paused => revert_error(Paused {}),
-        DenyReason::SessionExpired => revert_error(SessionExpired {}),
-        DenyReason::DelegateCallBlocked => revert_error(DelegateCallBlocked {}),
-        DenyReason::TargetNotAllowed => revert_error(TargetNotAllowed {}),
-        DenyReason::SelectorNotAllowed => revert_error(SelectorNotAllowed {}),
-        DenyReason::MalformedCalldata => revert_error(MalformedCalldata {}),
-        DenyReason::PerTxCapExceeded => revert_error(PerTxCapExceeded {}),
-        DenyReason::WindowCapExceeded => revert_error(WindowCapExceeded {}),
-        DenyReason::TokenCapExceeded => revert_error(TokenCapExceeded {}),
-        DenyReason::UnlimitedApproval => revert_error(UnlimitedApproval {}),
-        DenyReason::RecipientNotAllowed => revert_error(RecipientNotAllowed {}),
-        DenyReason::RateLimited => revert_error(RateLimited {}),
-        DenyReason::CooldownActive => revert_error(CooldownActive {}),
-        DenyReason::OutsideTradingHours => revert_error(OutsideTradingHours {}),
-        DenyReason::CircuitTripped => revert_error(CircuitTripped {}),
-        DenyReason::SwapNotAllowed => revert_error(SwapNotAllowed {}),
-        DenyReason::LendingNotAllowed => revert_error(LendingNotAllowed {}),
-        DenyReason::PriceUnavailable => revert_error(PriceUnavailable {}),
-        DenyReason::UsdCapExceeded => revert_error(UsdCapExceeded {}),
-        DenyReason::EscalationRequired => revert_error(EscalationRequired {}),
-        DenyReason::TokenWindowCapExceeded => revert_error(TokenWindowCapExceeded {}),
-    }
+    revert_error(PolicyViolation {})
 }

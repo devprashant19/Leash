@@ -12,8 +12,14 @@ for file in test/compile_fail/*.fe; do
             units_mixing.fe)
                 expected="type mismatch"
                 ;;
-            duplicate_targets.fe|empty_targets.fe|per_tx_above_window.fe|zero_address_target.fe|zero_window.fe)
+            duplicate_targets.fe|empty_targets.fe|per_tx_above_window.fe|zero_address_target.fe|zero_window.fe|policy_struct_per_tx_above_window.fe)
                 expected="division by zero in const context"
+                ;;
+            guardian_cannot_write_limits.fe)
+                expected="is not in this handler's \`uses\`"
+                ;;
+            decide_cannot_read_storage.fe)
+                expected="unresolved effect"
                 ;;
             *)
                 expected="error"

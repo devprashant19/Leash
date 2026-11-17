@@ -1,8 +1,64 @@
-use ingot::rules::{check_aave_guard, check_erc20_guard, check_uniswap_guard}
-use ingot::types::{AgentState, DenyReason, Policy, TargetKind, Tx}
+use ingot::decode::{AaveCall, Erc20Call, decode_aave, decode_erc20}
+use ingot::ledger::{U256_MAX, checked_add_saturate, token_spent_in_period}
+use ingot::outflow::{TokenSpend, find_token_rule_idx}
+use ingot::types::{Address, AgentState, DenyReason, Policy, TargetKind, Timestamp, Tx}
+
+// What a protocol guard found: nothing to object to, tokens leaving under a token rule, or a refusal.
+pub enum GuardCheck {
+    Pass,
+    Spend(TokenSpend),
+    Fail(DenyReason),
+}
+
+impl Copy for GuardCheck {}
+impl Snapshot for GuardCheck {}
+
+pub fn guard_reason(_ c: GuardCheck) -> Option<DenyReason> {
+    match c {
+        GuardCheck::Fail(r) => Option::Some(r),
+        _ => Option::None,
+    }
+}
+
+pub fn is_recipient_allowed(_ addr: Address, _ policy: ref Policy) -> bool {
+    if policy.n_recipients == 0 {
+        return true
+    }
+    var r: usize = 0
+    while r < (policy.n_recipients as usize) {
+        if policy.recipients[r] == addr {
+            return true
+        }
+        r += 1
+    }
+    false
+}
+
+// Tokens leaving under token rule `idx`: recipient (11), per-transfer cap (9), then the 24 h period cap (21).
+pub fn check_transfer(
+    _ to: Address,
+    _ amt: u256,
+    _ idx: usize,
+    _ policy: ref Policy,
+    _ state: ref AgentState,
+    _ now: Timestamp,
+) -> GuardCheck {
+    let token_rule = ref policy.tokens[idx]
+    if !is_recipient_allowed(to, policy) {
+        GuardCheck::Fail(DenyReason::RecipientNotAllowed)
+    } else if amt > token_rule.max_per_tx.as_u256() {
+        GuardCheck::Fail(DenyReason::TokenCapExceeded)
+    } else if checked_add_saturate(token_spent_in_period(state.token_spent[idx], now), amt)
+        > token_rule.max_per_window.as_u256() {
+        GuardCheck::Fail(DenyReason::TokenWindowCapExceeded)
+    } else {
+        GuardCheck::Spend(TokenSpend { idx, amount: amt })
+    }
+}
 
 pub trait ActionGuard {
     fn matches_kind(self, _ kind: TargetKind) -> bool
+    fn inspect(self, _ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> GuardCheck
     fn check_tx(self, _ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
         DenyReason,
     >
@@ -18,10 +74,47 @@ impl ActionGuard for Erc20Guard {
         }
     }
 
+    fn inspect(self, _ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> GuardCheck {
+        let token_idx = match find_token_rule_idx(token: tx.to, policy) {
+            Option::Some(idx) => idx,
+            Option::None => {
+                return GuardCheck::Fail(DenyReason::TokenCapExceeded)
+            },
+        }
+        let token_rule = ref policy.tokens[token_idx]
+
+        match decode_erc20(tx.data) {
+            Erc20Call::Malformed => GuardCheck::Fail(DenyReason::MalformedCalldata),
+            Erc20Call::Unknown => GuardCheck::Fail(DenyReason::SelectorNotAllowed),
+            Erc20Call::Transfer(to, amt) => check_transfer(
+                to,
+                amt,
+                idx: token_idx,
+                policy,
+                state,
+                now: tx.now,
+            ),
+            Erc20Call::TransferFrom(_from, to, amt) => {
+                check_transfer(to, amt, idx: token_idx, policy, state, now: tx.now)
+            },
+            Erc20Call::Approve(spender, amt) => {
+                if amt == 0 {
+                    GuardCheck::Pass
+                } else if !is_recipient_allowed(spender, policy) {
+                    GuardCheck::Fail(DenyReason::RecipientNotAllowed)
+                } else if amt == U256_MAX || amt > token_rule.max_approve.as_u256() {
+                    GuardCheck::Fail(DenyReason::UnlimitedApproval)
+                } else {
+                    GuardCheck::Pass
+                }
+            },
+        }
+    }
+
     fn check_tx(self, _ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
         DenyReason,
     > {
-        check_erc20_guard(tx, policy, state)
+        guard_reason(self.inspect(tx, policy, state))
     }
 }
 
@@ -35,10 +128,14 @@ impl ActionGuard for UniswapGuard {
         }
     }
 
+    fn inspect(self, _ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> GuardCheck {
+        GuardCheck::Fail(DenyReason::SwapNotAllowed)
+    }
+
     fn check_tx(self, _ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
         DenyReason,
     > {
-        check_uniswap_guard(tx, policy, state)
+        Option::Some(DenyReason::SwapNotAllowed)
     }
 }
 
@@ -52,9 +149,71 @@ impl ActionGuard for AaveGuard {
         }
     }
 
+    fn inspect(self, _ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> GuardCheck {
+        match decode_aave(tx.data) {
+            AaveCall::Malformed => GuardCheck::Fail(DenyReason::MalformedCalldata),
+            AaveCall::Unknown => GuardCheck::Fail(DenyReason::LendingNotAllowed),
+            AaveCall::Withdraw(asset, amount, to) => {
+                match find_token_rule_idx(token: asset, policy) {
+                    Option::Some(idx) => check_transfer(
+                        to,
+                        amt: amount,
+                        idx,
+                        policy,
+                        state,
+                        now: tx.now,
+                    ),
+                    Option::None => GuardCheck::Fail(DenyReason::LendingNotAllowed),
+                }
+            },
+        }
+    }
+
     fn check_tx(self, _ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
         DenyReason,
     > {
-        check_aave_guard(tx, policy, state)
+        guard_reason(self.inspect(tx, policy, state))
     }
+}
+
+pub fn check_erc20_guard(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
+    DenyReason,
+> {
+    let guard = Erc20Guard {}
+    guard.check_tx(tx, policy, state)
+}
+
+pub fn check_uniswap_guard(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
+    DenyReason,
+> {
+    let guard = UniswapGuard {}
+    guard.check_tx(tx, policy, state)
+}
+
+pub fn check_aave_guard(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
+    DenyReason,
+> {
+    let guard = AaveGuard {}
+    guard.check_tx(tx, policy, state)
+}
+
+pub fn dispatch_action_guard(
+    kind: TargetKind,
+    tx: ref Tx,
+    policy: ref Policy,
+    state: ref AgentState,
+) -> GuardCheck {
+    let erc20 = Erc20Guard {}
+    if erc20.matches_kind(kind) {
+        return erc20.inspect(tx, policy, state)
+    }
+    let uniswap = UniswapGuard {}
+    if uniswap.matches_kind(kind) {
+        return uniswap.inspect(tx, policy, state)
+    }
+    let aave = AaveGuard {}
+    if aave.matches_kind(kind) {
+        return aave.inspect(tx, policy, state)
+    }
+    GuardCheck::Pass
 }

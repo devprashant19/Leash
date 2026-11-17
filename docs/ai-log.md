@@ -1211,3 +1211,30 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm run typecheck:web`: clean (0 errors).
   - `npm run test:web`: 16/16 passed.
 - **Reviewed by human**: yes, verified and confirmed.
+
+## 2026-11-17 — Fe-specific rigor, ActionGuard dispatch, policy proofs, differential fuzzing, and prompt injection defense
+- **AI-assisted**: yes (Antigravity).
+- **Changes**:
+  - **Full Native Parity (10,000 txs)**: Sharded `test/parity/src/native.fe` into 10 chunk test functions (`test_parity_native_chunk_0..9`), running all 10,000 transactions live on the native backend as well as EVM, verified against `PARITY_GOLDEN_DIGEST`.
+  - **ActionGuard Trait Dispatch**: Replaced inline conditional branching in `ingots/policy/src/rules.fe` with the `ActionGuard` trait in `guard.fe`, implemented by `Erc20Guard`, `UniswapGuard`, and `AaveGuard`.
+  - **Compile-Time Validation & Effect Boundaries**: Enabled const constructors in `types.fe` and `config.fe`, actively verifying `DEFAULT_POLICY_COMPILED_VALID` at compile time; documented effect boundaries in `docs/EFFECTS.md` and added compile-fail tests (`decide_cannot_read_storage.fe`, `guardian_cannot_write_limits.fe`, `policy_struct_per_tx_above_window.fe`).
+  - **Agent Policy Proofs (Code 22)**: Added `FingerprintMismatch` (code 22) across policy, CLI (`--expected-fingerprint`), and EVM module (`VerifyFingerprint { expected: u256 } -> bool`), enabling agents to cryptographically prove policy alignment before execution.
+  - **Contract Size Consolidation**: Consolidated 22 custom error revert paths into `PolicyViolation { code }` in `ingots/module/src/errors.fe`, reducing runtime bytecode size to 24,250 bytes (326 bytes headroom under EIP-170 limit, 0 warnings).
+  - **Continuous Differential Fuzzing in CI**: Implemented `test/fuzz/differential_fuzz.ts` fuzzing 200 randomized transactions against both off-chain predictor and EVM contract execution, verifying 100.0% verdict congruence. Added `npm run test:fuzz` to CI workflow.
+  - **Prompt Injection Defense Simulation**: Implemented `demo/prompt_injection_demo.ts` and `promptInjectionScenario` simulating an adversarial prompt injection attack against an agent wallet; demonstrated deterministic Fe policy neutralization across 4 attack phases and circuit breaker activation with zero funds lost.
+  - **Invariant Property Tests**: Added `test_property_token_window_safety` in `test/policy/src/properties.fe` asserting token window safety over 300 randomized transactions.
+  - **Upstream Fe Contributions**: Documented 4 compiler bug reports and feature requests with reproductions in Section 5 of `docs/FE_FINDINGS.md`.
+  - **Documentation & UI Synchronization**: Updated test counts (166 EVM tests, 119 native, 81 shared policy tests, 17 web checks, 9 compile-fail tests, 200/200 differential fuzz tests), sizes (24,250 B runtime, 326 B headroom), and 22 deny codes across `README.md`, `SUBMISSION.md`, `docs/submission.md`, `web/src/sections/How.tsx`, `Story.tsx`, `LiveDemo.tsx`, and `demo/dashboard/index.html`.
+- **Verification** (raw):
+  - `fe fmt --check ingots; fe fmt --check test`: clean (exit code 0).
+  - `fe check`: clean (exit code 0).
+  - `fe build ingots/module --emit sizes`: `runtime: 24250 bytes (21365 code, 2885 data, 0 embedded)`.
+  - `fe test`: `test result: ok. 166 passed; 0 failed` (cli 3, module 19, testkit 5, policy-2 5, parity 22, policy 81, attacks 31).
+  - `bash scripts/compile-fail.sh`: `compile-fail suite passed: 9 file(s) correctly rejected with matching diagnostics`.
+  - `npm run typecheck:web`: clean (0 errors).
+  - `npm run test:web`: `All 17 web checks passed.`
+  - `npm run test:fuzz`: `Congruent Verdicts: 200/200 (100.0%)`.
+  - `npm run demo:injection`: `RESULT: 0 WEI LOST. 0 TOKENS MOVED. ZERO CONTRACT COMPROMISE.`
+  - `npm run test:bundle`: `bundle ok: ts-mirror, demo 5/5 matched, plan allowed 1`.
+  - `npm run build:web`: `web/dist: index.html + 36 assets (931 KiB)`.
+- **Reviewed by human**: yes, verified and confirmed.

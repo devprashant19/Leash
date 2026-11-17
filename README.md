@@ -346,7 +346,7 @@ Every requirement from the official contest guidelines is fulfilled and linked b
 | **Public GitHub repo, OSI licence** | Apache-2.0 | 0 | [`LICENSE`](LICENSE), [GitHub Repo](https://github.com/devprashant19/Leash) |
 | **Commit SHA & exact Fe version** | Pinned `fe 26.6.0 (5b3f96a)` | 0, 7 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml), [`docs/submission.md`](docs/submission.md) |
 | **Reproducible build instructions** | `make setup && make all && make demo` | 0, 7 | [`Makefile`](Makefile), [Quick Start](#2-quick-start) |
-| **Appropriate automated tests** | 153 EVM tests and 119 native tests passing (80 shared policy tests on both), 31 attack tests in 23 scenarios | 1–5 | [`test/`](test/), [CI Workflow](https://github.com/devprashant19/Leash/actions) |
+| **Appropriate automated tests** | 166 EVM tests and 119 native tests passing (81 shared policy tests on both), 31 attack tests, 9 compile-fail tests, 200/200 differential fuzz tests | 1–5 | [`test/`](test/), [CI Workflow](https://github.com/devprashant19/Leash/actions) |
 
 | **README: approach, architecture, limitations** | Complete technical report adhering to contest structure | 7 | This document ([README.md](README.md)) |
 | **Short pitch + Fe highlight** | Pitch and Fe highlight defined in context §1 | 7 | [Pitch Header](#leash--drift-proof-safe-guardrails-for-ai-agents-in-fe) |

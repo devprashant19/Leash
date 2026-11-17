@@ -175,3 +175,33 @@ pub fn test_property_encoding_roundtrip() {
         i += 1
     }
 }
+
+#[test]
+pub fn test_property_token_window_safety() {
+    var rng = SplitMix64::new(seed: 0x50524F5005)
+    let pol = parity_policy()
+    var state = AgentState::empty()
+    state.expiry = Timestamp::from_seconds(2_000_000_000)
+
+    var prev_now: u256 = 1_763_000_000
+    var i: u32 = 1
+    while i <= 300 {
+        let tx = gen_tx(rng: mut rng, pol, prev_now)
+        prev_now = tx.now.as_seconds()
+
+        let verdict = decide(tx, pol, state)
+        let code = verdict_code(verdict)
+
+        if code == 0 {
+            record(tx, pol, state: mut state)
+
+            var t: usize = 0
+            while t < (pol.n_tokens as usize) {
+                let spent = policy::token_spent_in_period(state.token_spent[t], tx.now)
+                assert(spent <= pol.tokens[t].max_per_window.as_u256())
+                t += 1
+            }
+        }
+        i += 1
+    }
+}

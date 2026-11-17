@@ -53,7 +53,7 @@ export const REASONS = [
   'MalformedCalldata', 'PerTxCapExceeded', 'WindowCapExceeded', 'TokenCapExceeded', 'UnlimitedApproval',
   'RecipientNotAllowed', 'RateLimited', 'CooldownActive', 'OutsideTradingHours', 'CircuitTripped',
   'SwapNotAllowed', 'LendingNotAllowed', 'PriceUnavailable', 'UsdCapExceeded', 'EscalationRequired',
-  'TokenWindowCapExceeded',
+  'TokenWindowCapExceeded', 'FingerprintMismatch',
 ];
 
 /**

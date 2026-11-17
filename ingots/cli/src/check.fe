@@ -33,6 +33,7 @@ fn print_error(_ err_code: ParseError) uses (err: mut Stderr) {
         ParseError::MissingNow => eprintln!("error: --now <unix> is required"),
         ParseError::MissingTo => eprintln!("error: --to <address> is required"),
         ParseError::InvalidState => eprintln!("error: invalid --state hex encoding"),
+        ParseError::InvalidFingerprint => eprintln!("error: invalid --expected-fingerprint hex"),
         ParseError::UnknownFlag => eprintln!("error: unknown flag"),
     }
 }
@@ -128,11 +129,16 @@ pub fn run() -> i32 uses (args: Args, out: mut Stdout, err: mut Stderr) {
             1
         },
         ParseResult::Ok(a) => {
-            let tx = Tx { to: a.to, value: a.value, data: a.data, op: a.op, now: a.now }
             let pol = default_policy()
-            let verdict = decide(tx, pol, a.state)
-            let b = remaining(pol, a.state, a.now)
             let fp = fingerprint(pol)
+            let b = remaining(pol, a.state, a.now)
+
+            let verdict = if a.expected_fingerprint != 0 && a.expected_fingerprint != fp {
+                Verdict::Deny(DenyReason::FingerprintMismatch)
+            } else {
+                let tx = Tx { to: a.to, value: a.value, data: a.data, op: a.op, now: a.now }
+                decide(tx, pol, a.state)
+            }
 
             if a.json {
                 match verdict {

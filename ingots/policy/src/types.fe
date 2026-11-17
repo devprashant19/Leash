@@ -86,6 +86,7 @@ pub enum DenyReason {
     UsdCapExceeded,
     EscalationRequired,
     TokenWindowCapExceeded,
+    FingerprintMismatch,
 }
 
 impl Copy for DenyReason {}
@@ -114,6 +115,7 @@ pub fn reason_code(_ reason: DenyReason) -> u8 {
         DenyReason::UsdCapExceeded => 19,
         DenyReason::EscalationRequired => 20,
         DenyReason::TokenWindowCapExceeded => 21,
+        DenyReason::FingerprintMismatch => 22,
     }
 }
 
@@ -160,6 +162,8 @@ pub fn reason_from_code(_ code: u8) -> Option<DenyReason> {
         Option::Some(DenyReason::EscalationRequired)
     } else if code == 21 {
         Option::Some(DenyReason::TokenWindowCapExceeded)
+    } else if code == 22 {
+        Option::Some(DenyReason::FingerprintMismatch)
     } else {
         Option::None
     }
@@ -188,6 +192,7 @@ pub fn reason_name(_ reason: DenyReason) -> String<24> {
         DenyReason::UsdCapExceeded => "UsdCapExceeded",
         DenyReason::EscalationRequired => "EscalationRequired",
         DenyReason::TokenWindowCapExceeded => "TokenWindowCapExceeded",
+        DenyReason::FingerprintMismatch => "FingerprintMismatch",
     }
 }
 
@@ -229,9 +234,9 @@ impl Copy for TargetRule {}
 impl Snapshot for TargetRule {}
 
 impl TargetRule {
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         TargetRule {
-            target: Address::zero(),
+            target: Address::new(0),
             kind: TargetKind::Generic,
             allow_eth_transfer: false,
             delegate_ok: false,
@@ -252,9 +257,9 @@ impl Copy for TokenRule {}
 impl Snapshot for TokenRule {}
 
 impl TokenRule {
-    pub fn empty() -> Self {
+    pub const fn empty() -> Self {
         TokenRule {
-            token: Address::zero(),
+            token: Address::new(0),
             max_per_tx: TokenAmount::zero(),
             max_per_window: TokenAmount::zero(),
             max_approve: TokenAmount::zero(),
@@ -280,6 +285,26 @@ pub struct Policy {
 
 impl Copy for Policy {}
 impl Snapshot for Policy {}
+
+impl Policy {
+    pub const fn empty() -> Self {
+        Policy {
+            version: 0,
+            n_targets: 0,
+            targets: [TargetRule::empty(); MAX_TARGETS],
+            max_per_tx: Wei::zero(),
+            max_per_window: Wei::zero(),
+            window: Duration::zero(),
+            n_tokens: 0,
+            tokens: [TokenRule::empty(); MAX_TOKENS],
+            n_recipients: 0,
+            recipients: [Address::new(0); MAX_RECIPIENTS],
+            max_actions_per_window: 0,
+            cooldown: Duration::zero(),
+            breaker_threshold: 0,
+        }
+    }
+}
 
 pub struct Bucket { pub index: u64, pub amount: u256 }
 

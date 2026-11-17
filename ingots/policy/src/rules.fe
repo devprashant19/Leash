@@ -1,6 +1,18 @@
-use ingot::decode::{AaveCall, Erc20Call, decode_aave, decode_erc20, selector_of}
-use ingot::ledger::{U256_MAX, checked_add_saturate, spent_in_window, token_spent_in_period}
-use ingot::outflow::{TokenSpend, find_target_idx, find_token_rule_idx}
+use ingot::decode::selector_of
+use ingot::guard::{
+    AaveGuard,
+    ActionGuard,
+    Erc20Guard,
+    GuardCheck,
+    UniswapGuard,
+    check_aave_guard,
+    check_erc20_guard,
+    check_uniswap_guard,
+    dispatch_action_guard,
+    guard_reason,
+}
+use ingot::ledger::{U256_MAX, checked_add_saturate, spent_in_window}
+use ingot::outflow::{TokenSpend, find_target_idx}
 use ingot::types::{
     Address,
     AgentState,
@@ -48,136 +60,6 @@ fn check_selector_and_calldata(_ tx: ref Tx, _ target: ref TargetRule) -> Option
             Option::Some(DenyReason::SelectorNotAllowed)
         }
     }
-}
-
-fn is_recipient_allowed(_ addr: Address, _ policy: ref Policy) -> bool {
-    if policy.n_recipients == 0 {
-        return true
-    }
-    var r: usize = 0
-    while r < (policy.n_recipients as usize) {
-        if policy.recipients[r] == addr {
-            return true
-        }
-        r += 1
-    }
-    false
-}
-
-// What a protocol guard found: nothing to object to, tokens leaving under a token rule, or a refusal.
-pub enum GuardCheck {
-    Pass,
-    Spend(TokenSpend),
-    Fail(DenyReason),
-}
-
-impl Copy for GuardCheck {}
-impl Snapshot for GuardCheck {}
-
-fn guard_reason(_ c: GuardCheck) -> Option<DenyReason> {
-    match c {
-        GuardCheck::Fail(r) => Option::Some(r),
-        _ => Option::None,
-    }
-}
-
-// Tokens leaving under token rule `idx`: recipient (11), per-transfer cap (9), then the 24 h period cap (21).
-fn check_transfer(
-    _ to: Address,
-    _ amt: u256,
-    _ idx: usize,
-    _ policy: ref Policy,
-    _ state: ref AgentState,
-    _ now: Timestamp,
-) -> GuardCheck {
-    let token_rule = ref policy.tokens[idx]
-    if !is_recipient_allowed(to, policy) {
-        GuardCheck::Fail(DenyReason::RecipientNotAllowed)
-    } else if amt > token_rule.max_per_tx.as_u256() {
-        GuardCheck::Fail(DenyReason::TokenCapExceeded)
-    } else if checked_add_saturate(token_spent_in_period(state.token_spent[idx], now), amt)
-        > token_rule.max_per_window.as_u256() {
-        GuardCheck::Fail(DenyReason::TokenWindowCapExceeded)
-    } else {
-        GuardCheck::Spend(TokenSpend { idx, amount: amt })
-    }
-}
-
-fn erc20_check(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> GuardCheck {
-    let token_idx = match find_token_rule_idx(token: tx.to, policy) {
-        Option::Some(idx) => idx,
-        Option::None => {
-            return GuardCheck::Fail(DenyReason::TokenCapExceeded)
-        },
-    }
-    let token_rule = ref policy.tokens[token_idx]
-
-    match decode_erc20(tx.data) {
-        Erc20Call::Malformed => GuardCheck::Fail(DenyReason::MalformedCalldata),
-        Erc20Call::Unknown => GuardCheck::Fail(DenyReason::SelectorNotAllowed),
-        Erc20Call::Transfer(to, amt) => check_transfer(
-            to,
-            amt,
-            idx: token_idx,
-            policy,
-            state,
-            now: tx.now,
-        ),
-        Erc20Call::TransferFrom(_from, to, amt) => {
-            check_transfer(to, amt, idx: token_idx, policy, state, now: tx.now)
-        },
-        Erc20Call::Approve(spender, amt) => {
-            if amt == 0 {
-                GuardCheck::Pass
-            } else if !is_recipient_allowed(spender, policy) {
-                GuardCheck::Fail(DenyReason::RecipientNotAllowed)
-            } else if amt == U256_MAX || amt > token_rule.max_approve.as_u256() {
-                GuardCheck::Fail(DenyReason::UnlimitedApproval)
-            } else {
-                GuardCheck::Pass
-            }
-        },
-    }
-}
-
-fn aave_check(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> GuardCheck {
-    match decode_aave(tx.data) {
-        AaveCall::Malformed => GuardCheck::Fail(DenyReason::MalformedCalldata),
-        AaveCall::Unknown => GuardCheck::Fail(DenyReason::LendingNotAllowed),
-        AaveCall::Withdraw(asset, amount, to) => {
-            match find_token_rule_idx(token: asset, policy) {
-                Option::Some(idx) => check_transfer(
-                    to,
-                    amt: amount,
-                    idx,
-                    policy,
-                    state,
-                    now: tx.now,
-                ),
-                Option::None => GuardCheck::Fail(DenyReason::LendingNotAllowed),
-            }
-        },
-    }
-}
-
-pub fn check_erc20_guard(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
-    DenyReason,
-> {
-    guard_reason(erc20_check(tx, policy, state))
-}
-
-// Swaps are refused. The recipient and the token path of a Uniswap call lie past the 100 calldata
-// bytes the policy decodes, so the policy cannot check where the output goes: default deny.
-pub fn check_uniswap_guard(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
-    DenyReason,
-> {
-    Option::Some(DenyReason::SwapNotAllowed)
-}
-
-pub fn check_aave_guard(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Option<
-    DenyReason,
-> {
-    guard_reason(aave_check(tx, policy, state))
 }
 
 // Consecutive refused tryExecute calls that trip an agent's circuit breaker (until the Safe resets it).
@@ -271,13 +153,8 @@ pub fn decide_spend(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState)
         return denied(DenyReason::WindowCapExceeded)
     }
 
-    // 11. Protocol guards: ERC-20 and Aave (recipient, token caps 9 and 21, approvals), Uniswap (refused)
-    let check = match policy.targets[target_idx].kind {
-        TargetKind::Erc20 => erc20_check(tx, policy, state),
-        TargetKind::UniswapRouter => GuardCheck::Fail(DenyReason::SwapNotAllowed),
-        TargetKind::AavePool => aave_check(tx, policy, state),
-        _ => GuardCheck::Pass,
-    }
+    // 11. Protocol guards dispatched via ActionGuard trait (Erc20Guard, UniswapGuard, AaveGuard)
+    let check = dispatch_action_guard(kind: policy.targets[target_idx].kind, tx, policy, state)
     match check {
         GuardCheck::Fail(reason) => denied(reason),
         GuardCheck::Spend(s) => Decision { verdict: Verdict::Allow, spend: Option::Some(s) },

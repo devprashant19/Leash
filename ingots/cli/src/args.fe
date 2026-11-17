@@ -27,6 +27,7 @@ pub enum ParseError {
     MissingNow,
     MissingTo,
     InvalidState,
+    InvalidFingerprint,
     UnknownFlag,
 }
 
@@ -38,6 +39,7 @@ pub struct CheckArgs {
     pub now: Timestamp,
     pub state: AgentState,
     pub json: bool,
+    pub expected_fingerprint: u256,
 }
 
 pub enum ParseResult {
@@ -89,6 +91,7 @@ pub fn parse_check_args() -> ParseResult uses (args: Args) {
     var op = Operation::Call
     var state = default_check_state()
     var json = false
+    var expected_fingerprint: u256 = 0
 
     let count = args.count()
     var i: usize = 2
@@ -207,6 +210,20 @@ pub fn parse_check_args() -> ParseResult uses (args: Args) {
                     return ParseResult::Err(ParseError::InvalidState)
                 },
             }
+        } else if flag == "--expected-fingerprint" {
+            if i + 1 >= count {
+                return ParseResult::Err(ParseError::MissingArgValue)
+            }
+            i += 1
+            let fp_arg = args.get(i)
+            match parse_hex_uint(fp_arg) {
+                Option::Some(w) => {
+                    expected_fingerprint = w
+                },
+                Option::None => {
+                    return ParseResult::Err(ParseError::InvalidFingerprint)
+                },
+            }
         } else if flag == "--json" {
             json = true
         } else {
@@ -223,6 +240,6 @@ pub fn parse_check_args() -> ParseResult uses (args: Args) {
     }
 
     ParseResult::Ok(
-        CheckArgs { to, value: val_wei, data, op, now, state, json },
+        CheckArgs { to, value: val_wei, data, op, now, state, json, expected_fingerprint },
     )
 }

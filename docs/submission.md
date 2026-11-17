@@ -64,11 +64,13 @@ make setup && make all && make demo
 - [x] **Exact Fe compiler version**: Pinned to `fe 26.6.0 (5b3f96a)` across `Makefile`, `.github/workflows/ci.yml`, and `README.md`.
 - [x] **Reproducible build instructions**: `make setup`, `make test`, `make build`, and `make demo` documented and tested.
 - [x] **Appropriate automated tests**:
-  - `fe test`: 153 passed on the EVM backend; `fe test --backend native`: 119 passed; the 80 shared policy tests pass on both backends.
-  - Cross-backend parity suite: 10,000 transactions verified (EVM runs all 10,000 txs live; native runs chunk 0 live and validates all 10 chunks against stored golden chunk digests) converging to root golden digest `0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb81b1f36a595fa9a1f975c1c5175a8`.
+  - `fe test`: 166 passed on the EVM backend; `fe test --backend native`: 119 passed; the 81 shared policy tests pass on both backends.
+  - Cross-backend parity suite: 10,000 transactions verified live on both backends across all 10 chunks, converging to root golden digest `0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb81b1f36a595fa9a1f975c1c5175a8`.
+  - Differential fuzzing suite: 200 pseudo-random transactions verified for 100% verdict congruence between off-chain predictor and EVM contract execution.
+  - Compile-fail capability suite: 9 negative compiler tests in `test/compile_fail` verifying that storage access and unauthorized state mutations are rejected by the Fe compiler.
   - Mutation testing: Confirmed operator mutant immediately fails 11 test assertions.
   - Adversarial exploit suite: 31 tests (23 scenarios) in `test/attacks` covering reentrancy, delegatecall hijacks, ETH and token cap evasion, unlimited approvals, swap refusal, and privilege escalation.
-- [x] **EIP-170 Compliance**: Runtime code size is **24,308 bytes** (+268 bytes headroom below the 24,576-byte EVM limit).
+- [x] **EIP-170 Compliance**: Runtime code size is **24,250 bytes** (+326 bytes headroom below the 24,576-byte EVM limit).
 - [x] **Demo & Local Verification**: 5-transaction canonical rogue agent scenario runs on local Anvil node in **7 seconds** with **100% agreement and 0 drift**.
 - [x] **Declaration of pre-existing work & AI use**: `DECLARATION.md` and complete audit log in `docs/ai-log.md` detailing every AI-assisted change.
 - [x] **All commits in contest window**: All commits created and dated between Nov 3 and Nov 24, 2026. Starter repo tagged as `starter`.

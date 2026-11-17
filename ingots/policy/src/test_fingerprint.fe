@@ -122,4 +122,7 @@ fn test_explain_reason_all_variants() {
     assert(
         explain_reason(DenyReason::TokenWindowCapExceeded) == "Token window cap exceeded",
     )
+    assert(
+        explain_reason(DenyReason::FingerprintMismatch) == "Policy fingerprint mismatch",
+    )
 }

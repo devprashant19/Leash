@@ -40,5 +40,6 @@ pub fn explain_reason(_ reason: DenyReason) -> String<31> {
         DenyReason::UsdCapExceeded => "USD cap exceeded",
         DenyReason::EscalationRequired => "Escalation required",
         DenyReason::TokenWindowCapExceeded => "Token window cap exceeded",
+        DenyReason::FingerprintMismatch => "Policy fingerprint mismatch",
     }
 }

@@ -12,6 +12,8 @@
     "check:web": "node scripts/sync-web-assets.mjs --check",
     "typecheck:web": "tsc -p tsconfig.json --noEmit && tsc -p web/tsconfig.json",
     "test:web": "tsx test/web/web_test.ts",
+    "test:fuzz": "tsx test/fuzz/differential_fuzz.ts",
+    "demo:injection": "tsx demo/prompt_injection_demo.ts",
     "build:web": "node scripts/build-web.mjs",
     "dev:web": "node scripts/dev-vite.mjs",
     "dev": "node scripts/dev-vite.mjs",

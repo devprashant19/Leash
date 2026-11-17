@@ -30,6 +30,7 @@ export interface CheckOptions {
   op?: 'call' | 'delegatecall';
   now?: number;
   stateHex?: `0x${string}`;
+  expectedFingerprint?: string;
 }
 
 export const GOLDEN_FINGERPRINT = '0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee';
@@ -112,6 +113,7 @@ export function predictVerdict(opts: CheckOptions): LeashCheckResult {
     if (opts.op) args.push('--op', opts.op);
     if (opts.now !== undefined) args.push('--now', opts.now.toString());
     if (opts.stateHex) args.push('--state', opts.stateHex);
+    if (opts.expectedFingerprint) args.push('--expected-fingerprint', opts.expectedFingerprint);
     // No silent fallback: if the real binary misbehaves, the demo must fail loudly.
     return JSON.parse(runLeash(binary, args));
   }
@@ -119,6 +121,26 @@ export function predictVerdict(opts: CheckOptions): LeashCheckResult {
   // TypeScript mirror of the default policy (fallback only; see PredictionSource), in decide()'s order
   // (ingots/policy/src/rules.fe decide_spend). The deployed policy lists two targets: the treasury
   // (plain ETH only) and the token (approve, transferFrom, transfer).
+  if (opts.expectedFingerprint && opts.expectedFingerprint.toLowerCase() !== GOLDEN_FINGERPRINT.toLowerCase()) {
+    return {
+      verdict: 'DENY',
+      code: 22,
+      reason: 'FingerprintMismatch',
+      message: 'Policy fingerprint mismatch',
+      remaining: {
+        eth_per_tx_wei: MAX_PER_TX_WEI.toString(),
+        eth_window_wei: MAX_PER_WINDOW_WEI.toString(),
+        actions_in_window: 0,
+        tokens: [{
+          token: ADDR_TOKEN,
+          per_tx: TOKEN_MAX_PER_TX.toString(),
+          window: TOKEN_MAX_PER_WINDOW.toString(),
+        }],
+      },
+      window_resets_at: (opts.now ?? Math.floor(Date.now() / 1000)) + 86400,
+      fingerprint: GOLDEN_FINGERPRINT,
+    };
+  }
   const to = opts.to.toLowerCase();
   const value = opts.valueWei || 0n;
   const data = (opts.data || '0x').replace(/^0x/, '').toLowerCase();
