@@ -76,17 +76,16 @@ The 5-step scenario was also executed live on Ethereum Sepolia behind a canonica
 | 4 | Unlisted target | DENY 4 | **118,721** | 117,532 | +1,189 (+1.0%) |
 | 5 | Unlimited approve | DENY 10 | **144,902** | 143,473 | +1,429 (+1.0%) |
 
-**Why did the token transfer (Step 2) consume ~494k gas on Sepolia vs ~203k gas on Anvil?**
-1. **Canonical Safe v1.4.1 vs `MockSafe`**: The Anvil demo ran against `MockSafe`, a lightweight test double. Sepolia executes through the official `GnosisSafeProxy` delegating to `GnosisSafe.sol` (v1.4.1), which executes Safe module authorization guards, internal reentrancy checks, and emits `ExecutionFromModuleSuccess`.
-2. **Cold Zero-to-Nonzero Storage Writes (`SSTORE`)**: Step 2 was the first token transfer ever recorded for that agent on Sepolia. In `LeashModule`, writing a previously untouched token period bucket and cumulative spend required two cold zero-to-nonzero storage writes (~44,200 gas). Furthermore, in the deployed `MockErc20`, the treasury address had never held tokens before, so initializing `balanceOf[treasury]` from 0 to 50 incurred another 22,100 gas.
-3. **EIP-2929 Cold Account Accesses**: Calling through the proxy, singleton, LeashModule, and Token contract in a live public testnet incurs cold address access charges (2,600 gas per cold account) and cold storage slot reads (2,100 gas each) not present in local warmed harness memory.
+**Environment and execution differences between Sepolia and Anvil:**
+- **Step 2 (Token transfer execution)**: On Sepolia, the canonical `Safe` proxy executes `execTransactionFromModule` and forwards the call to `MockErc20.transfer`, updating balances and emitting events on-chain. On Anvil, the test double `MockSafe` records the call parameters without forwarding execution (`forward_calls` false), so the token contract itself is never invoked in the Anvil demo. This accounts for the bulk of the Step 2 delta.
+- **Step 3 (Refusal delta)**: Step 3 is refused by `LeashModule` before reaching the Safe, yet consumed 217k on Sepolia vs 135k on Anvil. This difference is partially driven by live node EIP-2929 cold access costs and testnet node accounting; the rest of the difference has not been isolated.
 
 ### Gas Cost Breakdown (~200k–220k Gas per Allowed Call)
 Why does an allowed transaction through `LeashModule` consume ~202k–218k gas?
 1. **Cold Storage Reads (32 Words, down from 56 Words)**: Every transaction loads `AgentLedger` (24 packed hourly ETH buckets in `Window24` [24 words] + 4 token period buckets [8 words] = 32 words). Under EIP-2929, each cold `SLOAD` costs 2,100 gas:
    $$\text{Storage Read Overhead} = 32 \times 2{,}100 = 67{,}200\text{ gas}$$
    By packing ETH ring buffer buckets into single 256-bit words (`(index << 192) | amount`), storage read overhead was reduced by **50,400 gas** (from 117,600 gas to 67,200 gas).
-2. **Safe Module Subcall Overhead**: `LeashModule` dispatches to Safe via `execTransactionFromModule`, which performs Safe signature checks, reentrancy guards, and context switching.
+2. **Safe Module Dispatch Overhead**: `LeashModule` dispatches to Safe via `execTransactionFromModule`, which checks module authorization (`modules[msg.sender] != address(0)`), forwards the call to the target, and emits `ExecutionFromModuleSuccess`.
 3. **Storage Writes (`SSTORE`)**: Recording spent amounts updates the active bucket. The first token transfer in a 24h UTC period writes a fresh `(period, amount)` pair (two zero-to-nonzero `SSTORE`s costing ~40,000 gas; subsequent updates within the period cost ~2,900 gas warm).
 4. **Target Execution**: Gas consumed by the target contract (e.g. ERC-20 `transfer` updating sender and receiver balances, or plain ETH transfers).
 

@@ -1355,3 +1355,13 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm run typecheck:web`: clean (exit code 0).
   - `npm run test:safe`: ALL CANONICAL SAFE v1.4.1 INTEGRATION TESTS PASSED (14/14) (exit code 0).
 - **Reviewed by human**: yes, verified and confirmed.
+
+## 2026-11-18 — Factual refinement of Sepolia gas mechanics in GAS.md
+- **AI-assisted**: yes (Antigravity).
+- **Changes**:
+  - **Factual Gas & Safe v1.4.1 Mechanics (`docs/GAS.md`)**: Replaced speculative module authorization/reentrancy claims and outdated `GnosisSafe` nomenclature with verified v1.4.1 mechanics (`SafeProxy`/`Safe`, `execTransactionFromModule`). Documented the measured cause of Step 2's delta (live token execution through Safe on Sepolia vs non-forwarding `MockSafe` recording on Anvil) and honestly stated that the remaining delta on refused Step 3 is only partly isolated.
+- **Verification** (raw):
+  - Verified against Safe v1.4.1 contract interface and `ingots/testkit/src/lib.fe`.
+  - `fe fmt --check ingots; fe fmt --check test`: clean (exit code 0).
+  - `fe check`: clean (exit code 0).
+- **Reviewed by human**: yes, verified and confirmed.
