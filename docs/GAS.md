@@ -78,7 +78,7 @@ The 5-step scenario was also executed live on Ethereum Sepolia behind a canonica
 
 **Environment and execution differences between Sepolia and Anvil:**
 - **Step 2 (Token transfer execution)**: On Sepolia, the canonical `Safe` proxy executes `execTransactionFromModule` and forwards the call to `MockErc20.transfer`, updating balances and emitting events on-chain. On Anvil, the test double `MockSafe` records the call parameters without forwarding execution (`forward_calls` false), so the token contract itself is never invoked in the Anvil demo. This accounts for the bulk of the Step 2 delta.
-- **Step 3 (Refusal delta)**: Step 3 is refused by `LeashModule` before reaching the Safe, yet consumed 217k on Sepolia vs 135k on Anvil. This difference is partially driven by live node EIP-2929 cold access costs and testnet node accounting; the rest of the difference has not been isolated.
+- **Step 3 (Refusal delta)**: Step 3 is refused before reaching the Safe, yet used 217k gas on Sepolia vs 135k on Anvil; the cause of that difference has not been isolated.
 
 ### Gas Cost Breakdown (~200k–220k Gas per Allowed Call)
 Why does an allowed transaction through `LeashModule` consume ~202k–218k gas?
