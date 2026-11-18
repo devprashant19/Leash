@@ -1414,3 +1414,14 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - CI on the pushed commit: all 9 jobs passed; `test-evm` 172 passed, `test-native` 137 passed, parity 87 policy tests on both backends, `All 18 web checks passed.`, `Congruent Verdicts: 200/200 (100.0%)`, `LeashModule runtime size: 22182 bytes`.
   - CI `demo` job (Anvil, `"predictionSource": "fe-native"`, 5/5 matched) gas: 204,871 / 153,502 / 123,068 / 54,696 / 97,362 (previous build: 217,878 / 202,807 / 135,002 / 117,532 / 143,473); saved to `demo/run.json`, and `docs/GAS.md`, README and SUBMISSION updated to these figures. The Sepolia figures are labelled as the previous build.
 - **Reviewed by human**: pending (requested by the author; the author reviews the diff before setting this to yes).
+
+## 2026-11-18 — Sepolia redeploy of the current build
+- **AI-assisted**: yes (Claude Code wrote the container script and the doc updates; the author ran the Sepolia transactions).
+- **Changes**: `demo/deployments/sepolia-safe.json` and `sepolia-safe-run.json` replaced with the new deployment and run; Sepolia section of README, `docs/GAS.md` (both builds side by side), SUBMISSION and the handoff note updated.
+- **Verification** (raw, from the author's run):
+  - `build-policy.mjs`: `Contract fingerprint verified on-chain: 0xe98fd3bd8b5137a77eec46b13589bef85b6bde5db276626bebfcc7764ca147a0`, `LeashModule runtime size: 22183 bytes`
+  - `sepolia-safe-agent.ts`: five lines `MATCH` (ALLOW 0, ALLOW 0, DENY 7, DENY 4, DENY 10), `fingerprints match; all matched: true`
+  - balances before `{"safeEth":"0.2","safeTokens":"1000"}`, after `{"safeEth":"0.15","safeTokens":"950"}`; treasury +0.05 ETH, +50 tokens
+  - Receipts read back from a public Sepolia node: all five `status 0x1`, gas 237,624 / 346,569 / 205,305 / 55,885 / 98,791; `isModuleEnabled(module)` on the new Safe returns true.
+- **Reviewed by human**: yes (the author ran the deployment and the scenario).
+

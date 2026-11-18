@@ -67,21 +67,21 @@ Gas used by each transaction of the canonical demo, end to end (agent → `Leash
 
 ### Live Sepolia (Canonical Safe v1.4.1) Gas Measurements
 
-The 5-step scenario was also executed live on Ethereum Sepolia behind a canonical Safe v1.4.1 account ([`demo/deployments/sepolia-safe-run.json`](../demo/deployments/sepolia-safe-run.json)). That module was deployed from the previous build, which loaded all 32 ledger words on every call, so it is compared here with the Anvil run of the same build:
+The 5-step scenario was also executed live on Ethereum Sepolia behind a canonical Safe v1.4.1 account ([`demo/deployments/sepolia-safe-run.json`](../demo/deployments/sepolia-safe-run.json)), once with the previous build (all 32 ledger words loaded on every call) and again with the current one:
 
-| Step | Transaction | Verdict | Sepolia Gas (Safe v1.4.1, previous build) | Anvil Gas (`MockSafe`, previous build) | Delta |
-|---|---|---|---|---|---|
-| 1 | 0.05 ETH to treasury | ALLOW | **250,631** | 217,878 | +32,753 (+15.0%) |
-| 2 | Transfer 50 tokens | ALLOW | **493,794** | 202,807 | +290,987 (+143.5%) |
-| 3 | 0.2 ETH (over cap) | DENY 7 | **217,239** | 135,002 | +82,237 (+60.9%) |
-| 4 | Unlisted target | DENY 4 | **118,721** | 117,532 | +1,189 (+1.0%) |
-| 5 | Unlimited approve | DENY 10 | **144,902** | 143,473 | +1,429 (+1.0%) |
+| Step | Transaction | Verdict | Sepolia, current build | Sepolia, previous build | Saved | Anvil (`MockSafe`), current build |
+|---|---|---|---|---|---|---|
+| 1 | 0.05 ETH to treasury | ALLOW | **237,624** | 250,631 | -13,007 | 204,871 |
+| 2 | Transfer 50 tokens | ALLOW | **346,569** | 493,794 | -147,225 | 153,502 |
+| 3 | 0.2 ETH (over cap) | DENY 7 | **205,305** | 217,239 | -11,934 | 123,068 |
+| 4 | Unlisted target | DENY 4 | **55,885** | 118,721 | -62,836 | 54,696 |
+| 5 | Unlimited approve | DENY 10 | **98,791** | 144,902 | -46,111 | 97,362 |
+
+Steps 1, 3, 4 and 5 saved exactly as much on Sepolia as on Anvil. Step 2 saved 147,225 gas on Sepolia against 49,305 on Anvil; how the extra ~98k splits up has not been measured. One difference between the two Sepolia runs: both used the same demo token and treasury, so the treasury already held 50 tokens in the second run and its balance update was not a zero-to-nonzero write.
 
 **Environment and execution differences between Sepolia and Anvil:**
-- **Step 2 (Token transfer execution)**: On Sepolia, the canonical `Safe` proxy executes `execTransactionFromModule` and forwards the call to `MockErc20.transfer`, updating balances and emitting events on-chain. On Anvil, the test double `MockSafe` records the call parameters without forwarding execution (`forward_calls` false), so the token contract itself is never invoked in the Anvil demo. This accounts for the bulk of the Step 2 delta.
-- **Step 3 (Refusal delta)**: Step 3 is refused before reaching the Safe, yet used 217k gas on Sepolia vs 135k on Anvil; the cause of that difference has not been isolated.
-
-The current build has not been deployed to Sepolia yet; redeploying it is the "Reproduce" step in the README's Sepolia section.
+- **Step 2 (Token transfer execution)**: On Sepolia, the canonical `Safe` proxy executes `execTransactionFromModule` and forwards the call to `MockErc20.transfer`, updating balances and emitting events on-chain. On Anvil, the test double `MockSafe` records the call parameters without forwarding execution (`forward_calls` false), so the token contract itself is never invoked in the Anvil demo. This accounts for the bulk of the Step 2 difference.
+- **Step 3 (Refusal delta)**: Step 3 is refused before reaching the Safe, yet uses 82,237 gas more on Sepolia than on Anvil, the same difference with both builds, so it does not come from the module's ledger reads; its cause has not been isolated.
 
 ### Where the gas goes
 1. **Cold storage reads**: under EIP-2929 each cold `SLOAD` costs 2,100 gas. A call reads its agent's config, plus the 24-word ETH window if it moves ETH and the 8 words of token periods if it has calldata (section 2), so the ledger costs 0, 16,800 or 50,400 gas to read.
@@ -90,7 +90,7 @@ The current build has not been deployed to Sepolia yet; redeploying it is the "R
 4. **Target execution**: gas used by the target itself (an ERC-20 `transfer` updating two balances, or a plain ETH transfer).
 
 ### Safe Module Gas Profile
-An allowed ETH transfer still costs about 205k gas on Anvil and a refused over-cap transfer about 123k, which is high for a Safe module. Most of it is the on-chain 24 h ETH window: Leash keeps a rolling spending history on-chain instead of checking a single allowance word or an off-chain signature.
+An allowed ETH transfer still costs about 205k gas on Anvil (238k on Sepolia) and a refused over-cap transfer about 123k (205k on Sepolia), which is high for a Safe module. Most of it is the on-chain 24 h ETH window: Leash keeps a rolling spending history on-chain instead of checking a single allowance word or an off-chain signature.
 
 **The architectural choice (bounded ring buffer vs dynamic arrays)**: Leash uses a fixed 24-bucket ring buffer so evaluation is bounded ($O(1)$) in pure Fe:
 - **Griefing defense**: with an unbounded transaction array, an attacker or compromised agent could submit many tiny transactions until later evaluations exceed the block gas limit (out-of-gas denial of service).

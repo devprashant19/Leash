@@ -45,21 +45,21 @@ Leash runs on Sepolia behind a real Safe v1.4.1 account: a 1-of-1 Safe created f
 
 | Contract | Address |
 |---|---|
-| Safe v1.4.1 | [`0x1e0bb9d32edF34A369cCc1230a752a3b2B810ADd`](https://sepolia.etherscan.io/address/0x1e0bb9d32edF34A369cCc1230a752a3b2B810ADd) |
-| `LeashModule` | [`0x3bbbb73a70e438e9a48cfa4fc51a1e011b5c299d`](https://sepolia.etherscan.io/address/0x3bbbb73a70e438e9a48cfa4fc51a1e011b5c299d) |
+| Safe v1.4.1 | [`0x9A5cEaF2E4402B6146788aB60eb08bfD55F24aa8`](https://sepolia.etherscan.io/address/0x9A5cEaF2E4402B6146788aB60eb08bfD55F24aa8) |
+| `LeashModule` | [`0x1db3168a437aaee0dcd7be5a871020b596e4c0a6`](https://sepolia.etherscan.io/address/0x1db3168a437aaee0dcd7be5a871020b596e4c0a6) |
 | Demo token (`MockErc20`) | [`0x9ac2ae0ea34e5af9a6eaf079c5add55767559b68`](https://sepolia.etherscan.io/address/0x9ac2ae0ea34e5af9a6eaf079c5add55767559b68) |
 
 | # | Transaction | Fe CLI prediction | On-chain | Gas | Etherscan |
 |---|---|---|---|---|---|
-| 1 | 0.05 ETH to the treasury | ALLOW | ALLOW | 250,631 | [tx](https://sepolia.etherscan.io/tx/0x0cb8260cb79e2d3a89edca5c4d37f2c9da5d2aa02767b6b4c8612ec67fca5a0b) |
-| 2 | Transfer 50 tokens to the treasury | ALLOW | ALLOW | 493,794 | [tx](https://sepolia.etherscan.io/tx/0xfbe96ec46b0e2e1878c336f1978ae6cce29f5361bec6a95ec03bd35f20b97e11) |
-| 3 | 0.2 ETH (over the per-tx cap) | DENY 7 | DENY 7 | 217,239 | [tx](https://sepolia.etherscan.io/tx/0xf62f2cb0e72237bf667ab05ef79ccaf255866b2eb5f971fd43f14bea13dfa101) |
-| 4 | Unlisted contract | DENY 4 | DENY 4 | 118,721 | [tx](https://sepolia.etherscan.io/tx/0x7182f3d5bac0fb8b23659f096fa60e7b97601af8fc34160cb5cecf2f72a0952e) |
-| 5 | Unlimited approve | DENY 10 | DENY 10 | 144,902 | [tx](https://sepolia.etherscan.io/tx/0xe247a1c59e05651e872b1c0a67d5be8e79705872f7e95e631a5e92a3eb6adaa0) |
+| 1 | 0.05 ETH to the treasury | ALLOW | ALLOW | 237,624 | [tx](https://sepolia.etherscan.io/tx/0x3c8a3a7eb36a4d82056d34c9aed7ac82f4c9131dcda4d089465114f3c5afa077) |
+| 2 | Transfer 50 tokens to the treasury | ALLOW | ALLOW | 346,569 | [tx](https://sepolia.etherscan.io/tx/0x54045a5c8fb1f344926eadd39d2322910c0223ffb62c6bb0cfef3d040ab39b94) |
+| 3 | 0.2 ETH (over the per-tx cap) | DENY 7 | DENY 7 | 205,305 | [tx](https://sepolia.etherscan.io/tx/0xb4d0263e19e00c783cdff16cd30eeb8e804dd552c9eee7bfce63497b40d6ec63) |
+| 4 | Unlisted contract | DENY 4 | DENY 4 | 55,885 | [tx](https://sepolia.etherscan.io/tx/0x7a884e970a76efe0025fc00eb7f1f1d8a3998a6a90100b789b137675d738d1ce) |
+| 5 | Unlimited approve | DENY 10 | DENY 10 | 98,791 | [tx](https://sepolia.etherscan.io/tx/0x7274a7d2453f0e0930b52897acdebf66f80791d5dabb167d0ca1f2bc084ff0e5) |
 
 The allowed calls moved real funds out of the Safe, and the refused ones moved nothing: Safe 0.2 → 0.15 ETH and 1,000 → 950 tokens; treasury +0.05 ETH and +50 tokens. `fingerprint()` on the module returns the same value as the CLI (`0xe98f…47a0`). Records: [`sepolia-safe.json`](demo/deployments/sepolia-safe.json), [`sepolia-safe-run.json`](demo/deployments/sepolia-safe-run.json).
 
-This module was deployed from the previous build, which loaded all 32 ledger words on every call; the current build loads only the part a call needs ([`docs/GAS.md`](docs/GAS.md#2-measured-gas-reproducible)) and has not been redeployed to Sepolia yet, so the gas above is the previous build's. The verdicts and balances do not depend on the build.
+This is the current build, which loads only the ledger part a call needs. The same scenario on the previous build, which loaded all 32 ledger words on every call (Safe [`0x1e0bb9d3…10ADd`](https://sepolia.etherscan.io/address/0x1e0bb9d32edF34A369cCc1230a752a3b2B810ADd)), used 250,631 / 493,794 / 217,239 / 118,721 / 144,902 gas with the same verdicts; see [`docs/GAS.md`](docs/GAS.md#live-sepolia-canonical-safe-v141-gas-measurements).
 
 Reproduce: `node scripts/build-policy.mjs demo/deployments/sepolia-safe-policy.json --build --output out/sepolia_policy` (and `fe build --backend native` on Linux for the CLI), then in `demo/`: `npx tsx sepolia-safe-deploy.ts` and `LEASH_BIN=<that CLI> npx tsx sepolia-safe-agent.ts`. Keys come from `npm run wizard` (testnet only, kept in the git-ignored `demo/.env`).
 
