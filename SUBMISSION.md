@@ -48,6 +48,7 @@ pub fn decide_spend(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState)
     if state.expiry.as_seconds() > 0 && tx.now >= state.expiry {
         return denied(DenyReason::SessionExpired)
     }
+    // ... cooldown check (step 4)
     match tx.op {
         Operation::DelegateCall => return denied(DenyReason::DelegateCallBlocked),
         Operation::Call => {},
