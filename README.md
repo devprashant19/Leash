@@ -39,27 +39,29 @@ Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run
 - **Plan simulator**: on the page and `POST /api/plan` (up to 12 steps). The server runs the whole plan on a fresh chain with the real contracts; each step is predicted by the Fe CLI from the agent's state at that point and then decided by `LeashModule`, so the 24 h budget and the circuit breaker carry over exactly as on-chain ([`api/_lib/plan.ts`](api/_lib/plan.ts)).
 - **If the live server fails**: the page says so and offers to replay a run recorded earlier with the Fe binary ([`web/public/recorded/`](web/public/recorded/)), labelled as a recording. It never substitutes invented results.
 
-### Live on Sepolia
+### Live on Sepolia (real Safe v1.4.1)
 
-The same contracts are deployed on Sepolia, and the 5-transaction scenario below was run there by the agent key, with every verdict predicted beforehand by the Fe-built `leash` binary:
+Leash runs on Sepolia behind a real Safe v1.4.1 account: a 1-of-1 Safe created from the canonical Safe v1.4.1 singleton and proxy factory, with `LeashModule` enabled and the agent registered through Safe transactions. The module is compiled for a policy whose token is the demo token deployed on Sepolia and whose treasury is the owner's address ([`demo/deployments/sepolia-safe-policy.json`](demo/deployments/sepolia-safe-policy.json)). Every call below was predicted first by the Fe-built `leash` CLI compiled for the same policy, then sent by the agent key through `LeashModule.tryExecute`.
 
 | Contract | Address |
 |---|---|
-| `LeashModule` | [`0xddda53452902e5afcb669691e8ad9834039f130b`](https://sepolia.etherscan.io/address/0xddda53452902e5afcb669691e8ad9834039f130b) |
-| Safe (`MockSafe` test account) | [`0xbd748bab768d96d918d9e731d3d2c0032b5b91a8`](https://sepolia.etherscan.io/address/0xbd748bab768d96d918d9e731d3d2c0032b5b91a8) |
+| Safe v1.4.1 | [`0x1e0bb9d32edF34A369cCc1230a752a3b2B810ADd`](https://sepolia.etherscan.io/address/0x1e0bb9d32edF34A369cCc1230a752a3b2B810ADd) |
+| `LeashModule` | [`0x3bbbb73a70e438e9a48cfa4fc51a1e011b5c299d`](https://sepolia.etherscan.io/address/0x3bbbb73a70e438e9a48cfa4fc51a1e011b5c299d) |
 | Demo token (`MockErc20`) | [`0x9ac2ae0ea34e5af9a6eaf079c5add55767559b68`](https://sepolia.etherscan.io/address/0x9ac2ae0ea34e5af9a6eaf079c5add55767559b68) |
 
-| # | Transaction | Fe CLI prediction | On-chain (`tryExecute`) | Etherscan |
-|---|---|---|---|---|
-| 1 | 0.05 ETH to the treasury | ALLOW | ALLOW | [tx](https://sepolia.etherscan.io/tx/0x1de88bfb2b735614197bfaad2c0a3eb503edad89da537413ac5870f00b31c86b) |
-| 2 | Transfer 50 tokens | ALLOW | ALLOW | [tx](https://sepolia.etherscan.io/tx/0x508df65ef2ff3a43aa27a9af81ba7230fdc916c59835f9cc2125336bb46adc9e) |
-| 3 | 0.2 ETH (over the per-tx cap) | DENY 7 | DENY 7 | [tx](https://sepolia.etherscan.io/tx/0x9c90309f5c21817d8ae43c6544c27fa1c3736abeb32aa83b71e28ec76223e40e) |
-| 4 | Unlisted contract | DENY 4 | DENY 4 | [tx](https://sepolia.etherscan.io/tx/0x79db644ba7f22a59d20f7439146fd4d2546ebb5b6b95781f64f22a63cfee6d86) |
-| 5 | Unlimited approve | DENY 10 | DENY 10 | [tx](https://sepolia.etherscan.io/tx/0x2f2ecd4b52fff41e013fda237e42445a0d76bf298384c620e9192ba426d9bd65) |
+| # | Transaction | Fe CLI prediction | On-chain | Gas | Etherscan |
+|---|---|---|---|---|---|
+| 1 | 0.05 ETH to the treasury | ALLOW | ALLOW | 250,631 | [tx](https://sepolia.etherscan.io/tx/0x0cb8260cb79e2d3a89edca5c4d37f2c9da5d2aa02767b6b4c8612ec67fca5a0b) |
+| 2 | Transfer 50 tokens to the treasury | ALLOW | ALLOW | 493,794 | [tx](https://sepolia.etherscan.io/tx/0xfbe96ec46b0e2e1878c336f1978ae6cce29f5361bec6a95ec03bd35f20b97e11) |
+| 3 | 0.2 ETH (over the per-tx cap) | DENY 7 | DENY 7 | 217,239 | [tx](https://sepolia.etherscan.io/tx/0xf62f2cb0e72237bf667ab05ef79ccaf255866b2eb5f971fd43f14bea13dfa101) |
+| 4 | Unlisted contract | DENY 4 | DENY 4 | 118,721 | [tx](https://sepolia.etherscan.io/tx/0x7182f3d5bac0fb8b23659f096fa60e7b97601af8fc34160cb5cecf2f72a0952e) |
+| 5 | Unlimited approve | DENY 10 | DENY 10 | 144,902 | [tx](https://sepolia.etherscan.io/tx/0xe247a1c59e05651e872b1c0a67d5be8e79705872f7e95e631a5e92a3eb6adaa0) |
 
-`fingerprint()` on the deployed module returns the same value the CLI computes. Records: [`demo/deployments/sepolia.json`](demo/deployments/sepolia.json) and [`demo/deployments/sepolia-run.json`](demo/deployments/sepolia-run.json).
+The allowed calls moved real funds out of the Safe, and the refused ones moved nothing: Safe 0.2 → 0.15 ETH and 1,000 → 950 tokens; treasury +0.05 ETH and +50 tokens. `fingerprint()` on the module returns the same value as the CLI (`0xe98f…47a0`). Records: [`sepolia-safe.json`](demo/deployments/sepolia-safe.json), [`sepolia-safe-run.json`](demo/deployments/sepolia-safe-run.json).
 
-What this deployment does not show: the Safe is the `MockSafe` test account, which records forwarded calls without executing them, so no ETH or tokens move. The default policy's token and treasury are placeholder addresses compiled into the policy, so the token rule does not point at the deployed demo token. Integration with the official Safe v1.4.1 contracts is covered by `npm run test:safe` in CI. Gas on Sepolia (118k–564k per call) differs from the Anvil figures below; the run record has the exact values.
+Reproduce: `node scripts/build-policy.mjs demo/deployments/sepolia-safe-policy.json --build --output out/sepolia_policy` (and `fe build --backend native` on Linux for the CLI), then in `demo/`: `npx tsx sepolia-safe-deploy.ts` and `LEASH_BIN=<that CLI> npx tsx sepolia-safe-agent.ts`. Keys come from `npm run wizard` (testnet only, kept in the git-ignored `demo/.env`).
+
+An earlier Sepolia run with the default policy and the `MockSafe` test account (which records calls without executing them) is in [`demo/deployments/sepolia.json`](demo/deployments/sepolia.json) and [`sepolia-run.json`](demo/deployments/sepolia-run.json).
 
 ### The 5-Transaction Canonical Scenario (Reproduce in 7 Seconds)
 
@@ -334,7 +336,7 @@ Known limits of this release, each with where it is handled:
 4. **Declarative Policy Builder with Cryptographic Parity**: While default addresses (`ADDR_TOKEN`, `ADDR_TREASURY`) and caps are constants in `ingots/policy/src/config.fe` to maximize contract headroom (18,892 B runtime size, 5,684 B headroom), users do not need to write Fe manually to deploy custom policies. The declarative policy generator `scripts/build-policy.mjs` (`npm run policy:build <my_policy.json>`) calculates the Keccak-256 fingerprint, validates structural invariants, executes compile-time const validation (`validate_policy_invariants`), compiles both native CLI and EVM targets, and exports standalone deployment bundles to a separate output directory without dirtying the working tree. Continuous off-chain and on-chain fingerprint parity for custom policies is enforced by the `custom-policy` CI job.
 5. **Native CLI platforms**: Fe 26.6.0 links native binaries on x86-64 Linux and AArch64 macOS. Windows users run the CLI under WSL; the Windows demo uses the labelled TypeScript mirror (see the demo section).
 6. **Agent tool server**: `bin/leash-serve.ts` asks the Fe `leash` binary for each verdict when one is present. Its planning session (`record`) keeps the planned ledger (ETH buckets and the token period) in TypeScript and passes it to every check as `--state`, so the verdict still comes from the policy.
-7. **Safe Compatibility & Canonical v1.4.1 Integration Testing**: Leash is thoroughly tested and verified against official `@safe-global/safe-contracts` (v1.4.1) Safe singleton and proxy bytecode in EVM via `npm run test:safe` (14/14 tests covering multisig setup, module enablement via `execTransaction`, agent registration, ETH/ERC-20 execution, guardian pause, breaker trip/reset, and atomic reverts). For live networks (Sepolia/Mainnet), deployment instructions via the Safe Transaction Builder UI are documented in [`docs/deployment.md`](docs/deployment.md).
+7. **Safe Compatibility & Canonical v1.4.1 Integration Testing**: Leash is thoroughly tested and verified against official `@safe-global/safe-contracts` (v1.4.1) Safe singleton and proxy bytecode in EVM via `npm run test:safe` (14/14 tests covering multisig setup, module enablement via `execTransaction`, agent registration, ETH/ERC-20 execution, guardian pause, breaker trip/reset, and atomic reverts). It is also deployed on Sepolia behind a canonical Safe v1.4.1, where the scenario moved real test funds (see [Live on Sepolia](#live-on-sepolia-real-safe-v141)); it has not been deployed to mainnet.
 8. **Token window is fixed, not sliding**: each token rule's `max_per_window` (code 21) applies per fixed 24 h period starting 00:00 UTC (two storage words per token rule; a sliding window would need 48 words per token, or 192 storage words for 4 tokens, which would be cost-prohibitive in gas and exceed contract size). Across a period boundary an agent can move up to twice the cap in a short span. The ETH window slides hour by hour. Details in [`docs/RULES.md`](docs/RULES.md#11-protocol-guards).
 9. **Swaps are refused**: the policy decodes the first 100 calldata bytes, and a Uniswap call's recipient and token path lie past them, so a listed router is always refused (`SwapNotAllowed`, 16). Checked swaps need a longer calldata window, which costs contract size.
 10. **One policy for every agent & Inactive Shipped Rules**: `LeashModule` enforces `default_policy()` for every agent, the policy the CLI predicts with and the fingerprint names. Recipient allowlists (`A8`), rate limiting (`A9`) and cooldowns (`A10`) are fully implemented and verified across 31 attack tests in `test/attacks/`, but disabled in `default_policy()` (`n_recipients: 0`, `max_actions: 0`, `cooldown: 0`) to minimize baseline storage consumption and keep demo execution unconstrained.

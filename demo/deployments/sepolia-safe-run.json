@@ -1,0 +1,80 @@
+{
+  "network": "sepolia",
+  "safeVersion": "1.4.1",
+  "safe": "0x1e0bb9d32edF34A369cCc1230a752a3b2B810ADd",
+  "module": "0x3bbbb73a70e438e9a48cfa4fc51a1e011b5c299d",
+  "predictionSource": "fe-native",
+  "fingerprintCli": "0xe98fd3bd8b5137a77eec46b13589bef85b6bde5db276626bebfcc7764ca147a0",
+  "fingerprintChain": "0xe98fd3bd8b5137a77eec46b13589bef85b6bde5db276626bebfcc7764ca147a0",
+  "fingerprintsMatch": true,
+  "allStepsMatched": true,
+  "balancesBefore": {
+    "safeEth": "0.2",
+    "treasuryEth": "0.422999998741406242",
+    "safeTokens": "1000",
+    "treasuryTokens": "0"
+  },
+  "balancesAfter": {
+    "safeEth": "0.15",
+    "treasuryEth": "0.472999998741406242",
+    "safeTokens": "950",
+    "treasuryTokens": "50"
+  },
+  "steps": [
+    {
+      "i": 1,
+      "description": "Agent sends 0.05 ETH to the treasury",
+      "predicted": "ALLOW",
+      "predictedCode": 0,
+      "onchainCode": 0,
+      "matched": true,
+      "txHash": "0x0cb8260cb79e2d3a89edca5c4d37f2c9da5d2aa02767b6b4c8612ec67fca5a0b",
+      "gasUsed": 250631,
+      "status": "success"
+    },
+    {
+      "i": 2,
+      "description": "Agent transfers 50 tokens to the treasury",
+      "predicted": "ALLOW",
+      "predictedCode": 0,
+      "onchainCode": 0,
+      "matched": true,
+      "txHash": "0xfbe96ec46b0e2e1878c336f1978ae6cce29f5361bec6a95ec03bd35f20b97e11",
+      "gasUsed": 493794,
+      "status": "success"
+    },
+    {
+      "i": 3,
+      "description": "Agent sends 0.2 ETH (over the 0.1 ETH per-tx cap)",
+      "predicted": "DENY",
+      "predictedCode": 7,
+      "onchainCode": 7,
+      "matched": true,
+      "txHash": "0xf62f2cb0e72237bf667ab05ef79ccaf255866b2eb5f971fd43f14bea13dfa101",
+      "gasUsed": 217239,
+      "status": "success"
+    },
+    {
+      "i": 4,
+      "description": "Agent calls an unlisted contract",
+      "predicted": "DENY",
+      "predictedCode": 4,
+      "onchainCode": 4,
+      "matched": true,
+      "txHash": "0x7182f3d5bac0fb8b23659f096fa60e7b97601af8fc34160cb5cecf2f72a0952e",
+      "gasUsed": 118721,
+      "status": "success"
+    },
+    {
+      "i": 5,
+      "description": "Agent approves an unlimited allowance",
+      "predicted": "DENY",
+      "predictedCode": 10,
+      "onchainCode": 10,
+      "matched": true,
+      "txHash": "0xe247a1c59e05651e872b1c0a67d5be8e79705872f7e95e631a5e92a3eb6adaa0",
+      "gasUsed": 144902,
+      "status": "success"
+    }
+  ]
+}

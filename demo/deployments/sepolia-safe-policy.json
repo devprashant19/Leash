@@ -1,0 +1,28 @@
+{
+  "description": "Sepolia deployment policy: the demo token deployed on Sepolia and a treasury the owner controls",
+  "max_eth_per_tx": "0.1 ether",
+  "max_eth_per_window": "0.5 ether",
+  "window_hours": 24,
+  "cooldown_seconds": 0,
+  "breaker_threshold": 3,
+  "targets": [
+    {
+      "address": "0x9ac2ae0ea34e5af9a6eaf079c5add55767559b68",
+      "kind": "erc20",
+      "selectors": ["approve", "transferFrom", "transfer"]
+    },
+    {
+      "address": "0x8c767c4d316eaa79eb871e020e29ad5cb53da928",
+      "allow_eth_transfer": true
+    }
+  ],
+  "tokens": [
+    {
+      "address": "0x9ac2ae0ea34e5af9a6eaf079c5add55767559b68",
+      "max_per_tx": "100000000000000000000",
+      "max_per_window": "500000000000000000000",
+      "max_approve": "100000000000000000000"
+    }
+  ],
+  "recipients": []
+}
