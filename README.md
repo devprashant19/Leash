@@ -358,7 +358,7 @@ Every requirement from the official contest guidelines is fulfilled and linked b
 
 ## 11. Declarations & Attributions
 
-- **Starter Template**: Based on `https://github.com/fe-lang/builders-challenge-starter` (commit `f9d9aa9`), tagged in git as `starter`.
+- **Starter Template**: Based on `https://github.com/fe-lang/builders-challenge-starter` (tagged in git as `starter`).
 - **Safe Smart Account Interface**: Standard `ModuleManager.execTransactionFromModule` selector (`0x468721a7`) and calling convention.
 - **ERC-20 Interface**: Standard selectors for `transfer`, `approve`, `transferFrom`, `balanceOf`, `allowance`.
 - **Standard Library**: Fe standard library modules (`core`, `std`) from `argotorg/fe` tag `v26.6.0`.

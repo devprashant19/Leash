@@ -147,7 +147,7 @@ make demo
 
 ## Declaration
 
-- **Pre-existing work**: Built on top of the official Fe challenge starter template (`https://github.com/fe-lang/builders-challenge-starter`, commit `f9d9aa9`), tagged as `starter`. All contract logic, CLI implementation, tests, and web interfaces were authored during the contest period.
+- **Pre-existing work**: Built on top of the official Fe challenge starter template (`https://github.com/fe-lang/builders-challenge-starter`), tagged as `starter`. All contract logic, CLI implementation, tests, and web interfaces were authored during the contest period.
 - **Third-party code**: Safe `ModuleManager` interface standard calling convention; ERC-20 standard interfaces; Fe standard library (`core`, `std`); Foundry Anvil for local node simulation; Viem and EthereumJS VM for the local web sandbox.
 - **AI assistance**: Development was assisted by agentic AI engineering workflows (Google DeepMind Antigravity / Claude Code) following strict rules (`AGENTS.md`). All AI-assisted changes, compiler test runs, and architectural decisions are logged in [`docs/ai-log.md`](docs/ai-log.md).
 - **Commit History & Integrity**: All work was created and verified within the contest window. Detailed attributions and disclosures are published in [`DECLARATION.md`](DECLARATION.md).

@@ -59,7 +59,7 @@ Gas used by each transaction of the canonical demo, end to end (agent → `Leash
 | Unlisted contract | DENY 4 | **117,532** | 175,484 | **-57,952 (-33.0%)** |
 | Unlimited approve | DENY 10 | **143,473** | 201,701 | **-58,228 (-28.9%)** |
 
-`demo/run.json` is the `demo-run-fe-native` artifact of CI run 44146399027 (commit `7dc28a7`): Anvil, predictions from the Fe-built `leash` binary, 5/5 matched.
+`demo/run.json` comes from the CI `demo` job (`demo-run-fe-native` artifact): Anvil, predictions from the Fe-built `leash` binary, 5/5 matched.
 
 > [!NOTE]
 > **Execution Environment Differences:** The table above quotes measured gas from local and CI Anvil runs (217,878 gas for Step 1). In the web demo and Node in-memory EthereumJS EVM sandbox (`npm run test:web`), Step 1 measures ~252k gas. Both figures are real, measured in different environments (Anvil vs the in-memory EthereumJS chain used by the web demo); the source of the difference has not been isolated.
