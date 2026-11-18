@@ -1411,4 +1411,6 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm run test:safe`: `ALL CANONICAL SAFE v1.4.1 INTEGRATION TESTS PASSED (14/14)!`
   - `npm run test:fuzz`: `Congruent Verdicts: 200/200 (100.0%)`
   - In-memory EVM gas, demo steps 1–5, before → after: 252,393 → 239,386; 233,282 → 183,977; 135,002 → 123,068; 117,532 → 54,696; 143,473 → 97,362.
-- **Reviewed by human**: pending.
+  - CI on the pushed commit: all 9 jobs passed; `test-evm` 172 passed, `test-native` 137 passed, parity 87 policy tests on both backends, `All 18 web checks passed.`, `Congruent Verdicts: 200/200 (100.0%)`, `LeashModule runtime size: 22182 bytes`.
+  - CI `demo` job (Anvil, `"predictionSource": "fe-native"`, 5/5 matched) gas: 204,871 / 153,502 / 123,068 / 54,696 / 97,362 (previous build: 217,878 / 202,807 / 135,002 / 117,532 / 143,473); saved to `demo/run.json`, and `docs/GAS.md`, README and SUBMISSION updated to these figures. The Sepolia figures are labelled as the previous build.
+- **Reviewed by human**: pending (requested by the author; the author reviews the diff before setting this to yes).

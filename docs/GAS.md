@@ -7,20 +7,21 @@ EIP-3860 sets a maximum initcode limit of **49,152 bytes** (0xc000).
 
 | Contract | Runtime size (bytes) | EIP-170 limit | Headroom | Initcode size (bytes) | EIP-3860 limit | Status |
 |---|---|---|---|---|---|---|
-| `LeashModule` | **18,892** | 24,576 | **+5,684 bytes (23.1%)** | 19,147 | 49,152 | **PASS (0 warnings)** |
+| `LeashModule` | **22,182** | 24,576 | **+2,394 bytes (9.7%)** | 22,437 | 49,152 | **PASS (0 warnings)** |
 
-Measured with `fe build ingots/module --emit sizes` (Fe 26.6.0, default optimization level `-O 1`, which the artifacts are built with). Storage bucket packing into single 256-bit words (`(index << 192) | amount`) freed 5,358 bytes of runtime code, providing substantial headroom (+5,684 bytes) for extensible protocol rules.
+Measured with `fe build ingots/module --emit sizes` (Fe 26.6.0, default optimization level `-O 1`, which the artifacts are built with); CI fails the build at 24,576 bytes. Storing the ledger as two parts and loading only the part a call needs (section 2) costs 3,290 bytes over the previous 18,892-byte build.
 
 ### Top Runtime Functions Breakdown (`LeashModule`)
 
 From `fe build ingots/module --emit sizes`:
 
 ```text
-runtime: 18892 bytes (16775 code, 2117 data, 0 embedded)
-    8876 eval_tx
-    3702 contract_runtime_root_LeashModule
-    1343 contract_recv_abi_LeashModule_1368675399 (Preview)
-     848 contract_recv_abi_LeashModule_2197115671 (Execute)
+runtime: 22182 bytes (17953 code, 4229 data, 0 embedded)
+    8548 eval_tx
+    3054 contract_runtime_root_LeashModule
+    2376 calldata_from_bytes
+    1095 eval_and_record
+     886 contract_recv_abi_LeashModule_2197115671
      406 forward
      351 reason_code
      180 check_transfer
@@ -38,10 +39,10 @@ runtime: 18892 bytes (16775 code, 2117 data, 0 embedded)
 
 ### What keeps it under the limit
 
-1. **Packed Hourly Buckets**: Storing each of the 24 hourly ETH buckets in a single 256-bit word `(index << 192) | amount` (saturating at $2^{192}-1$) eliminated struct array overhead, reducing runtime size by 5,358 bytes and expanding EIP-170 headroom from 268 B to 5,684 B.
-2. **One decision, one decode**: `policy::decide_spend` returns the verdict and the token amount an allowed call moves; the module books that amount with `record_allowed`. Decoding the calldata a second time for the ledger cost about 2.7 KB.
+1. **Packed Hourly Buckets**: each of the 24 hourly ETH buckets is one 256-bit word `(index << 192) | amount` (saturating at $2^{192}-1$), which removed the struct array overhead (5,358 bytes when it was introduced).
+2. **One decision, one decode**: `policy::decide_spend` returns the verdict and the token amount an allowed call moves; the module books that amount with `record_allowed`. Decoding the calldata a second time for the ledger cost about 2.7 KB. The module converts the calldata once per call and passes it on.
 3. **Pass-by-reference (`ref` and `mut`)** for `Tx`, `Policy` and `Calldata`, and index-based target and token lookups (`find_target_idx`, `find_token_rule_idx`) instead of copying 416-byte `TargetRule` structs.
-4. **Lean storage model (`AgentLedger`)**: per agent, only the 24 packed hourly ETH buckets (24 words) and one `(period, amount)` pair per token rule (8 words) are stored (32 words total, down from 56 words).
+4. **Lean storage model**: per agent, the 24 packed hourly ETH buckets (`eth_windows`, 24 words) and one `(period, amount)` pair per token rule (`token_periods`, 8 words), 32 words in all.
 5. **One policy for every agent**: the module evaluates `default_policy()`; per-agent caps were removed (they also broke CLI parity).
 6. **Compile-time fingerprint**: `fingerprint()` returns the default policy's fingerprint as a constant instead of hashing 138 policy words on-chain. The `module` test `test_fingerprint_golden` checks it against `fingerprint(default_policy())`.
 
@@ -49,26 +50,26 @@ runtime: 18892 bytes (16775 code, 2117 data, 0 embedded)
 
 ## 2. Measured gas (reproducible)
 
-Gas used by each transaction of the canonical demo, end to end (agent → `LeashModule.tryExecute` → test Safe → target), from `demo/run.json` (Anvil) and the in-memory EVM runs in `web/public/recorded/`:
+Gas used by each transaction of the canonical demo, end to end (agent → `LeashModule.tryExecute` → test Safe → target). "Now" is `demo/run.json`, from the CI `demo` job (`demo-run-fe-native` artifact: Anvil, predictions from the Fe-built `leash` binary, 5/5 matched). "Before" is the same job on the previous build, which loaded all 32 ledger words on every call.
 
-| Step | Verdict | Gas (Anvil run, `demo/run.json`) | Gas Before (56 words) | Gas Saved |
-|---|---|---|---|---|
-| 0.05 ETH to the treasury | ALLOW | **217,878** | 299,218 | **-81,340 (-27.2%)** |
-| Transfer 50 tokens | ALLOW | **202,807** | 264,283 | **-61,476 (-23.3%)** |
-| 0.2 ETH (over the per-tx cap) | DENY 7 | **135,002** | 192,947 | **-57,945 (-30.0%)** |
-| Unlisted contract | DENY 4 | **117,532** | 175,484 | **-57,952 (-33.0%)** |
-| Unlimited approve | DENY 10 | **143,473** | 201,701 | **-58,228 (-28.9%)** |
+| Step | Verdict | Ledger words loaded | Gas now (Anvil) | Gas before (Anvil) | Saved |
+|---|---|---|---|---|---|
+| 0.05 ETH to the treasury | ALLOW | 24 (ETH window) | **204,871** | 217,878 | -13,007 (-6.0%) |
+| Transfer 50 tokens | ALLOW | 8 (token periods) | **153,502** | 202,807 | -49,305 (-24.3%) |
+| 0.2 ETH (over the per-tx cap) | DENY 7 | 24 (ETH window) | **123,068** | 135,002 | -11,934 (-8.8%) |
+| Unlisted contract | DENY 4 | 0 | **54,696** | 117,532 | -62,836 (-53.5%) |
+| Unlimited approve | DENY 10 | 8 (token periods) | **97,362** | 143,473 | -46,111 (-32.1%) |
 
-`demo/run.json` comes from the CI `demo` job (`demo-run-fe-native` artifact): Anvil, predictions from the Fe-built `leash` binary, 5/5 matched.
+**Why the savings differ by step.** `policy::reads_eth_window` is true only for a call that moves ETH (or when rate limiting is on) and `policy::reads_token_periods` only for a call with calldata; `LeashModule` loads, and after an allowed call stores back, only those parts. A cold `SLOAD` costs 2,100 gas, so skipping the ETH window saves up to 50,400 gas and skipping the token periods up to 16,800. The policy test `test_ledger_reads` checks that `decide_spend` returns the same verdict and token spend with the skipped part emptied: a call that moves no ETH adds 0 to a window total that rule 10 already kept at or under `max_per_window`, and only `check_transfer`, which needs decoded calldata, reads the token periods.
 
 > [!NOTE]
-> **Execution Environment Differences:** The table above quotes measured gas from local and CI Anvil runs (217,878 gas for Step 1). In the web demo and Node in-memory EthereumJS EVM sandbox (`npm run test:web`), Step 1 measures ~252k gas. Both figures are real, measured in different environments (Anvil vs the in-memory EthereumJS chain used by the web demo); the source of the difference has not been isolated.
+> **Execution Environment Differences:** steps 3–5 measure the same in the in-memory EthereumJS EVM used by the web demo (`npm run test:web`) as on Anvil. The allowed steps measure higher there (239,386 and 183,977 gas); the source of that difference has not been isolated.
 
 ### Live Sepolia (Canonical Safe v1.4.1) Gas Measurements
 
-The 5-step scenario was also executed live on Ethereum Sepolia behind a canonical Safe v1.4.1 account ([`demo/deployments/sepolia-safe-run.json`](../demo/deployments/sepolia-safe-run.json)):
+The 5-step scenario was also executed live on Ethereum Sepolia behind a canonical Safe v1.4.1 account ([`demo/deployments/sepolia-safe-run.json`](../demo/deployments/sepolia-safe-run.json)). That module was deployed from the previous build, which loaded all 32 ledger words on every call, so it is compared here with the Anvil run of the same build:
 
-| Step | Transaction | Verdict | Sepolia Gas (Safe v1.4.1) | Anvil Gas (`MockSafe`) | Delta |
+| Step | Transaction | Verdict | Sepolia Gas (Safe v1.4.1, previous build) | Anvil Gas (`MockSafe`, previous build) | Delta |
 |---|---|---|---|---|---|
 | 1 | 0.05 ETH to treasury | ALLOW | **250,631** | 217,878 | +32,753 (+15.0%) |
 | 2 | Transfer 50 tokens | ALLOW | **493,794** | 202,807 | +290,987 (+143.5%) |
@@ -80,30 +81,26 @@ The 5-step scenario was also executed live on Ethereum Sepolia behind a canonica
 - **Step 2 (Token transfer execution)**: On Sepolia, the canonical `Safe` proxy executes `execTransactionFromModule` and forwards the call to `MockErc20.transfer`, updating balances and emitting events on-chain. On Anvil, the test double `MockSafe` records the call parameters without forwarding execution (`forward_calls` false), so the token contract itself is never invoked in the Anvil demo. This accounts for the bulk of the Step 2 delta.
 - **Step 3 (Refusal delta)**: Step 3 is refused before reaching the Safe, yet used 217k gas on Sepolia vs 135k on Anvil; the cause of that difference has not been isolated.
 
-### Gas Cost Breakdown (~200k–220k Gas per Allowed Call)
-Why does an allowed transaction through `LeashModule` consume ~202k–218k gas?
-1. **Cold Storage Reads (32 Words, down from 56 Words)**: Every transaction loads `AgentLedger` (24 packed hourly ETH buckets in `Window24` [24 words] + 4 token period buckets [8 words] = 32 words). Under EIP-2929, each cold `SLOAD` costs 2,100 gas:
-   $$\text{Storage Read Overhead} = 32 \times 2{,}100 = 67{,}200\text{ gas}$$
-   By packing ETH ring buffer buckets into single 256-bit words (`(index << 192) | amount`), storage read overhead was reduced by **50,400 gas** (from 117,600 gas to 67,200 gas).
-2. **Safe Module Dispatch Overhead**: `LeashModule` dispatches to Safe via `execTransactionFromModule`, which checks module authorization (`modules[msg.sender] != address(0)`), forwards the call to the target, and emits `ExecutionFromModuleSuccess`.
-3. **Storage Writes (`SSTORE`)**: Recording spent amounts updates the active bucket. The first token transfer in a 24h UTC period writes a fresh `(period, amount)` pair (two zero-to-nonzero `SSTORE`s costing ~40,000 gas; subsequent updates within the period cost ~2,900 gas warm).
-4. **Target Execution**: Gas consumed by the target contract (e.g. ERC-20 `transfer` updating sender and receiver balances, or plain ETH transfers).
+The current build has not been deployed to Sepolia yet; redeploying it is the "Reproduce" step in the README's Sepolia section.
 
-### Safe Module Gas Profile and Per-Agent Ledger Overhead
+### Where the gas goes
+1. **Cold storage reads**: under EIP-2929 each cold `SLOAD` costs 2,100 gas. A call reads its agent's config, plus the 24-word ETH window if it moves ETH and the 8 words of token periods if it has calldata (section 2), so the ledger costs 0, 16,800 or 50,400 gas to read.
+2. **Safe module dispatch**: `LeashModule` calls the Safe's `execTransactionFromModule`, which checks that the module is enabled, forwards the call to the target and emits `ExecutionFromModuleSuccess`.
+3. **Storage writes (`SSTORE`)**: an allowed call stores back only the ledger part it read. The first token transfer in a 24 h UTC period writes a fresh `(period, amount)` pair (two zero-to-nonzero `SSTORE`s, about 40,000 gas); later updates in the period cost about 2,900 gas each.
+4. **Target execution**: gas used by the target itself (an ERC-20 `transfer` updating two balances, or a plain ETH transfer).
 
-On a live network like Sepolia, transactions through `LeashModule` consume between **118k and 494k gas**, and an on-chain refusal (such as Step 3 over-cap) still costs **217k gas**. For an EVM Safe module, this gas cost is undeniably high.
+### Safe Module Gas Profile
+An allowed ETH transfer still costs about 205k gas on Anvil and a refused over-cap transfer about 123k, which is high for a Safe module. Most of it is the on-chain 24 h ETH window: Leash keeps a rolling spending history on-chain instead of checking a single allowance word or an off-chain signature.
 
-**Why the cost of the per-agent ledger remains high:**
-1. **On-Chain Sliding State**: Unlike modules that verify off-chain signatures or static limits, Leash maintains a rolling 24-hour spending history directly on-chain. Loading `AgentLedger` requires reading 32 storage words (24 packed hourly ETH buckets + 4 two-word token period buckets). Under EIP-2929, these 32 cold `SLOAD`s alone consume **67,200 gas** before any rule evaluation or external calls occur.
-2. **Refusal Path Gas**: When an agent attempts an over-cap transaction (Step 3), the module must load the agent's ledger to sum recent hourly buckets and compare against the limit. This evaluation consumes 67.2k gas in cold storage reads plus evaluation overhead, totaling ~135k gas on Anvil and ~217k gas on Sepolia.
-3. **The Architectural Choice (Bounded Ring Buffer vs Dynamic Arrays)**: Leash chose a fixed 24-bucket ring buffer to guarantee bounded $O(1)$ evaluation in pure Fe:
-   - **Griefing Defense**: If an agent wallet used an unbounded transaction array, an attacker or compromised agent could submit hundreds of tiny 1-wei transactions, causing subsequent loop evaluations to exceed the block gas limit (out-of-gas denial-of-service).
-   - **Predictable Complexity**: A fixed 24-bucket ring buffer guarantees that loop traversal is strictly bounded ($O(1)$) and gas consumption remains constant over the entire lifetime of the agent session.
-   - **The Tradeoff**: High baseline cold SLOAD cost (67.2k gas for 32 storage words), in exchange for mathematical immunity against state exhaustion and loop-griefing attacks.
-4. **Future Optimizations (Roadmap)**:
-   - **Lazy Slot Loading**: Loading the 24-word ETH window only if the transaction transfers ETH, skipping it for ERC-20 transfers.
-   - **Transient Storage (EIP-1153)**: Keeping intra-transaction scratch state in transient storage, which Fe 26.6.0's `std::evm` already exposes (`TSlot<T>`, `read_transient_word`). This only saves gas for state that does not need to outlive the transaction; the 24 h ledger itself must stay in persistent storage.
-   - **Stateless Merkle Proofs**: Moving rolling window accounting off-chain and verifying compact state roots on-chain.
+**The architectural choice (bounded ring buffer vs dynamic arrays)**: Leash uses a fixed 24-bucket ring buffer so evaluation is bounded ($O(1)$) in pure Fe:
+- **Griefing defense**: with an unbounded transaction array, an attacker or compromised agent could submit many tiny transactions until later evaluations exceed the block gas limit (out-of-gas denial of service).
+- **Predictable complexity**: the 24-bucket loop is bounded, so its gas does not grow over the life of the agent session.
+- **The trade-off**: reading the window costs up to 50,400 gas in cold `SLOAD`s, in exchange for immunity to state exhaustion and loop griefing.
+
+**Future optimizations (roadmap)**:
+- **Smaller ETH window**: reading only the buckets that fall inside the last 24 h needs their positions known in advance; a coarser window (for example 6 four-hour buckets) would cut the read to 6 words at the cost of resolution.
+- **Transient storage (EIP-1153)**: keeping intra-transaction scratch state in transient storage, which Fe 26.6.0's `std::evm` already exposes (`TSlot<T>`, `read_transient_word`). This only saves gas for state that does not need to outlive the transaction; the 24 h ledger itself must stay in persistent storage.
+- **Stateless Merkle proofs**: moving rolling-window accounting off-chain and verifying compact state roots on-chain.
 
 Reproduce with `make demo` (Anvil) or `npm run test:web` (in-memory EVM). No benchmark harness for Zodiac Roles or other modules is included in this repository, so this document makes no comparative gas claim.
 
