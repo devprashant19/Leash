@@ -39,6 +39,28 @@ Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run
 - **Plan simulator**: on the page and `POST /api/plan` (up to 12 steps). The server runs the whole plan on a fresh chain with the real contracts; each step is predicted by the Fe CLI from the agent's state at that point and then decided by `LeashModule`, so the 24 h budget and the circuit breaker carry over exactly as on-chain ([`api/_lib/plan.ts`](api/_lib/plan.ts)).
 - **If the live server fails**: the page says so and offers to replay a run recorded earlier with the Fe binary ([`web/public/recorded/`](web/public/recorded/)), labelled as a recording. It never substitutes invented results.
 
+### Live on Sepolia
+
+The same contracts are deployed on Sepolia, and the 5-transaction scenario below was run there by the agent key, with every verdict predicted beforehand by the Fe-built `leash` binary:
+
+| Contract | Address |
+|---|---|
+| `LeashModule` | [`0xddda53452902e5afcb669691e8ad9834039f130b`](https://sepolia.etherscan.io/address/0xddda53452902e5afcb669691e8ad9834039f130b) |
+| Safe (`MockSafe` test account) | [`0xbd748bab768d96d918d9e731d3d2c0032b5b91a8`](https://sepolia.etherscan.io/address/0xbd748bab768d96d918d9e731d3d2c0032b5b91a8) |
+| Demo token (`MockErc20`) | [`0x9ac2ae0ea34e5af9a6eaf079c5add55767559b68`](https://sepolia.etherscan.io/address/0x9ac2ae0ea34e5af9a6eaf079c5add55767559b68) |
+
+| # | Transaction | Fe CLI prediction | On-chain (`tryExecute`) | Etherscan |
+|---|---|---|---|---|
+| 1 | 0.05 ETH to the treasury | ALLOW | ALLOW | [tx](https://sepolia.etherscan.io/tx/0x1de88bfb2b735614197bfaad2c0a3eb503edad89da537413ac5870f00b31c86b) |
+| 2 | Transfer 50 tokens | ALLOW | ALLOW | [tx](https://sepolia.etherscan.io/tx/0x508df65ef2ff3a43aa27a9af81ba7230fdc916c59835f9cc2125336bb46adc9e) |
+| 3 | 0.2 ETH (over the per-tx cap) | DENY 7 | DENY 7 | [tx](https://sepolia.etherscan.io/tx/0x9c90309f5c21817d8ae43c6544c27fa1c3736abeb32aa83b71e28ec76223e40e) |
+| 4 | Unlisted contract | DENY 4 | DENY 4 | [tx](https://sepolia.etherscan.io/tx/0x79db644ba7f22a59d20f7439146fd4d2546ebb5b6b95781f64f22a63cfee6d86) |
+| 5 | Unlimited approve | DENY 10 | DENY 10 | [tx](https://sepolia.etherscan.io/tx/0x2f2ecd4b52fff41e013fda237e42445a0d76bf298384c620e9192ba426d9bd65) |
+
+`fingerprint()` on the deployed module returns the same value the CLI computes. Records: [`demo/deployments/sepolia.json`](demo/deployments/sepolia.json) and [`demo/deployments/sepolia-run.json`](demo/deployments/sepolia-run.json).
+
+What this deployment does not show: the Safe is the `MockSafe` test account, which records forwarded calls without executing them, so no ETH or tokens move. The default policy's token and treasury are placeholder addresses compiled into the policy, so the token rule does not point at the deployed demo token. Integration with the official Safe v1.4.1 contracts is covered by `npm run test:safe` in CI. Gas on Sepolia (118k–564k per call) differs from the Anvil figures below; the run record has the exact values.
+
 ### The 5-Transaction Canonical Scenario (Reproduce in 7 Seconds)
 
 The automated demo launches an ephemeral local Anvil node, deploys `MockSafe`, `LeashModule`, and an ERC-20 token, registers an agent session key, and executes five canonical rogue agent transactions comparing off-chain CLI predictions against atomic on-chain execution:
