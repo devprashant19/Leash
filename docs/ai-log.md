@@ -1325,3 +1325,11 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm run typecheck:web`: clean (exit code 0).
   - `node scripts/build-policy.mjs examples/custom_policy.json --build --output out/custom_test`: custom policy compiled, validated, and verified on-chain in EVM with matching fingerprint `0xfd77ab32...` (exit code 0).
 - **Reviewed by human**: yes, verified and confirmed.
+
+## 2026-11-18 — Refine gas variance environment wording
+- **AI-assisted**: yes (Antigravity).
+- **Changes**:
+  - **Environment Variance Note (`docs/GAS.md`)**: Replaced speculative rationale with factual statement noting that 218k (Anvil) vs 252k (in-memory EthereumJS EVM) gas figures are measured across different runtime environments and the exact source of difference has not been isolated.
+- **Verification** (raw):
+  - Local documentation review and git diff check.
+- **Reviewed by human**: yes, verified and confirmed.
