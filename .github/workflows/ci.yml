@@ -190,3 +190,26 @@ jobs:
         env:
           LEASH_REQUIRE_NATIVE: "1"
         run: npm run test:bundle
+
+  custom-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Fe
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/argotorg/fe/master/feup/feup.sh | bash -s -- --version "$FE_VERSION" --no-modify-path
+          echo "$HOME/.fe/bin" >> "$GITHUB_PATH"
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Build custom policy and verify off-chain/on-chain fingerprint parity
+        run: |
+          node scripts/build-policy.mjs examples/custom_policy.json --build --output out/custom_test
+          CLI_FP=$(out/custom_test/cli fingerprint)
+          CONTRACT_FP=$(cat out/custom_test/fingerprint.txt)
+          echo "CLI Fingerprint     : $CLI_FP"
+          echo "Contract Fingerprint: $CONTRACT_FP"
+          test "$CLI_FP" = "$CONTRACT_FP"
+          echo "Parity check passed: Custom policy off-chain CLI and on-chain contract have identical fingerprints!"

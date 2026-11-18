@@ -2,12 +2,12 @@
 /**
  * scripts/build-policy.mjs
  * 
- * Generates and compiles custom Leash policies from declarative JSON/TOML definitions.
+ * Generates and compiles custom Leash policies from declarative JSON definitions.
  * Eliminates manual Fe editing for custom deployments while maintaining 100%
- * compile-time invariant validation.
+ * compile-time invariant validation and cryptographic policy fingerprint synchronization.
  * 
  * Usage:
- *   node scripts/build-policy.mjs <path/to/policy.json> [--build] [--output <dir>]
+ *   node scripts/build-policy.mjs <path/to/policy.json> [--build] [--output <dir>] [--keep-in-place]
  *   node scripts/build-policy.mjs --restore
  *   node scripts/build-policy.mjs --example
  */
@@ -16,6 +16,17 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { keccak256, encodeDeployData, encodeFunctionData, decodeFunctionResult } from 'viem';
+import { createVM, runTx } from '@ethereumjs/vm';
+import { Common, Mainnet, Hardfork } from '@ethereumjs/common';
+import { createLegacyTx } from '@ethereumjs/tx';
+import { createBlock } from '@ethereumjs/block';
+import {
+  Account,
+  bytesToHex,
+  createAddressFromPrivateKey,
+  hexToBytes,
+} from '@ethereumjs/util';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -34,6 +45,19 @@ const KNOWN_SELECTORS = {
   aaveWithdraw: 'SEL_AAVE_WITHDRAW',
   aaveSupply: 'SEL_AAVE_SUPPLY',
   aaveRepay: 'SEL_AAVE_REPAY',
+};
+
+const SELECTOR_VALUES = {
+  transfer: 0xa9059cbbn,
+  approve: 0x095ea7b3n,
+  transferFrom: 0x23b872ddn,
+  increaseAllowance: 0x39509351n,
+  decreaseAllowance: 0xa457c2d7n,
+  uniswapV3ExactInputSingle: 0x04e45aafn,
+  uniswapV2SwapTokens: 0x38ed1739n,
+  aaveWithdraw: 0x69328decn,
+  aaveSupply: 0x617ba037n,
+  aaveRepay: 0x573ade81n,
 };
 
 function parseAmount(val) {
@@ -79,13 +103,103 @@ function normalizeAddress(addr) {
   return clean;
 }
 
-function generateFeSource(policy) {
+export function calculatePolicyFingerprint(policy) {
+  const maxTxWei = parseAmount(policy.max_eth_per_tx ?? '0.1 ether');
+  const maxWinWei = parseAmount(policy.max_eth_per_window ?? '0.5 ether');
+  const windowHours = parseDurationHours(policy.window_hours ?? 24);
+  const cooldownSecs = BigInt(parseInt(policy.cooldown_seconds ?? 0));
+  const maxActions = BigInt(parseInt(policy.max_actions_per_window ?? 0));
+  const breakerThreshold = BigInt(parseInt(policy.breaker_threshold ?? 0));
+
+  const targets = policy.targets ?? [];
+  const tokens = policy.tokens ?? [];
+  const recipients = policy.recipients ?? [];
+
+  const words = new Array(138).fill(0n);
+  let idx = 0;
+
+  // 1. Version
+  words[idx++] = 1n;
+
+  // 2. Targets (8 slots, 13 words each)
+  words[idx++] = BigInt(targets.length);
+  for (let t = 0; t < 8; t++) {
+    const tgt = targets[t];
+    if (tgt) {
+      words[idx++] = BigInt(normalizeAddress(tgt.address));
+      words[idx++] = tgt.kind === 'erc20' ? 1n : 0n;
+      words[idx++] = tgt.allow_eth_transfer ? 1n : 0n;
+      words[idx++] = 0n; // delegate_ok
+      const sels = tgt.selectors ?? [];
+      words[idx++] = BigInt(sels.length);
+      for (let s = 0; s < 8; s++) {
+        if (s < sels.length) {
+          const selStr = sels[s];
+          let selNum = 0n;
+          if (SELECTOR_VALUES[selStr] !== undefined) {
+            selNum = SELECTOR_VALUES[selStr];
+          } else if (/^0x[0-9a-fA-F]{8}$/.test(selStr)) {
+            selNum = BigInt(selStr);
+          }
+          words[idx++] = selNum;
+        } else {
+          words[idx++] = 0n;
+        }
+      }
+    } else {
+      idx += 13;
+    }
+  }
+
+  // 3. ETH Caps
+  words[idx++] = maxTxWei;
+  words[idx++] = maxWinWei;
+  words[idx++] = BigInt(windowHours * 3600);
+
+  // 4. Tokens (4 slots, 4 words each)
+  words[idx++] = BigInt(tokens.length);
+  for (let tok = 0; tok < 4; tok++) {
+    const tk = tokens[tok];
+    if (tk) {
+      words[idx++] = BigInt(normalizeAddress(tk.address));
+      words[idx++] = parseAmount(tk.max_per_tx ?? 0);
+      words[idx++] = parseAmount(tk.max_per_window ?? 0);
+      words[idx++] = parseAmount(tk.max_approve ?? 0);
+    } else {
+      idx += 4;
+    }
+  }
+
+  // 5. Recipients (8 slots)
+  words[idx++] = BigInt(recipients.length);
+  for (let r = 0; r < 8; r++) {
+    const rec = recipients[r];
+    words[idx++] = rec ? BigInt(normalizeAddress(rec)) : 0n;
+  }
+
+  // 6. Action window & Breaker
+  words[idx++] = maxActions;
+  words[idx++] = cooldownSecs;
+  words[idx++] = breakerThreshold;
+
+  const prefix = Buffer.from('LEASH_POLICY_V1', 'utf8');
+  const buf = Buffer.alloc(15 + 138 * 32);
+  prefix.copy(buf, 0);
+  for (let i = 0; i < 138; i++) {
+    const hex = words[i].toString(16).padStart(64, '0');
+    Buffer.from(hex, 'hex').copy(buf, 15 + i * 32);
+  }
+
+  return keccak256(buf);
+}
+
+function generateFeSource(policy, fingerprint) {
   const maxTxWei = parseAmount(policy.max_eth_per_tx ?? '0.1 ether');
   const maxWinWei = parseAmount(policy.max_eth_per_window ?? '0.5 ether');
   const windowHours = parseDurationHours(policy.window_hours ?? 24);
   const cooldownSecs = parseInt(policy.cooldown_seconds ?? 0);
   const maxActions = parseInt(policy.max_actions_per_window ?? 0);
-  const breakerThreshold = parseInt(policy.breaker_threshold ?? 3);
+  const breakerThreshold = parseInt(policy.breaker_threshold ?? 0);
 
   const targets = policy.targets ?? [];
   const tokens = policy.tokens ?? [];
@@ -100,7 +214,7 @@ function generateFeSource(policy) {
 
   let fe = `// Generated by scripts/build-policy.mjs — Declarative Custom Policy
 use std::evm::Address
-use std::evm::units::{Duration, Wei, ether, hours, seconds}
+use std::evm::units::{Duration, Wei, ether, hours, seconds, wei}
 use ingot::types::{
     MAX_RECIPIENTS,
     MAX_SELECTORS,
@@ -125,19 +239,18 @@ use ingot::types::{
 
 `;
 
-  targets.forEach((t, i) => {
-    fe += `pub const TARGET_${i}: Address = Address::new(${normalizeAddress(t.address)})\n`;
-  });
-  tokens.forEach((tok, i) => {
-    fe += `pub const TOKEN_${i}: Address = Address::new(${normalizeAddress(tok.address)})\n`;
-  });
-  fe += '\n';
+  const tokenAddr = tokens[0]?.address ?? targets[0]?.address ?? '0x1000000000000000000000000000000000000001';
+  const treasuryAddr = targets.find((t) => t.allow_eth_transfer)?.address ?? targets[1]?.address ?? '0x2000000000000000000000000000000000000002';
+
+  fe += `pub const ADDR_TOKEN: Address = Address::new(${normalizeAddress(tokenAddr)})\n`;
+  fe += `pub const ADDR_TREASURY: Address = Address::new(${normalizeAddress(treasuryAddr)})\n`;
+  fe += `pub const POLICY_FINGERPRINT: u256 = ${fingerprint}\n\n`;
 
   fe += `pub const fn policy_for_agent(_ max_tx: Wei, _ max_win: Wei) -> Policy {\n`;
   fe += `    var targets: [TargetRule; MAX_TARGETS] = [TargetRule::empty(); MAX_TARGETS]\n`;
 
   targets.forEach((t, i) => {
-    fe += `    targets[${i}].target = TARGET_${i}\n`;
+    fe += `    targets[${i}].target = Address::new(${normalizeAddress(t.address)})\n`;
     if (t.allow_eth_transfer) {
       fe += `    targets[${i}].allow_eth_transfer = true\n`;
     }
@@ -167,7 +280,7 @@ use ingot::types::{
     const maxTx = parseAmount(tok.max_per_tx ?? 0);
     const maxWin = parseAmount(tok.max_per_window ?? 0);
     const maxApprove = parseAmount(tok.max_approve ?? 0);
-    fe += `    tokens[${i}].token = TOKEN_${i}\n`;
+    fe += `    tokens[${i}].token = Address::new(${normalizeAddress(tok.address)})\n`;
     fe += `    tokens[${i}].max_per_tx = TokenAmount::from(${maxTx})\n`;
     fe += `    tokens[${i}].max_per_window = TokenAmount::from(${maxWin})\n`;
     fe += `    tokens[${i}].max_approve = TokenAmount::from(${maxApprove})\n`;
@@ -182,12 +295,12 @@ use ingot::types::{
     let tx_cap = if max_tx.as_wei() > 0 {
         max_tx
     } else {
-        Wei::from(${maxTxWei})
+        wei(${maxTxWei})
     }
     let win_cap = if max_win.as_wei() > 0 {
         max_win
     } else {
-        Wei::from(${maxWinWei})
+        wei(${maxWinWei})
     }
 
     Policy {
@@ -264,6 +377,60 @@ function showExample() {
   console.log(JSON.stringify(example, null, 2));
 }
 
+async function verifyOnChainFingerprint(binHex, abi, expectedFp) {
+  const common = new Common({ chain: Mainnet, hardfork: Hardfork.Prague });
+  const vm = await createVM({ common });
+  const deployerKey = hexToBytes('0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80');
+  const deployerAddr = createAddressFromPrivateKey(deployerKey);
+  await vm.stateManager.putAccount(deployerAddr, new Account(0n, 10n * 10n ** 18n));
+
+  const safe = '0x10000000000000000000000000000000000000aa';
+  const guardian = '0x20000000000000000000000000000000000000bb';
+  const deployData = encodeDeployData({
+    abi,
+    bytecode: binHex,
+    args: [safe, guardian],
+  });
+
+  const block = createBlock({ header: { number: 1n, timestamp: 1000n, gasLimit: 30_000_000n, baseFeePerGas: 1n } }, { common });
+  const tx = createLegacyTx({
+    nonce: 0n,
+    gasPrice: 1_000_000_000n,
+    gasLimit: 15_000_000n,
+    value: 0n,
+    data: hexToBytes(deployData),
+  }, { common }).sign(deployerKey);
+
+  const res = await runTx(vm, { tx, block, skipBlockGasLimitValidation: true });
+  if (res.execResult.exceptionError) {
+    throw new Error('Contract deploy reverted: ' + res.execResult.exceptionError.error);
+  }
+  const contractAddr = res.createdAddress;
+
+  const fpCallData = encodeFunctionData({ abi, functionName: 'fingerprint', args: [] });
+  const callRes = await vm.evm.runCall({
+    caller: deployerAddr,
+    to: contractAddr,
+    data: hexToBytes(fpCallData),
+    gasLimit: 15_000_000n,
+    block,
+  });
+
+  if (callRes.execResult.exceptionError) {
+    throw new Error('fingerprint() call reverted: ' + callRes.execResult.exceptionError.error);
+  }
+
+  const returnHex = bytesToHex(callRes.execResult.returnValue);
+  const onChainFp = decodeFunctionResult({ abi, functionName: 'fingerprint', data: returnHex });
+  const onChainHex = '0x' + onChainFp.toString(16).padStart(64, '0').toLowerCase();
+  const expectedHex = expectedFp.toLowerCase();
+
+  if (onChainHex !== expectedHex) {
+    throw new Error(`Fingerprint mismatch! Contract returned ${onChainHex}, expected ${expectedHex}`);
+  }
+  return onChainHex;
+}
+
 async function main() {
   const args = process.argv.slice(2);
 
@@ -284,7 +451,7 @@ async function main() {
 
   const fileArg = args.find((a) => !a.startsWith('--'));
   if (!fileArg) {
-    console.log('Usage: node scripts/build-policy.mjs <policy.json> [--build] [--output <dir>] [--dry-run]');
+    console.log('Usage: node scripts/build-policy.mjs <policy.json> [--build] [--output <dir>] [--keep-in-place]');
     console.log('       node scripts/build-policy.mjs --restore');
     console.log('       node scripts/build-policy.mjs --example');
     process.exit(0);
@@ -305,9 +472,11 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`\nValidating policy configuration from ${fileArg}...`);
-  const feSource = generateFeSource(policy);
-  console.log('Validation passed: All structural invariants satisfied.');
+  console.log(`\n1. Validating policy configuration from ${fileArg}...`);
+  const fingerprint = calculatePolicyFingerprint(policy);
+  const feSource = generateFeSource(policy, fingerprint);
+  console.log('   Structural validation passed.');
+  console.log(`   Calculated Cryptographic Fingerprint: ${fingerprint}`);
 
   if (args.includes('--dry-run')) {
     console.log('\n--- Generated Fe Source (dry-run) ---');
@@ -321,56 +490,82 @@ async function main() {
   }
 
   fs.writeFileSync(CONFIG_FE_PATH, feSource, 'utf8');
-  console.log(`Wrote custom policy to ${path.relative(ROOT, CONFIG_FE_PATH)}`);
 
   const shouldBuild = args.includes('--build');
+  const outDirIdx = args.indexOf('--output');
+  const targetOutDir = outDirIdx !== -1 && args[outDirIdx + 1]
+    ? path.resolve(process.cwd(), args[outDirIdx + 1])
+    : path.resolve(ROOT, 'out', 'custom_policy');
+
   if (shouldBuild) {
-    console.log('\nCompiling custom policy with Fe (compile-time invariant verification)...');
+    console.log('\n2. Compiling custom policy with Fe (compile-time invariant verification)...');
     try {
       execSync('fe fmt ingots/policy/src/config.fe', { cwd: ROOT, stdio: 'inherit' });
       execSync('fe check', { cwd: ROOT, stdio: 'inherit' });
       execSync('fe build ingots/module', { cwd: ROOT, stdio: 'inherit' });
-      execSync('fe build --backend native', { cwd: ROOT, stdio: 'inherit' });
 
-      // Run size check
-      execSync('fe build --emit sizes', { cwd: ROOT });
-      const sizes = fs.readFileSync(path.join(ROOT, 'out', 'LeashModule.sizes.txt'), 'utf8');
+      // Build native CLI if supported on host
+      let builtNative = false;
+      if (process.platform !== 'win32') {
+        try {
+          execSync('fe build --backend native', { cwd: ROOT, stdio: 'inherit' });
+          builtNative = true;
+        } catch {
+          console.warn('Native backend build skipped (not available or failed).');
+        }
+      }
+
+      // Check runtime size
+      execSync('fe build ingots/module --emit sizes', { cwd: ROOT });
+      const sizesPath = path.join(ROOT, 'ingots', 'module', 'out', 'LeashModule.sizes.txt');
+      const sizes = fs.existsSync(sizesPath) ? fs.readFileSync(sizesPath, 'utf8') : '';
       const match = sizes.match(/runtime:\s+(\d+)/);
       const runtimeSize = match ? parseInt(match[1]) : 0;
-      console.log(`LeashModule runtime size: ${runtimeSize} bytes (limit: 24,576 bytes)`);
+      console.log(`   LeashModule runtime size: ${runtimeSize} bytes (limit: 24,576 bytes)`);
 
-      // Compute fingerprint
-      let fingerprint = '';
-      if (fs.existsSync(path.join(ROOT, 'out', 'cli'))) {
-        fingerprint = execSync(path.join(ROOT, 'out', 'cli') + ' fingerprint', { encoding: 'utf8' }).trim();
-      } else if (process.platform === 'win32' && fs.existsSync(path.join(ROOT, 'out', 'cli.exe'))) {
-        fingerprint = execSync(path.join(ROOT, 'out', 'cli.exe') + ' fingerprint', { encoding: 'utf8' }).trim();
+      // Verify on-chain fingerprint
+      console.log('\n3. Verifying on-chain contract fingerprint in EVM...');
+      const binPath = path.join(ROOT, 'ingots', 'module', 'out', 'LeashModule.bin');
+      const abiPath = path.join(ROOT, 'ingots', 'module', 'out', 'LeashModule.abi.json');
+      const binHex = ('0x' + fs.readFileSync(binPath, 'utf8').trim());
+      const abi = JSON.parse(fs.readFileSync(abiPath, 'utf8'));
+
+      const onChainFp = await verifyOnChainFingerprint(binHex, abi, fingerprint);
+      console.log(`   Contract fingerprint verified on-chain: ${onChainFp}`);
+
+      // Export artifacts
+      fs.mkdirSync(targetOutDir, { recursive: true });
+      fs.copyFileSync(binPath, path.join(targetOutDir, 'LeashModule.bin'));
+      fs.copyFileSync(abiPath, path.join(targetOutDir, 'LeashModule.abi.json'));
+      fs.writeFileSync(path.join(targetOutDir, 'fingerprint.txt'), fingerprint + '\n', 'utf8');
+      fs.writeFileSync(
+        path.join(targetOutDir, 'policy_info.json'),
+        JSON.stringify({ fingerprint, runtimeSize, policy }, null, 2),
+        'utf8'
+      );
+      if (builtNative && fs.existsSync(path.join(ROOT, 'out', 'cli'))) {
+        fs.copyFileSync(path.join(ROOT, 'out', 'cli'), path.join(targetOutDir, 'cli'));
+        fs.chmodSync(path.join(targetOutDir, 'cli'), 0o755);
       }
 
       console.log('\n===============================================================');
-      console.log('  CUSTOM POLICY SUCCESSFULLY COMPILED & VALIDATED');
+      console.log('  CUSTOM POLICY SUCCESSFULLY COMPILED & VERIFIED');
       console.log('===============================================================');
-      if (fingerprint) console.log(`Policy Fingerprint : ${fingerprint}`);
-      console.log(`Runtime Bytecode   : ${runtimeSize} bytes`);
-      console.log(`Module Binary      : out/LeashModule.bin`);
-      console.log(`Module ABI         : out/LeashModule.abi.json`);
+      console.log(`Policy Fingerprint : ${fingerprint}`);
+      console.log(`Runtime Bytecode   : ${runtimeSize} bytes (headroom: ${24576 - runtimeSize} bytes)`);
+      console.log(`Artifacts Exported : ${path.relative(ROOT, targetOutDir)}/`);
+      console.log(`  - LeashModule.bin`);
+      console.log(`  - LeashModule.abi.json`);
+      console.log(`  - fingerprint.txt`);
+      console.log(`  - policy_info.json`);
 
-      const outDirIdx = args.indexOf('--output');
-      if (outDirIdx !== -1 && args[outDirIdx + 1]) {
-        const outDir = path.resolve(process.cwd(), args[outDirIdx + 1]);
-        fs.mkdirSync(outDir, { recursive: true });
-        fs.copyFileSync(path.join(ROOT, 'out', 'LeashModule.bin'), path.join(outDir, 'LeashModule.bin'));
-        fs.copyFileSync(path.join(ROOT, 'out', 'LeashModule.abi.json'), path.join(outDir, 'LeashModule.abi.json'));
-        fs.writeFileSync(
-          path.join(outDir, 'policy_info.json'),
-          JSON.stringify({ fingerprint, runtimeSize, policy }, null, 2),
-          'utf8'
-        );
-        console.log(`Exported deployment bundle to ${outDir}`);
+      // Restore default config unless keep-in-place requested
+      if (!args.includes('--keep-in-place')) {
+        fs.copyFileSync(BACKUP_PATH, CONFIG_FE_PATH);
+        console.log(`Cleaned up working tree: restored default config.fe`);
       }
     } catch (err) {
-      console.error('\nCompilation or invariant verification failed!');
-      console.error('Restoring default policy...');
+      console.error('\nCompilation or invariant verification failed:', err.message);
       fs.copyFileSync(BACKUP_PATH, CONFIG_FE_PATH);
       process.exit(1);
     }

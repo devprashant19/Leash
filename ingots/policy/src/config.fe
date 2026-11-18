@@ -17,6 +17,7 @@ use ingot::types::{
 
 pub const ADDR_TOKEN: Address = Address::new(0x1000000000000000000000000000000000000001)
 pub const ADDR_TREASURY: Address = Address::new(0x2000000000000000000000000000000000000002)
+pub const POLICY_FINGERPRINT: u256 = 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee
 
 pub const fn policy_for_agent(_ max_tx: Wei, _ max_win: Wei) -> Policy {
     var targets: [TargetRule; MAX_TARGETS] = [TargetRule::empty(); MAX_TARGETS]

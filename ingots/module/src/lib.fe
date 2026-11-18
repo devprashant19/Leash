@@ -225,11 +225,11 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
         }
 
         Fingerprint -> u256 {
-            0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee
+            policy::config::POLICY_FINGERPRINT
         }
 
         VerifyFingerprint { expected } -> bool {
-            expected == 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee
+            expected == policy::config::POLICY_FINGERPRINT
         }
 
         ResetBreaker { agent } uses (ctx, safe, mut agents, mut log) {

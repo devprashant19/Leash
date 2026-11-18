@@ -1,4 +1,5 @@
 out/
+*.default
 *.docx
 demo/node_modules/
 demo/.env
