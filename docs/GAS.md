@@ -64,6 +64,23 @@ Gas used by each transaction of the canonical demo, end to end (agent → `Leash
 > [!NOTE]
 > **Execution Environment Differences:** The table above quotes measured gas from local and CI Anvil runs (217,878 gas for Step 1). In the web demo and Node in-memory EthereumJS EVM sandbox (`npm run test:web`), Step 1 measures ~252k gas. Both figures are real, measured in different environments (Anvil vs the in-memory EthereumJS chain used by the web demo); the source of the difference has not been isolated.
 
+### Live Sepolia (Canonical Safe v1.4.1) Gas Measurements
+
+The 5-step scenario was also executed live on Ethereum Sepolia behind a canonical Safe v1.4.1 account ([`demo/deployments/sepolia-safe-run.json`](../demo/deployments/sepolia-safe-run.json)):
+
+| Step | Transaction | Verdict | Sepolia Gas (Safe v1.4.1) | Anvil Gas (`MockSafe`) | Delta |
+|---|---|---|---|---|---|
+| 1 | 0.05 ETH to treasury | ALLOW | **250,631** | 217,878 | +32,753 (+15.0%) |
+| 2 | Transfer 50 tokens | ALLOW | **493,794** | 202,807 | +290,987 (+143.5%) |
+| 3 | 0.2 ETH (over cap) | DENY 7 | **217,239** | 135,002 | +82,237 (+60.9%) |
+| 4 | Unlisted target | DENY 4 | **118,721** | 117,532 | +1,189 (+1.0%) |
+| 5 | Unlimited approve | DENY 10 | **144,902** | 143,473 | +1,429 (+1.0%) |
+
+**Why did the token transfer (Step 2) consume ~494k gas on Sepolia vs ~203k gas on Anvil?**
+1. **Canonical Safe v1.4.1 vs `MockSafe`**: The Anvil demo ran against `MockSafe`, a lightweight test double. Sepolia executes through the official `GnosisSafeProxy` delegating to `GnosisSafe.sol` (v1.4.1), which executes Safe module authorization guards, internal reentrancy checks, and emits `ExecutionFromModuleSuccess`.
+2. **Cold Zero-to-Nonzero Storage Writes (`SSTORE`)**: Step 2 was the first token transfer ever recorded for that agent on Sepolia. In `LeashModule`, writing a previously untouched token period bucket and cumulative spend required two cold zero-to-nonzero storage writes (~44,200 gas). Furthermore, in the deployed `MockErc20`, the treasury address had never held tokens before, so initializing `balanceOf[treasury]` from 0 to 50 incurred another 22,100 gas.
+3. **EIP-2929 Cold Account Accesses**: Calling through the proxy, singleton, LeashModule, and Token contract in a live public testnet incurs cold address access charges (2,600 gas per cold account) and cold storage slot reads (2,100 gas each) not present in local warmed harness memory.
+
 ### Gas Cost Breakdown (~200k–220k Gas per Allowed Call)
 Why does an allowed transaction through `LeashModule` consume ~202k–218k gas?
 1. **Cold Storage Reads (32 Words, down from 56 Words)**: Every transaction loads `AgentLedger` (24 packed hourly ETH buckets in `Window24` [24 words] + 4 token period buckets [8 words] = 32 words). Under EIP-2929, each cold `SLOAD` costs 2,100 gas:

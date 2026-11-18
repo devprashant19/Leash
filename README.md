@@ -33,7 +33,7 @@ Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run
 - **Contract build metadata**: [`demo/deployments/LeashModule.metadata.json`](demo/deployments/LeashModule.metadata.json) (from `fe build --emit metadata`).
 - **Native CLI binaries**: [`cli-v0.1.0` release](https://github.com/devprashant19/Leash/releases/tag/cli-v0.1.0): `leash-linux-x86_64` and `leash-macos-arm64`, built and smoke-tested by [`.github/workflows/release.yml`](.github/workflows/release.yml).
 - **Deploying (free tier)**: Sepolia contracts, dashboard hosting and CLI release, step by step in [`docs/deployment.md`](docs/deployment.md).
-- **Full Submission Details**: [`docs/submission.md`](docs/submission.md).
+- **Full Submission Details**: [`SUBMISSION.md`](SUBMISSION.md).
 
 ### More on the page
 - **Plan simulator**: on the page and `POST /api/plan` (up to 12 steps). The server runs the whole plan on a fresh chain with the real contracts; each step is predicted by the Fe CLI from the agent's state at that point and then decided by `LeashModule`, so the 24 h budget and the circuit breaker carry over exactly as on-chain ([`api/_lib/plan.ts`](api/_lib/plan.ts)).
@@ -368,7 +368,7 @@ Every requirement from the official contest guidelines is fulfilled and linked b
 |---|---|---|---|
 | **Core contribution in Fe** | `policy`, `module`, `cli`, `testkit` ingots are 100% pure Fe | 1–4 | [`fe.toml`](fe.toml), [`ingots/`](ingots/) |
 | **Public GitHub repo, OSI licence** | Apache-2.0 | 0 | [`LICENSE`](LICENSE), [GitHub Repo](https://github.com/devprashant19/Leash) |
-| **Commit SHA & exact Fe version** | Pinned `fe 26.6.0 (5b3f96a)` | 0, 7 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml), [`docs/submission.md`](docs/submission.md) |
+| **Commit SHA & exact Fe version** | Pinned `fe 26.6.0 (5b3f96a)` | 0, 7 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml), [`SUBMISSION.md`](SUBMISSION.md) |
 | **Reproducible build instructions** | `make setup && make all && make demo` | 0, 7 | [`Makefile`](Makefile), [Quick Start](#2-quick-start) |
 | **Appropriate automated tests** | 167 EVM tests and 132 native tests passing (82 shared policy tests on both), 31 attack tests, 9 compile-fail tests, 200/200 differential fuzz tests | 1–5 | [`test/`](test/), [CI Workflow](https://github.com/devprashant19/Leash/actions) |
 

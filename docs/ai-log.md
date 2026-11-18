@@ -1341,3 +1341,17 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 - **Verification** (raw):
   - Verified exact match against `ingots/policy/src/rules.fe`.
 - **Reviewed by human**: yes, verified and confirmed.
+
+## 2026-11-18 — Document Sepolia Safe v1.4.1 gas mechanics, update rewrite disclosure, and trim duplicate docs
+- **AI-assisted**: yes (Antigravity).
+- **Changes**:
+  - **Sepolia Gas Breakdown (`docs/GAS.md`)**: Documented the gas delta for Step 2 token transfer (494k gas on Sepolia vs 203k gas on local Anvil) across canonical Safe v1.4.1 proxy/singleton execution overhead, cold zero-to-nonzero SSTOREs on token bucket initialization and treasury balance setup, and EIP-2929 cold account access costs.
+  - **Rewrite Disclosure Update (`DECLARATION.md`)**: Explicitly noted the Nov 18 git history reset to drop one docs commit with no code changes, maintaining complete audit transparency.
+  - **Documentation Trimming**: Removed redundant `docs/submission.md` (which duplicated root `SUBMISSION.md`) and updated links in `README.md` and `docs/video-script.md` to reference `SUBMISSION.md` directly. Deleted remote and local `backup/squashed-2026-11-17` branch references.
+- **Verification** (raw):
+  - `fe fmt --check ingots; fe fmt --check test`: clean (exit code 0).
+  - `fe check`: clean (exit code 0).
+  - `npm run test:web`: All 17 web checks passed (exit code 0).
+  - `npm run typecheck:web`: clean (exit code 0).
+  - `npm run test:safe`: ALL CANONICAL SAFE v1.4.1 INTEGRATION TESTS PASSED (14/14) (exit code 0).
+- **Reviewed by human**: yes, verified and confirmed.

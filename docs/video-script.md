@@ -55,5 +55,5 @@
 - [ ] Open `demo/dashboard/index.html` in Chrome or Brave.
 - [ ] Run `npm --prefix demo run demo` in terminal.
 - [ ] Total recorded video length <= 120 seconds.
-- [ ] Upload video to YouTube (unlisted or public) and paste URL into `docs/submission.md`.
+- [ ] Upload video to YouTube (unlisted or public) and paste URL into `SUBMISSION.md`.
 
