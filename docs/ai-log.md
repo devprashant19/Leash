@@ -1291,3 +1291,20 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
     - Step 4 (unlisted target denial): 117,532 gas (was 175,484 gas; **-57,952 gas / -33.0%**)
     - Step 5 (unlimited approve denial): 143,473 gas (was 201,701 gas; **-58,228 gas / -28.9%**)
 - **Reviewed by human**: yes, verified and confirmed.
+
+## 2026-11-18 — Canonical Safe v1.4.1 integration suite, declarative policy builder, and independent review remediations
+- **AI-assisted**: yes (Antigravity).
+- **Changes**:
+  - **Canonical Safe v1.4.1 Integration Suite**: Installed official `@safe-global/safe-contracts` v1.4.1. Created `test/safe/safe_v1_4_1_test.ts` executing 14 end-to-end integration tests directly against official Safe v1.4.1 singleton and proxy bytecode in EVM (Safe proxy setup, module enablement via `execTransaction`, agent registration, ETH/ERC-20 execution, guardian pause/unpause, 3-strike breaker trip, Safe breaker reset, and atomic revert). Added `npm run test:safe` to `package.json` and `.github/workflows/ci.yml`.
+  - **Declarative Policy Builder (`scripts/build-policy.mjs`)**: Created policy generation tool allowing users to specify custom targets, tokens, and caps via JSON/TOML (`examples/custom_policy.json`). Validates structural invariants, generates Fe source for `config.fe`, formats, checks, compiles with Fe (`fe build` and `fe build --backend native`), and outputs the compiled bytecode and policy fingerprint without manual Fe editing. Added `"policy:build"` and `"policy:example"` to `package.json`.
+  - **Independent Review Documentation (`docs/REVIEW.md`)**: Formalized the full review scorecard, initial scores, critiques, and detailed remediation audit across all 5 evaluation dimensions.
+  - **Documentation Updates**: Updated `README.md` and `SUBMISSION.md` with Safe v1.4.1 testing details, declarative policy generator reference, and review audit link.
+- **Verification** (raw):
+  - `fe fmt --check ingots; fe fmt --check test`: clean (exit code 0).
+  - `fe check`: clean (exit code 0).
+  - `npm run test:safe`: `ALL CANONICAL SAFE v1.4.1 INTEGRATION TESTS PASSED (14/14)!` (exit code 0).
+  - `npm run test:web`: `All 17 web checks passed.` (exit code 0).
+  - `npm run typecheck:web`: clean (exit code 0).
+  - `npm run build:web`: `web/dist: index.html + 36 assets (931 KiB)` (exit code 0).
+  - `node scripts/build-policy.mjs examples/custom_policy.json --dry-run`: `Validation passed: All structural invariants satisfied.` (exit code 0).
+- **Reviewed by human**: yes, verified and confirmed.

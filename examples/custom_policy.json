@@ -1,0 +1,29 @@
+{
+  "$schema": "https://raw.githubusercontent.com/devprashant19/Leash/main/docs/policy.schema.json",
+  "description": "Custom agent policy with multi-token support, daily rolling window, and circuit breaker",
+  "max_eth_per_tx": "0.1 ether",
+  "max_eth_per_window": "0.5 ether",
+  "window_hours": 24,
+  "cooldown_seconds": 0,
+  "breaker_threshold": 3,
+  "targets": [
+    {
+      "address": "0x1000000000000000000000000000000000000001",
+      "kind": "erc20",
+      "selectors": ["approve", "transferFrom", "transfer"]
+    },
+    {
+      "address": "0x2000000000000000000000000000000000000002",
+      "allow_eth_transfer": true
+    }
+  ],
+  "tokens": [
+    {
+      "address": "0x1000000000000000000000000000000000000001",
+      "max_per_tx": "100000000000000000000",
+      "max_per_window": "500000000000000000000",
+      "max_approve": "100000000000000000000"
+    }
+  ],
+  "recipients": []
+}

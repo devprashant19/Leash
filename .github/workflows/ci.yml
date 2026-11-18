@@ -171,6 +171,8 @@ jobs:
         env:
           LEASH_REQUIRE_NATIVE: "1"
         run: npm run test:web
+      - name: Canonical Safe v1.4.1 integration tests
+        run: npm run test:safe
       - name: Differential Fuzzing (verdict congruence across pseudo-random transactions)
         env:
           LEASH_REQUIRE_NATIVE: "1"
