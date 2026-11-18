@@ -24,7 +24,7 @@ The live interactive application ([`web/`](web/), a React + Framer Motion app, p
 - **Try your own transaction**: any target, value, calldata and operation; the Fe CLI's prediction and the contract's decision side by side.
 - **Links that run on open**: `/?run` (the demo), `/?tour` (the feature tour), `/?try=1` (an over-cap transfer). API: `GET /api/demo`, `GET /api/tour`, `POST /api/check`, `POST /api/plan`, `GET /api/health`.
 
-Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run test:web` passes 17/17, with predictions from the bundled Fe binary (including all 18 tour transactions and the plan simulator). The CI `web` job repeats this on every push. Deploy steps: [`docs/deployment.md`](docs/deployment.md#0-vercel-the-page-judges-open).
+Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run test:web` passes 18/18, with predictions from the bundled Fe binary (including all 18 tour transactions and the plan simulator). The CI `web` job repeats this on every push. Deploy steps: [`docs/deployment.md`](docs/deployment.md#0-vercel-the-page-judges-open).
 
 
 
@@ -223,8 +223,8 @@ Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb7
 | **Machine-readable JSON Output** | D1 | Structured JSON verdict | N/A | `leash check --json` | **Shipped** |
 | **C Static Header Export** | D7 | `leash.h` / `main.c` bindings | N/A | C FFI Reference Header | **Shipped** |
 | **Trading Hours Schedule** | A11 | `OutsideTradingHours` (14) | Roadmap (enum only, no evaluation logic) | Roadmap | Roadmap |
-| **Uniswap Swaps** | C1/C2 | `SwapNotAllowed` (16) for every call to a listed router | In `decide` (refused: the recipient and token path lie past the 100 decoded calldata bytes) | Yes | Roadmap (checked swaps) |
-| **Aave Lending Guard** | C3 | Collateral diversion protection | In `decide` (`check_aave_guard`) | Yes | **Shipped** |
+| **Uniswap Router Guard** | C1/C2 | `SwapNotAllowed` (16) fail-safe refusal | In `decide` (refuses all router calls; full decode is roadmap) | Yes | **Shipped** (Refusal Stub) |
+| **Aave Lending Guard** | C3 | Collateral diversion protection | In `decide` (`check_aave_guard`) | Yes | **Shipped** (Policy Trait; inactive in default policy) |
 | **Oracle USD-Denominated Caps** | C4 | Chainlink staleness & USD caps | Policy function only (`policy::decide_with_usd`) | Yes | **Shipped** (Policy Engine) |
 
 

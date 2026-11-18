@@ -89,11 +89,23 @@ Why does an allowed transaction through `LeashModule` consume ~202k–218k gas?
 3. **Storage Writes (`SSTORE`)**: Recording spent amounts updates the active bucket. The first token transfer in a 24h UTC period writes a fresh `(period, amount)` pair (two zero-to-nonzero `SSTORE`s costing ~40,000 gas; subsequent updates within the period cost ~2,900 gas warm).
 4. **Target Execution**: Gas consumed by the target contract (e.g. ERC-20 `transfer` updating sender and receiver balances, or plain ETH transfers).
 
-### The Tradeoff: Fixed Storage Ring Buffer vs Unbounded $O(N)$ Logs
-Why not use an append-only transaction log or dynamic array?
-- **Griefing Defense**: If an agent wallet used an unbounded transaction array, an attacker or compromised agent could submit hundreds of tiny 1-wei transactions, causing subsequent loop evaluations to exceed the block gas limit (out-of-gas denial-of-service).
-- **Predictable $O(1)$ Complexity**: A fixed 24-bucket ring buffer guarantees that loop traversal is strictly bounded ($O(1)$) and gas consumption remains constant over the entire lifetime of the agent session.
-- **The Tradeoff**: High baseline cold SLOAD cost (~117k gas per transaction), in exchange for mathematical immunity against state exhaustion and loop-griefing attacks.
+### Safe Module Gas Profile and Per-Agent Ledger Overhead
+
+On a live network like Sepolia, transactions through `LeashModule` consume between **118k and 494k gas**, and an on-chain refusal (such as Step 3 over-cap) still costs **217k gas**. For an EVM Safe module, this gas cost is undeniably high.
+
+Reviewers familiar with typical Safe modules (such as Zodiac Roles or minimal allowance guards) will note that standard Solidity modules often consume only 30k–60k gas because they check single-word allowances, nonces, or off-chain signatures.
+
+**Why the cost of the per-agent ledger remains high:**
+1. **On-Chain Sliding State**: Unlike modules that verify off-chain signatures or static limits, Leash maintains a rolling 24-hour spending history directly on-chain. Loading `AgentLedger` requires reading 32 storage words (24 packed hourly ETH buckets + 4 token period buckets). Under EIP-2929, these 32 cold `SLOAD`s alone consume **67,200 gas** before any rule evaluation or external calls occur.
+2. **Refusal Path Gas**: When an agent attempts an over-cap transaction (Step 3), the module must load the agent's ledger to sum recent hourly buckets and compare against the limit. This evaluation consumes 67.2k gas in cold storage reads plus evaluation overhead, totaling ~135k gas on Anvil and ~217k gas on Sepolia.
+3. **The Architectural Choice (Bounded Ring Buffer vs Dynamic Arrays)**: Leash chose a fixed 24-bucket ring buffer to guarantee bounded $O(1)$ evaluation in pure Fe:
+   - **Griefing Defense**: If an agent wallet used an unbounded transaction array, an attacker or compromised agent could submit hundreds of tiny 1-wei transactions, causing subsequent loop evaluations to exceed the block gas limit (out-of-gas denial-of-service).
+   - **Predictable Complexity**: A fixed 24-bucket ring buffer guarantees that loop traversal is strictly bounded ($O(1)$) and gas consumption remains constant over the entire lifetime of the agent session.
+   - **The Tradeoff**: High baseline cold SLOAD cost (67.2k gas for 32 storage words), in exchange for mathematical immunity against state exhaustion and loop-griefing attacks.
+4. **Future Optimizations (Roadmap)**:
+   - **Lazy Slot Loading**: Loading the 24-word ETH window only if the transaction transfers ETH, skipping it for ERC-20 transfers.
+   - **Transient Storage (EIP-1153)**: Storing intra-block spending state in `TSTORE`/`TLOAD` once supported by the Fe compiler.
+   - **Stateless Merkle Proofs**: Moving rolling window accounting off-chain and verifying compact state roots on-chain.
 
 Reproduce with `make demo` (Anvil) or `npm run test:web` (in-memory EVM). No benchmark harness for Zodiac Roles or other modules is included in this repository, so this document makes no comparative gas claim.
 

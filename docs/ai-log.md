@@ -1365,3 +1365,16 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `fe fmt --check ingots; fe fmt --check test`: clean (exit code 0).
   - `fe check`: clean (exit code 0).
 - **Reviewed by human**: yes, verified and confirmed.
+
+## 2026-11-18 — Streamline DECLARATION.md, clarify Safe module gas overhead, and fix test count
+- **AI-assisted**: yes (Antigravity).
+- **Changes**:
+  - **Streamlined `DECLARATION.md`**: Removed dated changelog paragraphs, superseded figures (56 words, 24,250 B, 17/17), and sales adjectives in §3, keeping direct, professional disclosures of AI workflow, history resets, removed early scaffolding, and scripted injection demo.
+  - **Safe Module Gas Overhead (`docs/GAS.md`, `SUBMISSION.md`)**: Plainly acknowledged that 118k–494k gas on Sepolia (and 217k on refusal) is high for an EVM Safe module, explained that loading the 32-word on-chain sliding window ledger consumes 67.2k gas in cold SLOADs alone, and outlined the architectural tradeoff and future optimizations (lazy loading, EIP-1153 transient storage, stateless Merkle proofs).
+  - **DeFi Guard Terminology (`README.md`, `SUBMISSION.md`)**: Labeled `Aave Lending Guard` as `Shipped (Policy Trait; inactive in default policy)` and `Uniswap Router Guard` as `Shipped (Refusal Stub)` to prevent overclaiming shipped DeFi functionality.
+  - **Corrected Web Test Count (`README.md`)**: Updated line 27 from `17/17` to `18/18` to match actual CI output on Amazon Linux 2023 with bundled native binary.
+- **Verification** (raw):
+  - `fe fmt --check ingots; fe fmt --check test`: clean (exit code 0).
+  - `fe check`: clean (exit code 0).
+  - Documentation diff check.
+- **Reviewed by human**: yes, verified and confirmed.
