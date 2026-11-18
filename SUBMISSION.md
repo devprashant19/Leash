@@ -34,18 +34,27 @@ Every policy rule is an **effect-checked pure function**:
 ```fe
 // ingots/policy/src/rules.fe
 // Pure deterministic policy evaluation: statically effect-free (no uses clause)
-pub fn decide(policy: Policy, state: AgentState, now: Timestamp, tx: Tx) -> Verdict {
-    if state.paused != 0 {
-        return Verdict::Deny(Reason::Paused)
+pub fn decide(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Verdict {
+    decide_spend(tx, policy, state).verdict
+}
+
+pub fn decide_spend(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Decision {
+    if state.paused {
+        return denied(DenyReason::Paused)
     }
-    if state.expiry != 0 and now > state.expiry {
-        return Verdict::Deny(Reason::SessionExpired)
+    if state.tripped {
+        return denied(DenyReason::CircuitTripped)
     }
-    if tx.operation != 0 {
-        return Verdict::Deny(Reason::DelegateCallBlocked)
+    if state.expiry.as_seconds() > 0 && tx.now >= state.expiry {
+        return denied(DenyReason::SessionExpired)
+    }
+    match tx.op {
+        Operation::DelegateCall => return denied(DenyReason::DelegateCallBlocked),
+        Operation::Call => {},
     }
     // ... Target allowlist, calldata decoding, per-tx and 24h rolling budget checks
-    Verdict::Allow
+    // Protocol guards dispatched via ActionGuard trait (Erc20Guard, UniswapGuard, AaveGuard)
+    Decision { verdict: Verdict::Allow, spend: Option::None }
 }
 ```
 

@@ -1333,3 +1333,11 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 - **Verification** (raw):
   - Local documentation review and git diff check.
 - **Reviewed by human**: yes, verified and confirmed.
+
+## 2026-11-18 — Align decide code snippet in SUBMISSION.md with source
+- **AI-assisted**: yes (Antigravity).
+- **Changes**:
+  - **Code Sample Alignment (`SUBMISSION.md`)**: Replaced placeholder code sample with exact Fe source signature `pub fn decide(_ tx: ref Tx, _ policy: ref Policy, _ state: ref AgentState) -> Verdict` and real `decide_spend` logic matching `ingots/policy/src/rules.fe`.
+- **Verification** (raw):
+  - Verified exact match against `ingots/policy/src/rules.fe`.
+- **Reviewed by human**: yes, verified and confirmed.
