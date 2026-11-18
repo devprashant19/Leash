@@ -51,8 +51,8 @@ Fe's static effect system enforces minimal privilege for each message handler:
 
 | Message | Caller | Effects Declared | Description |
 |---|---|---|---|
-| `Execute { to, value, data, operation }` | Active agent | `mut self.locked, mut self.ledgers, call: mut Call, log: mut Log, agents` | Evaluates `policy::decide`. Reverts with typed custom error if denied (atomic EVM rollback). If allowed, records spend and executes `Safe.execTransactionFromModule`. |
-| `TryExecute { to, value, data, operation }` | Active agent | `mut self.locked, mut self.agents, mut self.ledgers, call: mut Call, log: mut Log` | Same as `Execute`, but on denial does NOT revert: increments `cfg.denials`, trips breaker on 3rd denial, emits `Denied(agent, to, code)` and returns `(false, code)`. On success executes and returns `(true, 0)`. |
+| `Execute { to, value, data, operation }` | Active agent | `mut self.locked, mut self.eth_windows, mut self.token_periods, call: mut Call, log: mut Log, agents` | Evaluates `policy::decide`. Reverts with typed custom error if denied (atomic EVM rollback). If allowed, records spend and executes `Safe.execTransactionFromModule`. |
+| `TryExecute { to, value, data, operation }` | Active agent | `mut self.locked, mut self.agents, mut self.eth_windows, mut self.token_periods, call: mut Call, log: mut Log` | Same as `Execute`, but on denial does NOT revert: increments `cfg.denials`, trips breaker on 3rd denial, emits `Denied(agent, to, code)` and returns `(false, code)`. On success executes and returns `(true, 0)`. |
 | `Preview { agent, to, value, data, operation }` | Anyone | Read-only (no storage mutation) | Returns `(code, remaining_eth_per_tx, remaining_eth_window)`. Zero state modifications. |
 | `State { agent }` | Anyone | Read-only (no storage mutation) | Returns canonical `policy::encode_state(agent_state)` bytes for off-chain CLI prediction. |
 | `Pause` | Safe or Guardian | `mut self.paused, log: mut Log` | Emergency kill switch. Guardian cannot touch funds or agent registrations. |
@@ -82,15 +82,15 @@ In `ingots/cli`, Fe's static effect system proves that subcommands possess stric
 
 ## 7. Storage Layout & Gas Economics
 
-`LeashModule` maintains two primary storage mappings per agent:
+`LeashModule` keeps three storage mappings per agent:
 1. `agents: StorageMap<Address, AgentConfig>` (1 slot per agent holding active status, expiry, label, circuit-breaker tripped flag, and denial count).
-2. `ledgers: StorageMap<Address, AgentLedger>`:
-   - `eth_window: Window24`: 24 packed hourly buckets, each consisting of `(index << 192) | amount` = 24 words.
-   - `token_spent: [Bucket; MAX_TOKENS]`: 4 token period buckets of `(index: u64, amount: u256)` = 8 words.
-   - Total: **32 storage words per agent** (reduced from 56 words via bucket packing).
+2. `eth_windows: StorageMap<Address, Window24>`: 24 packed hourly buckets, each `(index << 192) | amount` = 24 words.
+3. `token_periods: StorageMap<Address, TokenPeriods>`: 4 token period buckets of `(index: u64, amount: u256)` = 8 words.
+
+The ledger is 32 words per agent, stored as two parts so that a call loads only the part the policy reads for it. `policy::reads_eth_window` is true only when the call moves ETH (or rate limiting is on), and `policy::reads_token_periods` only when the call carries calldata. The module loads only those parts and stores back only those, and the policy test `test_ledger_reads` checks that `decide_spend` returns the same decision with the skipped part emptied. A plain ETH transfer reads 24 ledger words, a token call reads 8, and a call that moves no ETH and has no calldata reads none.
 
 ### Architectural Tradeoff: Bounded $O(1)$ Execution vs SLOAD Gas
-Reading 32 storage words during execution incurs 32 cold SLOAD operations (67,200 gas) on first access (down from 117,600 gas for 56 words), driving total execution cost through `LeashModule` and the Safe to ~200k–220k gas (saving ~61k–81k gas per transaction). This design was chosen deliberately:
+A cold SLOAD costs 2,100 gas, so the ETH window costs up to 50,400 gas to read and the token periods 16,800. This design was chosen deliberately:
 - **Safety**: Bounded $O(1)$ ring-buffer traversal prevents out-of-gas griefing and unbounded transaction-log loops.
 - **Granularity**: ETH spending is tracked with 1-hour resolution across a rolling 24-hour window, while token rules use discrete 24-hour UTC calendar epochs (`now / 86400`) to save 192 additional storage words.
 

@@ -13,7 +13,7 @@ If the CLI were to scrape events, reconstruct state from logs, or maintain its o
 ## Decision
 
 1. **On-Chain State Query (`State { agent }`)**:
-   - `LeashModule` exposes a view message `State { agent: Address } -> Bytes` that loads the stored `AgentConfig` and `AgentLedger`, synthesizes `AgentState`, and exports it using `policy::encode_state(state)`.
+   - `LeashModule` exposes a view message `State { agent: Address } -> Bytes` that loads the stored `AgentConfig`, ETH window and token periods, synthesizes `AgentState`, and exports it using `policy::encode_state(state)`.
    - `State` declares NO mutable storage effects (`uses` has no `mut` storage or external calls).
    - Anyone can call `State` off-chain via standard `eth_call`.
 

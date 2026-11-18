@@ -63,7 +63,7 @@ Reproduce: `node scripts/build-policy.mjs demo/deployments/sepolia-safe-policy.j
 
 An earlier Sepolia run with the default policy and the `MockSafe` test account (which records calls without executing them) is in [`demo/deployments/sepolia.json`](demo/deployments/sepolia.json) and [`sepolia-run.json`](demo/deployments/sepolia-run.json).
 
-### The 5-Transaction Canonical Scenario (Reproduce in 7 Seconds)
+### The 5-Transaction Canonical Scenario
 
 The automated demo launches an ephemeral local Anvil node, deploys `MockSafe`, `LeashModule`, and an ERC-20 token, registers an agent session key, and executes five canonical rogue agent transactions comparing off-chain CLI predictions against atomic on-chain execution:
 
@@ -85,12 +85,12 @@ The automated demo launches an ephemeral local Anvil node, deploys `MockSafe`, `
 
 ### Prerequisites
 - **Fe Compiler**: `fe 26.6.0 (5b3f96a)` ([feup installation](https://github.com/argotorg/fe))
-- **Node.js**: `v20+` or `v22+`
+- **Node.js**: 22 (the version CI and the Vercel functions use; `package.json` pins `22.x`)
 - **Foundry**: `anvil` and `cast` (v1.9.0+)
 
 ### One-Command Full Build & Demo
 ```sh
-# Setup dependencies, run checks, execute all tests, and run local demo (< 15 seconds)
+# Set up dependencies, run checks, run all tests, and run the local demo
 make setup && make all && make demo
 ```
 
@@ -176,8 +176,8 @@ Both share the exact same code, constants, and cryptographic fingerprint (`kecca
 
 | Message | Caller | Effects | Description |
 |---|---|---|---|
-| `Execute { to, value, data, operation }` | Active agent | `mut self.locked, mut self.ledgers, call: mut Call, log: mut Log` | Evaluates `policy::decide`. Reverts on denial with custom error. On allow, records spend and invokes `Safe.execTransactionFromModule`. |
-| `TryExecute { to, value, data, operation }` | Active agent | `mut self.locked, mut self.ledgers, call: mut Call, log: mut Log` | Same as `Execute`, but on denial emits `Denied(agent, to, code)` and returns `(false, code)` without reverting. |
+| `Execute { to, value, data, operation }` | Active agent | `mut self.locked, mut self.eth_windows, mut self.token_periods, call: mut Call, log: mut Log` | Evaluates `policy::decide`. Reverts on denial with custom error. On allow, records spend and invokes `Safe.execTransactionFromModule`. |
+| `TryExecute { to, value, data, operation }` | Active agent | `mut self.locked, mut self.eth_windows, mut self.token_periods, call: mut Call, log: mut Log` | Same as `Execute`, but on denial emits `Denied(agent, to, code)` and returns `(false, code)` without reverting. |
 | `Preview { agent, to, value, data, operation }` | Anyone | Read-only | Returns `(code, remaining_eth_per_tx, remaining_eth_window)`. Zero state modifications. |
 | `State { agent }` | Anyone | Read-only | Returns canonical encoded `AgentState` bytes for off-chain CLI prediction. |
 | `Pause` | Safe or Guardian | `mut self.paused, log: mut Log` | Emergency kill-switch. Guardian cannot touch funds or agent registrations. |
@@ -319,8 +319,8 @@ Located in [`test/attacks/src/`](test/attacks/src/):
 - **Attack 25**: Token Drip Under the Per-Transfer Cap → Sixth piece rejected (`TokenWindowCapExceeded`, code 21); `transferFrom` counts too
 
 ### Bytecode Size & Headroom (E3)
-- **Runtime Code Size**: **18,892 bytes** (well below the 24,576-byte EIP-170 limit, 0 compiler warnings; measured with `fe build --emit sizes`, and checked in CI).
-- **EIP-170 Headroom**: **5,684 bytes (23.1%)** with all policy rules, the ERC-20 guard and per-token ledger, the Aave guard, the circuit breaker, and packed hourly ETH buckets.
+- **Runtime Code Size**: **22,182 bytes** (well below the 24,576-byte EIP-170 limit, 0 compiler warnings; measured with `fe build --emit sizes`, and checked in CI).
+- **EIP-170 Headroom**: **2,394 bytes (9.7%)** with all policy rules, the ERC-20 guard and per-token ledger, the Aave guard, the circuit breaker, and packed hourly ETH buckets.
 - **Initcode Size**: 19,147 bytes (< 49,152 bytes EIP-3860 limit).
 - Gas profiling details available in [`docs/GAS.md`](docs/GAS.md).
 
@@ -333,7 +333,7 @@ Known limits of this release, each with where it is handled:
 1. **Hourly Bucket Approximation**: The 24-hour rolling window uses 24 discrete 1-hour buckets. Spend within the current hour rolls over cleanly, but timestamps within the same 60-minute bucket are grouped together.
 2. **Circuit Breaker Denial Accounting (`Execute` vs `TryExecute`)**: In EVM execution semantics, `execute()` provides atomic fail-safe execution that reverts the EVM transaction on policy denial via `revert_error(PolicyViolation { code })`. Because an EVM revert rolls back all state modifications within that transaction frame, storage writes (such as incrementing `cfg.denials` or tripping `cfg.tripped`) do not persist during an `execute()` revert. Callers and relayers requiring denial tracking and auto-pause trip behavior call `tryExecute()`, which records denials in storage and emits `Denied`/`CircuitTrippedEvent` without reverting the top-level EVM frame. Once tripped (`cfg.tripped == true`), subsequent calls to *both* `execute()` and `tryExecute()` are locked out until the Safe owner calls `resetBreaker(agent)`.
 3. **Storage and Gas Overhead (32 Storage Words, ~200k–220k gas)**: Every transaction evaluation accesses 32 storage words (24 packed hourly ETH buckets in `Window24` [24 words] + 4 token period buckets [8 words]) in `AgentLedger`. At 2,100 gas per cold SLOAD, storage reading alone consumes 67.2k gas (reduced from 117.6k gas by packing ETH buckets), bringing total end-to-end transaction execution through `LeashModule` and the Safe to ~202k–218k gas (down from ~264k–299k gas, a ~25% reduction). This fixed ring-buffer design was intentionally chosen over transaction-log or dynamic array structures to guarantee bounded $O(1)$ loop execution and eliminate out-of-gas griefing, but introduces a higher baseline SLOAD cost than single-word nonce checks. Full gas breakdown in [`docs/GAS.md`](docs/GAS.md).
-4. **Declarative Policy Builder with Cryptographic Parity**: While default addresses (`ADDR_TOKEN`, `ADDR_TREASURY`) and caps are constants in `ingots/policy/src/config.fe` to maximize contract headroom (18,892 B runtime size, 5,684 B headroom), users do not need to write Fe manually to deploy custom policies. The declarative policy generator `scripts/build-policy.mjs` (`npm run policy:build <my_policy.json>`) calculates the Keccak-256 fingerprint, validates structural invariants, executes compile-time const validation (`validate_policy_invariants`), compiles both native CLI and EVM targets, and exports standalone deployment bundles to a separate output directory without dirtying the working tree. Continuous off-chain and on-chain fingerprint parity for custom policies is enforced by the `custom-policy` CI job.
+4. **Declarative Policy Builder with Cryptographic Parity**: While default addresses (`ADDR_TOKEN`, `ADDR_TREASURY`) and caps are constants in `ingots/policy/src/config.fe` to maximize contract headroom (22,182 B runtime size, 2,394 B headroom), users do not need to write Fe manually to deploy custom policies. The declarative policy generator `scripts/build-policy.mjs` (`npm run policy:build <my_policy.json>`) calculates the Keccak-256 fingerprint, validates structural invariants, executes compile-time const validation (`validate_policy_invariants`), compiles both native CLI and EVM targets, and exports standalone deployment bundles to a separate output directory without dirtying the working tree. Continuous off-chain and on-chain fingerprint parity for custom policies is enforced by the `custom-policy` CI job.
 5. **Native CLI platforms**: Fe 26.6.0 links native binaries on x86-64 Linux and AArch64 macOS. Windows users run the CLI under WSL; the Windows demo uses the labelled TypeScript mirror (see the demo section).
 6. **Agent tool server**: `bin/leash-serve.ts` asks the Fe `leash` binary for each verdict when one is present. Its planning session (`record`) keeps the planned ledger (ETH buckets and the token period) in TypeScript and passes it to every check as `--state`, so the verdict still comes from the policy.
 7. **Safe Compatibility & Canonical v1.4.1 Integration Testing**: Leash is thoroughly tested and verified against official `@safe-global/safe-contracts` (v1.4.1) Safe singleton and proxy bytecode in EVM via `npm run test:safe` (14/14 tests covering multisig setup, module enablement via `execTransaction`, agent registration, ETH/ERC-20 execution, guardian pause, breaker trip/reset, and atomic reverts). It is also deployed on Sepolia behind a canonical Safe v1.4.1, where the scenario moved real test funds (see [Live on Sepolia](#live-on-sepolia-real-safe-v141)); it has not been deployed to mainnet.
@@ -341,7 +341,7 @@ Known limits of this release, each with where it is handled:
 9. **Swaps are refused**: the policy decodes the first 100 calldata bytes, and a Uniswap call's recipient and token path lie past them, so a listed router is always refused (`SwapNotAllowed`, 16). Checked swaps need a longer calldata window, which costs contract size.
 10. **One policy for every agent & Inactive Shipped Rules**: `LeashModule` enforces `default_policy()` for every agent, the policy the CLI predicts with and the fingerprint names. Recipient allowlists (`A8`), rate limiting (`A9`) and cooldowns (`A10`) are fully implemented and verified across 31 attack tests in `test/attacks/`, but disabled in `default_policy()` (`n_recipients: 0`, `max_actions: 0`, `cooldown: 0`) to minimize baseline storage consumption and keep demo execution unconstrained.
 11. **On-chain fingerprint is a constant**: `LeashModule.fingerprint()` returns the default policy's fingerprint as a compiled-in constant (computing Keccak over the 138-word policy on-chain does not fit the size limit). The `module` test `test_fingerprint_golden` deploys the contract and checks that its constant equals `fingerprint(default_policy())` computed by the policy code, and the CLI test `test_cli_fingerprint_golden` checks the CLI against the same value, so the two cannot silently diverge.
-12. **Contract size headroom**: `LeashModule` has 5,684 bytes (23.1%) of headroom under the EIP-170 limit after storage packing (runtime size 18,892 bytes, see E3).
+12. **Contract size headroom**: `LeashModule` has 2,394 bytes (9.7%) of headroom under the EIP-170 limit (runtime size 22,182 bytes, see E3).
 
 
 

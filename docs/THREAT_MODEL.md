@@ -28,8 +28,8 @@
 
 | Entry Point | Access Gate | State Mutated | External Calls | Threat Surface |
 |---|---|---|---|---|
-| `Execute` | `msg.sender == active agent` | `locked`, `ledgers` | `Safe.execTransactionFromModule` | Fund drain, limit bypass, reentrancy. Mitigated by `policy::decide`, CEI, and reentrancy lock. |
-| `TryExecute` | `msg.sender == active agent` | `locked`, `ledgers` | `Safe.execTransactionFromModule` (only on Allow) | Reentrancy, silent denial exploitation. Mitigated by `policy::decide`, CEI, and reentrancy lock. |
+| `Execute` | `msg.sender == active agent` | `locked`, `eth_windows`, `token_periods` | `Safe.execTransactionFromModule` | Fund drain, limit bypass, reentrancy. Mitigated by `policy::decide`, CEI, and reentrancy lock. |
+| `TryExecute` | `msg.sender == active agent` | `locked`, `eth_windows`, `token_periods` | `Safe.execTransactionFromModule` (only on Allow) | Reentrancy, silent denial exploitation. Mitigated by `policy::decide`, CEI, and reentrancy lock. |
 | `Preview` | Public | None | None | Information disclosure (budget remaining). Read-only by design. |
 | `State` | Public | None | None | Information disclosure (budget remaining). Read-only by design. |
 | `Pause` | Safe or Guardian | `paused` | None | Denial of Service (griefing). Mitigated: Safe can immediately unpause or replace guardian. |

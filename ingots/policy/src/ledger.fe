@@ -5,15 +5,34 @@ use ingot::types::{
     BUCKETS,
     BUCKET_LEN,
     Bucket,
+    Calldata,
     Policy,
     TOKEN_PERIOD,
     Timestamp,
     Tx,
     Window24,
 }
+use std::evm::units::Wei
 
 pub const U256_MAX: u256 = 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 pub const ETH_AMOUNT_MAX: u256 = 0x0000000000000000ffffffffffffffffffffffffffffffffffffffffffffffff
+
+// Which parts of the ledger decide_spend and record_allowed can depend on for one call. LeashModule
+// loads only those parts from storage and passes the rest empty (see test_ledger_reads).
+//
+// The ETH window is read by the window cap (rule 10) and written by record_allowed only when the call
+// moves ETH. Every amount in the window passed rule 10 when it was booked, so the window never holds
+// more than max_per_window; a call that moves no ETH adds 0 to that and rule 10 cannot refuse it,
+// whatever the window holds. With rate limiting on, the module also reads its action count from it.
+pub fn reads_eth_window(_ value: Wei, _ policy: ref Policy) -> bool {
+    value > Wei::zero() || policy.max_actions_per_window > 0
+}
+
+// The token periods are read only by check_transfer, which needs a decoded transfer, and written only
+// for the TokenSpend it returns, so a call without calldata uses neither.
+pub fn reads_token_periods(_ data: ref Calldata) -> bool {
+    data.len > 0
+}
 
 pub fn checked_add_saturate(_ a: u256, _ b: u256) -> u256 {
     if U256_MAX - a < b { U256_MAX } else { a + b }

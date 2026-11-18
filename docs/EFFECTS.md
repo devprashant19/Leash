@@ -8,7 +8,7 @@ Fe 26.6.0 introduces static capability security via explicit `uses (...)` clause
 
 1. **Pure Core**: The entire policy evaluation engine (`ingots/policy`) is strictly pure. `policy::decide` has no `uses` clause. It cannot read contract storage, cannot emit EVM logs, cannot initiate external calls, and cannot perform OS I/O.
 2. **Principle of Least Privilege**: In `LeashModule`, each message receiver requests only the specific contract fields and EVM capabilities required for its execution.
-3. **Privilege Separation**: A role (such as `guardian`) cannot mutate fields (such as `agents`, `ledgers`, or `paused`) outside its declared capability set. Attempting to access an unlisted field is rejected by the Fe compiler (`error[8-0116]: contract field is not in this handler's uses`).
+3. **Privilege Separation**: A role (such as `guardian`) cannot mutate fields (such as `agents`, `eth_windows`, `token_periods`, or `paused`) outside its declared capability set. Attempting to access an unlisted field is rejected by the Fe compiler (`error[8-0116]: contract field is not in this handler's uses`).
 4. **Backend-Specific Effect Binding**:
    - On native target (`ingots/cli`): Capabilities are bound to standard OS handles (`args: Args, out: mut Stdout, err: mut Stderr, fs: Fs`).
    - On EVM target (`ingots/module`): Capabilities are bound to EVM host primitives (`ctx: Ctx, call: mut Call, log: mut Log`).
@@ -28,9 +28,9 @@ Fe 26.6.0 introduces static capability security via explicit `uses (...)` clause
 | `module` | `RevokeAgent` | `ctx, safe, mut agents, mut log` | Safe-only administration: Immediate session key revocation. | `test_unauthorized_revoke_agent_rejected` |
 | `module` | `SetGuardian` | `ctx, safe, mut guardian, mut log` | Safe-only administration: Guardian address rotation. | `test_unauthorized_set_guardian_rejected` |
 | `module` | `ResetBreaker` | `ctx, safe, mut agents, mut log` | Circuit breaker recovery: Safe-only reset. Guardian cannot clear tripped breakers. | `test_attack_08_guardian_cannot_reset_breaker` |
-| `module` | `Preview` | `ctx, paused, agents, ledgers` | Read-only simulation: Read-only storage view; cannot initiate calls or emit logs. | Checked by compiler |
-| `module` | `Execute` | `ctx, safe, mut call, mut log, paused, mut locked, agents, mut ledgers` | Checks-effects-interactions: Reentrancy lock (`mut locked`), state mutation (`mut ledgers`), Safe dispatch (`mut call`), event emission (`mut log`). | `test_reentrancy_rejected_reentrant_flag` |
-| `module` | `TryExecute` | `ctx, safe, mut call, mut log, paused, mut locked, mut agents, mut ledgers` | Non-reverting execution: Can update breaker denial counters (`mut agents`) and record state (`mut ledgers`). | `test_circuit_breaker_trips_and_resets` |
+| `module` | `Preview` | `ctx, paused, agents, eth_windows, token_periods` | Read-only simulation: Read-only storage view; cannot initiate calls or emit logs. | Checked by compiler |
+| `module` | `Execute` | `ctx, safe, mut call, mut log, paused, mut locked, agents, mut eth_windows, mut token_periods` | Checks-effects-interactions: Reentrancy lock (`mut locked`), state mutation (`mut eth_windows, mut token_periods`), Safe dispatch (`mut call`), event emission (`mut log`). | `test_reentrancy_rejected_reentrant_flag` |
+| `module` | `TryExecute` | `ctx, safe, mut call, mut log, paused, mut locked, mut agents, mut eth_windows, mut token_periods` | Non-reverting execution: Can update breaker denial counters (`mut agents`) and record state (`mut eth_windows, mut token_periods`). | `test_circuit_breaker_trips_and_resets` |
 | `cli` | `main()` | `args: Args, out: mut Stdout, err: mut Stderr, fs: Fs` | Sandboxed CLI: Explicit OS arguments, standard streams, and filesystem sandbox. | Native link verification |
 
 ---

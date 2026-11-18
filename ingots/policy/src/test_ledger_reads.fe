@@ -1,0 +1,232 @@
+use ingot::config::{ADDR_TOKEN, ADDR_TREASURY, default_policy}
+use ingot::ledger::{reads_eth_window, reads_token_periods, record}
+use ingot::rules::{Decision, decide_spend}
+use ingot::test_decode::{make_approve_calldata, make_transfer_calldata, make_transfer_from_calldata}
+use ingot::types::{
+    Address,
+    AgentState,
+    Bucket,
+    Calldata,
+    MAX_CALLDATA,
+    MAX_TOKENS,
+    Operation,
+    Timestamp,
+    Tx,
+    Window24,
+    verdict_code,
+}
+use std::evm::units::{ether, wei}
+
+// LeashModule loads the ETH window only when reads_eth_window is true and the token periods only
+// when reads_token_periods is true. These tests pin down that decide_spend gives the same decision
+// with the skipped part emptied, so a partial load cannot change a verdict.
+
+const HUNDRED_TOKENS: u256 = 100_000_000_000_000_000_000
+const UNLISTED: Address = Address::new(0xdead000000000000000000000000000000000001)
+
+fn no_calldata() -> Calldata {
+    Calldata { len: 0, bytes: [0; MAX_CALLDATA] }
+}
+
+fn now() -> Timestamp {
+    Timestamp::from_seconds(20_000 * 86_400 + 3_600)
+}
+
+fn same(_ a: Decision, _ b: Decision) -> bool {
+    if verdict_code(a.verdict) != verdict_code(b.verdict) {
+        return false
+    }
+    match a.spend {
+        Option::None => match b.spend {
+            Option::None => true,
+            Option::Some(_) => false,
+        },
+        Option::Some(x) => match b.spend {
+            Option::None => false,
+            Option::Some(y) => x.idx == y.idx && x.amount == y.amount,
+        },
+    }
+}
+
+// The agent has used the whole 0.5 ETH window and 500 of its tokens this period.
+fn busy_state() -> AgentState {
+    let policy = default_policy()
+    var state = AgentState::empty()
+    var i: u32 = 0
+    while i < 5 {
+        let eth = Tx {
+            to: ADDR_TREASURY,
+            value: ether(1) / 10,
+            data: no_calldata(),
+            op: Operation::Call,
+            now: now(),
+        }
+        assert(
+            verdict_code(decide_spend(eth, policy, state).verdict) == 0,
+        )
+        record(eth, policy, mut state)
+        let tok = Tx {
+            to: ADDR_TOKEN,
+            value: wei(0),
+            data: make_transfer_calldata(to: ADDR_TREASURY, amt: HUNDRED_TOKENS),
+            op: Operation::Call,
+            now: now(),
+        }
+        assert(
+            verdict_code(decide_spend(tok, policy, state).verdict) == 0,
+        )
+        record(tok, policy, mut state)
+        i += 1
+    }
+    state
+}
+
+fn without_eth_window(_ s: AgentState) -> AgentState {
+    var t = s
+    t.eth_window = Window24::empty()
+    t.action_window = Window24::empty()
+    t
+}
+
+fn without_token_periods(_ s: AgentState) -> AgentState {
+    var t = s
+    t.token_spent = [Bucket { index: 0, amount: 0 }; MAX_TOKENS]
+    t
+}
+
+#[test]
+fn test_reads_eth_window_only_when_the_call_moves_eth() {
+    let policy = default_policy()
+    assert(!reads_eth_window(wei(0), policy))
+    assert(reads_eth_window(wei(1), policy))
+    assert(reads_eth_window(ether(1), policy))
+}
+
+#[test]
+fn test_reads_eth_window_when_rate_limiting_is_on() {
+    var policy = default_policy()
+    policy.max_actions_per_window = 3
+    assert(reads_eth_window(wei(0), policy))
+}
+
+#[test]
+fn test_reads_token_periods_only_with_calldata() {
+    assert(!reads_token_periods(no_calldata()))
+    assert(
+        reads_token_periods(make_transfer_calldata(to: ADDR_TREASURY, amt: 1)),
+    )
+}
+
+#[test]
+fn test_calls_without_eth_decide_the_same_without_the_eth_window() {
+    let policy = default_policy()
+    let full = busy_state()
+    let partial = without_eth_window(full)
+    var txs: [Tx; 6] = [
+        Tx {
+            to: ADDR_TOKEN,
+            value: wei(0),
+            data: make_transfer_calldata(to: ADDR_TREASURY, amt: 1),
+            op: Operation::Call,
+            now: now(),
+        },
+        Tx {
+            to: ADDR_TOKEN,
+            value: wei(0),
+            data: make_transfer_calldata(to: UNLISTED, amt: 1),
+            op: Operation::Call,
+            now: now(),
+        },
+        Tx {
+            to: ADDR_TOKEN,
+            value: wei(0),
+            data: make_transfer_from_calldata(from: ADDR_TREASURY, to: ADDR_TREASURY, amt: 1),
+            op: Operation::Call,
+            now: now(),
+        },
+        Tx {
+            to: ADDR_TOKEN,
+            value: wei(0),
+            data: make_approve_calldata(spender: ADDR_TREASURY, amt: 1),
+            op: Operation::Call,
+            now: now(),
+        },
+        Tx { to: UNLISTED, value: wei(0), data: no_calldata(), op: Operation::Call, now: now() },
+        Tx {
+            to: ADDR_TREASURY,
+            value: wei(0),
+            data: no_calldata(),
+            op: Operation::DelegateCall,
+            now: now(),
+        },
+    ]
+    var i: usize = 0
+    while i < 6 {
+        assert(!reads_eth_window(txs[i].value, policy))
+        assert(
+            same(
+                decide_spend(txs[i], policy, full),
+                decide_spend(txs[i], policy, partial),
+            ),
+        )
+        i += 1
+    }
+}
+
+#[test]
+fn test_calls_without_calldata_decide_the_same_without_the_token_periods() {
+    let policy = default_policy()
+    // Window used up to 0.4 ETH so both an allowed and a refused ETH transfer are covered.
+    var full = busy_state()
+    full.eth_window = Window24::empty()
+    var i: u32 = 0
+    while i < 4 {
+        let eth = Tx {
+            to: ADDR_TREASURY,
+            value: ether(1) / 10,
+            data: no_calldata(),
+            op: Operation::Call,
+            now: now(),
+        }
+        record(eth, policy, mut full)
+        i += 1
+    }
+    let partial = without_token_periods(full)
+    var txs: [Tx; 4] = [
+        Tx {
+            to: ADDR_TREASURY,
+            value: ether(1) / 10,
+            data: no_calldata(),
+            op: Operation::Call,
+            now: now(),
+        },
+        Tx {
+            to: ADDR_TREASURY,
+            value: ether(1) / 5,
+            data: no_calldata(),
+            op: Operation::Call,
+            now: now(),
+        },
+        Tx { to: ADDR_TOKEN, value: wei(0), data: no_calldata(), op: Operation::Call, now: now() },
+        Tx { to: UNLISTED, value: wei(1), data: no_calldata(), op: Operation::Call, now: now() },
+    ]
+    var j: usize = 0
+    while j < 4 {
+        assert(!reads_token_periods(txs[j].data))
+        let a = decide_spend(txs[j], policy, full)
+        assert(same(a, decide_spend(txs[j], policy, partial)))
+        // A call without calldata never books tokens, so the skipped periods are never written.
+        match a.spend {
+            Option::None => {},
+            Option::Some(_) => assert(false),
+        }
+        j += 1
+    }
+    // The 0.1 ETH transfer is allowed (0.5 ETH reached) and the 0.2 ETH one is refused.
+    assert(
+        verdict_code(decide_spend(txs[0], policy, full).verdict) == 0,
+    )
+    assert(
+        verdict_code(decide_spend(txs[1], policy, full).verdict) != 0,
+    )
+}

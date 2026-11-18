@@ -22,6 +22,12 @@ pub struct AgentLedger { pub eth_window: Window24, pub token_spent: [Bucket; MAX
 impl Copy for AgentLedger {}
 impl Snapshot for AgentLedger {}
 
+// An agent's ETH window and token periods are stored apart, so a call loads and stores only the
+// part the policy reads for it (policy::reads_eth_window, policy::reads_token_periods).
+pub struct TokenPeriods { pub spent: [Bucket; MAX_TOKENS] }
+impl Copy for TokenPeriods {}
+impl Snapshot for TokenPeriods {}
+
 fn resolve_op(_ op_u8: u8) -> policy::types::Operation {
     match policy::types::operation_from_u8(op_u8) {
         Option::Some(o) => o,
@@ -76,7 +82,7 @@ fn extract_selector(_ data: ref Bytes) -> u32 {
 fn eval_tx(
     _ to: Address,
     _ value: u256,
-    _ data: ref Bytes,
+    _ cd: Calldata,
     _ operation: u8,
     _ paused: bool,
     _ cfg: ref AgentConfig,
@@ -96,7 +102,6 @@ fn eval_tx(
         token_spent: ledger.token_spent,
     }
     let op = resolve_op(operation)
-    let cd = policy::calldata_from_bytes(data)
     let tx = Tx { to, value: wei(value), data: cd, op, now }
     let decision = policy::decide_spend(tx, pol, st)
     let verdict = decision.verdict
@@ -113,6 +118,62 @@ fn eval_tx(
         Verdict::Deny(r) => policy::reason_code(r),
     }
 
+    (code, verdict)
+}
+
+// Evaluates a call for `agent` and, if it is allowed, books it. Loads from storage only the ledger
+// parts the policy reads for this call and stores back only those (record_allowed changes no other
+// part). Callers run this before the Safe call (checks-effects-interactions).
+fn eval_and_record(
+    _ agent: Address,
+    _ to: Address,
+    _ value: u256,
+    _ data: ref Bytes,
+    _ operation: u8,
+    _ paused: bool,
+    _ cfg: ref AgentConfig,
+    _ now: Timestamp,
+) -> (u8, Verdict)
+uses (
+    eth_windows: mut StorageMap<Address, Window24>,
+    token_periods: mut StorageMap<Address, TokenPeriods>,
+)
+{
+    let needs_eth = policy::reads_eth_window(wei(value), policy::config::default_policy())
+    let cd = policy::calldata_from_bytes(data)
+    let needs_tokens = policy::reads_token_periods(cd)
+    var ledger = AgentLedger {
+        eth_window: Window24::empty(),
+        token_spent: [Bucket { index: 0, amount: 0 }; MAX_TOKENS],
+    }
+    if needs_eth {
+        ledger.eth_window = eth_windows.get(key: agent)
+    }
+    if needs_tokens {
+        ledger.token_spent = token_periods.get(key: agent).spent
+    }
+    let (code, verdict) = eval_tx(
+        to,
+        value,
+        cd,
+        operation,
+        paused,
+        cfg,
+        mut ledger,
+        now,
+        record: true,
+    )
+    if code == 0 {
+        if needs_eth {
+            eth_windows.set(key: agent, value: ledger.eth_window)
+        }
+        if needs_tokens {
+            token_periods.set(
+                    key: agent,
+                    value: TokenPeriods { spent: ledger.token_spent },
+                )
+        }
+    }
     (code, verdict)
 }
 
@@ -164,7 +225,8 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
     mut paused: bool,
     mut locked: bool,
     mut agents: StorageMap<Address, AgentConfig>,
-    mut ledgers: StorageMap<Address, AgentLedger>,
+    mut eth_windows: StorageMap<Address, Window24>,
+    mut token_periods: StorageMap<Address, TokenPeriods>,
 
     init(_safe: Address, _guardian: Address)
     uses (mut safe, mut guardian, mut paused, mut locked)
@@ -241,9 +303,12 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             log.emit(CircuitResetEvent { agent })
         }
 
-        State { agent } -> [u256; 36] uses (agents, ledgers, paused) {
+        State { agent } -> [u256; 36] uses (agents, eth_windows, token_periods, paused) {
             let cfg = agents.get(key: agent)
-            let ledger = ledgers.get(key: agent)
+            let ledger = AgentLedger {
+                eth_window: eth_windows.get(key: agent),
+                token_spent: token_periods.get(key: agent).spent,
+            }
             var words: [u256; 36] = [0; 36]
             words[0] = if paused { 1 } else { 0 }
             words[1] = if cfg.tripped { 1 } else { 0 }
@@ -269,18 +334,21 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
         }
 
         Preview { agent, to, value, data, operation } -> (u8, u256, u256)
-        uses (ctx, paused, agents, ledgers)
+        uses (ctx, paused, agents, eth_windows, token_periods)
         {
             let now = ctx.timestamp()
             let cfg = agents.get(key: agent)
             if !cfg.active {
                 return (policy::reason_code(policy::DenyReason::SessionExpired), 0, 0)
             }
-            var ledger = ledgers.get(key: agent)
+            var ledger = AgentLedger {
+                eth_window: eth_windows.get(key: agent),
+                token_spent: token_periods.get(key: agent).spent,
+            }
             let (code, _v) = eval_tx(
                 to,
                 value,
-                data,
+                policy::calldata_from_bytes(data),
                 operation,
                 paused,
                 cfg,
@@ -301,7 +369,17 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
         // denial counters and breaker tripping cannot persist during an Execute revert.
         // Callers desiring denial recording and auto-pause trip behavior should call TryExecute.
         Execute { to, value, data, operation } -> bool
-        uses (ctx, safe, mut call, mut log, paused, mut locked, agents, mut ledgers)
+        uses (
+            ctx,
+            safe,
+            mut call,
+            mut log,
+            paused,
+            mut locked,
+            agents,
+            mut eth_windows,
+            mut token_periods,
+        )
         {
             if locked {
                 revert_error(Reentrant {})
@@ -320,23 +398,20 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             }
 
             let now = ctx.timestamp()
-            var ledger = ledgers.get(key: agent)
-            let (_code, verdict) = eval_tx(
+            let (_code, verdict) = eval_and_record(
+                agent,
                 to,
                 value,
                 data,
                 operation,
                 paused,
                 cfg,
-                mut ledger,
                 now,
-                record: true,
             )
             match verdict {
                 Verdict::Deny(r) => revert_for(r),
                 Verdict::Allow => {},
             }
-            ledgers.set(key: agent, value: ledger)
             let success = forward(safe, agent, to, value, data, operation)
             locked = false
             success
@@ -346,7 +421,17 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
         // On denial, it increments cfg.denials, trips the circuit breaker if the threshold is met,
         // and emits the Denied event without reverting the EVM frame, persisting the denial state.
         TryExecute { to, value, data, operation } -> (bool, u8)
-        uses (ctx, safe, mut call, mut log, paused, mut locked, mut agents, mut ledgers)
+        uses (
+            ctx,
+            safe,
+            mut call,
+            mut log,
+            paused,
+            mut locked,
+            mut agents,
+            mut eth_windows,
+            mut token_periods,
+        )
         {
             if locked {
                 revert_error(Reentrant {})
@@ -365,17 +450,15 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
             }
 
             let now = ctx.timestamp()
-            var ledger = ledgers.get(key: agent)
-            let (code, verdict) = eval_tx(
+            let (code, verdict) = eval_and_record(
+                agent,
                 to,
                 value,
                 data,
                 operation,
                 paused,
                 cfg,
-                mut ledger,
                 now,
-                record: true,
             )
             match verdict {
                 Verdict::Deny(_r) => {
@@ -390,7 +473,6 @@ pub contract LeashModule uses (ctx: Ctx, call: mut Call, log: mut Log) {
                     (false, code)
                 },
                 Verdict::Allow => {
-                    ledgers.set(key: agent, value: ledger)
                     let success = forward(safe, agent, to, value, data, operation)
                     locked = false
                     (success, 0)

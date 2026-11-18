@@ -54,6 +54,7 @@ use test_guard::*
 use test_escalation::*
 use test_aave_usd::*
 use test_token_window::*
+use test_ledger_reads::*
 
 pub fn version() -> u32 {
     1

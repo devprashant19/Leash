@@ -1392,4 +1392,23 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `fe --version`: `fe 26.6.0 (5b3f96a)`
   - `fe fmt --check ingots && fe fmt --check test`: clean
   - `fe check`: exit 0
+- **Reviewed by human**: yes (the author asked for these fixes and approved them).
+
+## 2026-11-18 — Load only the ledger part a call needs (gas)
+- **AI-assisted**: yes (Claude Code).
+- **Changes**:
+  - `ingots/policy/src/ledger.fe`: `reads_eth_window(value, policy)` (true when the call moves ETH or rate limiting is on) and `reads_token_periods(calldata)` (true when the call has calldata), with the argument for why `decide_spend` cannot depend on the skipped part.
+  - `ingots/policy/src/test_ledger_reads.fe` (new, 5 tests, written first and seen failing to compile): the predicates, and that `decide_spend` gives the same verdict and token spend with the skipped part emptied, for a ledger at its 0.5 ETH and 500-token limits.
+  - `ingots/module/src/lib.fe`: the ledger is stored as `eth_windows` and `token_periods`; `eval_and_record` loads only the parts the policy reads for the call and stores back only those, before the Safe call. `State` and `Preview` still read both.
+  - `api/_assets/artifacts/LeashModule.bin` synced; `demo/deployments/LeashModule.metadata.json` regenerated (the committed copy was stale: `state()` returned 60 words and `verifyFingerprint` was missing). The bundled Linux CLI rebuilt in Ubuntu 24.04 is byte-identical, so it is unchanged.
+  - Size and storage figures updated in README, SUBMISSION, ARCHITECTURE, EFFECTS, THREAT_MODEL, ADR 006, the dashboard and the page; README and SUBMISSION no longer promise run times ("7 seconds", "< 15 seconds") that were never measured, and give Node 22 as the version used.
+- **Verification** (raw):
+  - `fe test ingots/policy` before the policy change: `policy::compile` FAILED (`reads_eth_window`, `reads_token_periods` not found).
+  - `fe test`: `test result: ok. 172 passed; 0 failed`
+  - `fe test --backend native` (Ubuntu 24.04 container): `test result: ok. 137 passed; 0 failed`
+  - `fe build ingots/module --emit sizes`: `runtime: 22182 bytes (17953 code, 4229 data, 0 embedded)` (was 18892)
+  - `npm run test:web` (Windows, TypeScript mirror predictions): `All 17 web checks passed.`
+  - `npm run test:safe`: `ALL CANONICAL SAFE v1.4.1 INTEGRATION TESTS PASSED (14/14)!`
+  - `npm run test:fuzz`: `Congruent Verdicts: 200/200 (100.0%)`
+  - In-memory EVM gas, demo steps 1–5, before → after: 252,393 → 239,386; 233,282 → 183,977; 135,002 → 123,068; 117,532 → 54,696; 143,473 → 97,362.
 - **Reviewed by human**: pending.
