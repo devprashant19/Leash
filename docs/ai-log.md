@@ -1378,3 +1378,18 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `fe check`: clean (exit code 0).
   - Documentation diff check.
 - **Reviewed by human**: yes, verified and confirmed.
+
+## 2026-11-18 — Doc accuracy fixes after a judge-style review
+- **AI-assisted**: yes (Claude Code).
+- **Changes**:
+  - `DECLARATION.md`: restored two disclosures dropped in the previous edit (a deployments registry listing testnet deployments that do not exist on-chain; canned fallback results in the API and the page) and the "WASM" simulator; "informal formal specification" now reads "informal specification".
+  - `docs/GAS.md`: removed the unsourced 30k–60k gas figure for Zodiac Roles and allowance modules (the doc already says it makes no comparative gas claim); the transient-storage roadmap item no longer says Fe lacks support (Fe 26.6.0 `std::evm` has `TSlot<T>` and `read_transient_word`); the ledger is "24 packed hourly ETH buckets + 4 two-word token period buckets" so the 32 words add up.
+  - `SUBMISSION.md`: same 32-word wording.
+  - `README.md`: the 5-transaction table showed the pre-packing gas figures; it now shows the values in `demo/run.json` (217,878 / 202,807 / 135,002 / 117,532 / 143,473).
+  - `docs/handoff/2026-11-18.md`: replaced a stale commit hash with a pointer to the tag.
+- **Verification** (raw): see below.
+
+  - `fe --version`: `fe 26.6.0 (5b3f96a)`
+  - `fe fmt --check ingots && fe fmt --check test`: clean
+  - `fe check`: exit 0
+- **Reviewed by human**: pending.
