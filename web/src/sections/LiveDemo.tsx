@@ -319,8 +319,8 @@ export function LiveDemo() {
                   </div>
                   <div className="dm-card">
                     <div className="t-mono dm-k">Tests</div>
-                    <div className="dm-v">167 + 132</div>
-                    <div className="dm-sub">EVM + native, plus 82 shared policy tests</div>
+                    <div className="dm-v">172 + 137</div>
+                    <div className="dm-sub">EVM + native, plus 87 shared policy tests</div>
                   </div>
                 </div>
                 {mode === 'quick' ? (

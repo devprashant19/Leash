@@ -107,7 +107,7 @@ make setup
 fe fmt --check ingots
 fe check
 
-# 3. Run all tests on EVM backend (167 tests)
+# 3. Run all tests on EVM backend (172 tests)
 fe test
 
 # 4. Run tests on Native backend (Linux / macOS)
