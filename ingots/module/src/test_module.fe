@@ -75,7 +75,7 @@ fn test_pause_unpause_guardian() uses (evm: mut Evm) {
 }
 
 #[cfg(target = "evm")]
-#[test(should_revert)]
+#[test(should_revert, selector = 0x9dc4246e)]
 fn test_unpause_by_non_safe_reverts() uses (evm: mut Evm) {
     let caller = evm.address()
     let safe = Address::new(0x1111)
@@ -92,7 +92,7 @@ fn test_unpause_by_non_safe_reverts() uses (evm: mut Evm) {
 }
 
 #[cfg(target = "evm")]
-#[test(should_revert)]
+#[test(should_revert, selector = 0x9dc4246e)]
 fn test_set_agent_by_non_safe_reverts() uses (evm: mut Evm) {
     let caller = evm.address()
     let safe = Address::new(0x1111)
@@ -113,7 +113,7 @@ fn test_set_agent_by_non_safe_reverts() uses (evm: mut Evm) {
 }
 
 #[cfg(target = "evm")]
-#[test(should_revert)]
+#[test(should_revert, selector = 0x0d9ab13f)]
 fn test_unregistered_agent_reverts() uses (evm: mut Evm) {
     let safe = Address::new(0x1111)
     let guardian = Address::new(0x2222)
@@ -136,7 +136,7 @@ fn test_unregistered_agent_reverts() uses (evm: mut Evm) {
 }
 
 #[cfg(target = "evm")]
-#[test(should_revert)]
+#[test(should_revert, selector = 0xd92e233d)]
 fn test_zero_address_safe_reverts() uses (evm: mut Evm) {
     let _ = evm
         .create<LeashModule>(
@@ -146,7 +146,7 @@ fn test_zero_address_safe_reverts() uses (evm: mut Evm) {
 }
 
 #[cfg(target = "evm")]
-#[test(should_revert)]
+#[test(should_revert, selector = 0xd92e233d)]
 fn test_zero_address_guardian_reverts() uses (evm: mut Evm) {
     let _ = evm
         .create<LeashModule>(
@@ -252,7 +252,7 @@ fn test_execute_allowed_eth() uses (evm: mut Evm) {
 }
 
 #[cfg(target = "evm")]
-#[test(should_revert)]
+#[test(should_revert, selector = 0x3ad3ecc3)]
 fn test_execute_denied_target_reverts() uses (evm: mut Evm) {
     let agent = evm.address()
     let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
@@ -295,7 +295,7 @@ fn test_execute_denied_target_reverts() uses (evm: mut Evm) {
 }
 
 #[cfg(target = "evm")]
-#[test(should_revert)]
+#[test(should_revert, selector = 0x3ad3ecc3)]
 fn test_execute_denied_cap_reverts() uses (evm: mut Evm) {
     let agent = evm.address()
     let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
@@ -446,7 +446,7 @@ fn test_try_execute_allowed_success() uses (evm: mut Evm) {
 }
 
 #[cfg(target = "evm")]
-#[test(should_revert)]
+#[test(should_revert, selector = 0xdc1669a6)]
 fn test_safe_call_failed_reverts() uses (evm: mut Evm) {
     let agent = evm.address()
     let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
@@ -494,7 +494,7 @@ fn test_safe_call_failed_reverts() uses (evm: mut Evm) {
 }
 
 #[cfg(target = "evm")]
-#[test(should_revert)]
+#[test(should_revert, selector = 0x0d9ab13f)]
 fn test_revoked_agent_reverts() uses (evm: mut Evm) {
     let agent = evm.address()
     let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
@@ -542,8 +542,8 @@ fn test_revoked_agent_reverts() uses (evm: mut Evm) {
 }
 
 #[cfg(target = "evm")]
-#[test(should_revert)]
-fn test_reentrancy_rejected_not_agent() uses (evm: mut Evm) {
+#[test(should_revert, selector = 0xed3ba6a6)]
+fn test_reentry_by_a_non_agent_hits_the_lock() uses (evm: mut Evm) {
     let agent = evm.address()
     let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
     let guardian = Address::new(0x2222)
@@ -560,7 +560,7 @@ fn test_reentrancy_rejected_not_agent() uses (evm: mut Evm) {
         addr: safe,
         gas: 100000,
         value: Wei::zero(),
-        message: SafeMsg::SetForwardCalls { forward: true },
+        message: SafeMsg::SetForwardCalls { forward: false },
     )
     evm.call(
         addr: safe,
@@ -574,6 +574,15 @@ fn test_reentrancy_rejected_not_agent() uses (evm: mut Evm) {
         },
     )
 
+    // The Safe calls the reenterer while it executes the module's call, and the reenterer calls
+    // Execute again: the lock refuses it before anything else is checked.
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetReenterTarget { target: reenterer },
+    )
+
     let empty_words: [u256; 0] = [0; 0]
     let empty_data: Bytes = bytes_from_words(empty_words)
     let _: bool = evm
@@ -582,7 +591,7 @@ fn test_reentrancy_rejected_not_agent() uses (evm: mut Evm) {
             gas: 1000000,
             value: Wei::zero(),
             message: LeashMsg::Execute {
-                to: reenterer,
+                to: ADDR_TREASURY,
                 value: 1000,
                 data: empty_data,
                 operation: 0,
@@ -591,8 +600,8 @@ fn test_reentrancy_rejected_not_agent() uses (evm: mut Evm) {
 }
 
 #[cfg(target = "evm")]
-#[test(should_revert)]
-fn test_reentrancy_rejected_reentrant_flag() uses (evm: mut Evm) {
+#[test(should_revert, selector = 0xed3ba6a6)]
+fn test_reentry_by_an_agent_hits_the_lock() uses (evm: mut Evm) {
     let agent = evm.address()
     let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
     let guardian = Address::new(0x2222)
@@ -609,7 +618,7 @@ fn test_reentrancy_rejected_reentrant_flag() uses (evm: mut Evm) {
         addr: safe,
         gas: 100000,
         value: Wei::zero(),
-        message: SafeMsg::SetForwardCalls { forward: true },
+        message: SafeMsg::SetForwardCalls { forward: false },
     )
     evm.call(
         addr: safe,
@@ -634,6 +643,15 @@ fn test_reentrancy_rejected_reentrant_flag() uses (evm: mut Evm) {
         },
     )
 
+    // The Safe calls the reenterer while it executes the module's call, and the reenterer calls
+    // Execute again: the lock refuses it before anything else is checked.
+    evm.call(
+        addr: safe,
+        gas: 100000,
+        value: Wei::zero(),
+        message: SafeMsg::SetReenterTarget { target: reenterer },
+    )
+
     let empty_words: [u256; 0] = [0; 0]
     let empty_data: Bytes = bytes_from_words(empty_words)
     let _: bool = evm
@@ -642,7 +660,7 @@ fn test_reentrancy_rejected_reentrant_flag() uses (evm: mut Evm) {
             gas: 1000000,
             value: Wei::zero(),
             message: LeashMsg::Execute {
-                to: reenterer,
+                to: ADDR_TREASURY,
                 value: 1000,
                 data: empty_data,
                 operation: 0,

@@ -1,0 +1,19 @@
+use policy::{PolicyCheck, check_code, check_name, default_policy, validate}
+use std::io::Stdout
+
+// `leash validate`: the structural checks of `policy::validate` on the compiled policy (sorted,
+// non-zero targets, sorted selectors, a token rule for every ERC-20 target and the reverse, clean
+// unused slots, a 24 h window). The policy is also checked at compile time; this reports by name.
+pub fn run() -> i32 uses (out: mut Stdout) {
+    let result = validate(default_policy())
+    match result {
+        PolicyCheck::Ok => {
+            println!("OK: the compiled policy passes every check")
+            0
+        },
+        _ => {
+            println!("INVALID ", check_code(result), ": ", check_name(result))
+            2
+        },
+    }
+}

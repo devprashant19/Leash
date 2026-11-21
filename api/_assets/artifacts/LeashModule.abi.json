@@ -402,7 +402,12 @@
   {
     "type": "error",
     "name": "PolicyViolation",
-    "inputs": []
+    "inputs": [
+      {
+        "name": "code",
+        "type": "uint8"
+      }
+    ]
   },
   {
     "type": "error",

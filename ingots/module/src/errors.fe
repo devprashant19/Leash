@@ -1,92 +1,24 @@
-use policy::DenyReason
+use policy::{DenyReason, reason_code}
 use std::evm::revert_error
 
-// Policy errors (codes 1..20)
-#[error]
-pub struct Paused {}
-// 0x9e87fac8
+// The errors LeashModule reverts with. Each `#[error]` struct has the standard 4-byte selector of its
+// Solidity signature, so Safe clients, Viem and block explorers decode it by name.
 
+// A refused Execute reverts with the refusal's code, the same number TryExecute returns and the CLI
+// prints: `PolicyViolation(uint8)`, selector 0x3ad3ecc3. One error with a field, rather than one error
+// per reason, keeps the module under the contract size limit.
 #[error]
-pub struct SessionExpired {}
-// 0x1fd05a4a
+pub struct PolicyViolation { pub code: u8 }
 
-#[error]
-pub struct DelegateCallBlocked {}
-// 0xe125cec9
+pub fn revert_for(_ reason: DenyReason) -> ! {
+    revert_error(PolicyViolation { code: reason_code(reason) })
+}
 
-#[error]
-pub struct TargetNotAllowed {}
-// 0x48cbf26d
-
-#[error]
-pub struct SelectorNotAllowed {}
-// 0xbdb518d2
-
-#[error]
-pub struct MalformedCalldata {}
-// 0x59170bf0
-
-#[error]
-pub struct PerTxCapExceeded {}
-// 0x66b3c6f6
-
-#[error]
-pub struct WindowCapExceeded {}
-// 0x48620e99
-
-#[error]
-pub struct TokenCapExceeded {}
-// 0x1bdfed9c
-
-#[error]
-pub struct UnlimitedApproval {}
-// 0xb84cddd8
-
-#[error]
-pub struct RecipientNotAllowed {}
-// 0x4ccc1eec
-
-#[error]
-pub struct RateLimited {}
-// 0x3f7b7a68
-
-#[error]
-pub struct CooldownActive {}
-// 0xaa9a98df
-
-#[error]
-pub struct OutsideTradingHours {}
-// 0x92180b03
-
+// Execute after the circuit breaker tripped (TryExecute returns code 15 instead).
 #[error]
 pub struct CircuitTripped {}
 // 0xc16b4f18
 
-#[error]
-pub struct SwapNotAllowed {}
-// 0x0dd99c55
-
-#[error]
-pub struct LendingNotAllowed {}
-// 0x3de87d99
-
-#[error]
-pub struct PriceUnavailable {}
-// 0xcb08be81
-
-#[error]
-pub struct UsdCapExceeded {}
-// 0x090b845e
-
-#[error]
-pub struct EscalationRequired {}
-// 0x48653cea
-
-#[error]
-pub struct TokenWindowCapExceeded {}
-// 0xa28a8ab3
-
-// Non-policy module errors
 #[error]
 pub struct NotAgent {}
 // 0x0d9ab13f
@@ -114,13 +46,3 @@ pub struct InvalidExpiry {}
 #[error]
 pub struct ZeroAddress {}
 // 0xd92e233d
-
-#[error]
-pub struct FingerprintMismatch {}
-
-#[error]
-pub struct PolicyViolation {}
-
-pub fn revert_for(_ reason: DenyReason) -> ! {
-    revert_error(PolicyViolation {})
-}

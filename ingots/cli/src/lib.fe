@@ -3,6 +3,8 @@ use ingot::check
 use ingot::explain
 use ingot::fingerprint
 use ingot::replay
+use ingot::text
+use ingot::validate
 use ingot::test_cli::*
 
 #[cfg(target = "native")]
@@ -14,7 +16,7 @@ use std::fs::Fs
 
 #[cfg(target = "native")]
 fn print_help() -> i32 uses (out: mut Stdout) {
-    println!("leash 0.1.0 (fe 26.6.0)")
+    println!("leash 0.2.0 (fe 26.6.0)")
     println!("AI Agent Safe Wallet Spending Limit Enforcement")
     println!("")
     println!("USAGE:")
@@ -29,6 +31,9 @@ fn print_help() -> i32 uses (out: mut Stdout) {
     )
     println!(
         "  leash replay <log.csv>                          Audit historical tx CSV log",
+    )
+    println!(
+        "  leash validate                                  Check the compiled policy's structure",
     )
     println!(
         "  leash serve                                     Agent tool mode: run bin/leash-serve.ts",
@@ -57,6 +62,8 @@ pub fn main() -> i32 uses (args: Args, out: mut Stdout, err: mut Stderr, fs: Fs)
         fingerprint::run()
     } else if subcmd == "replay" {
         replay::run()
+    } else if subcmd == "validate" {
+        validate::run()
     } else if subcmd == "serve" {
         // The stdio JSON server lives in bin/leash-serve.ts and calls this binary
         // (`leash check --json`) for every verdict. This binary does not serve itself.
@@ -67,7 +74,7 @@ pub fn main() -> i32 uses (args: Args, out: mut Stdout, err: mut Stderr, fs: Fs)
     } else if subcmd == "--help" || subcmd == "-h" {
         print_help()
     } else if subcmd == "--version" || subcmd == "-v" {
-        println!("leash 0.1.0 (fe 26.6.0)")
+        println!("leash 0.2.0 (fe 26.6.0)")
         0
     } else {
         eprintln!("error: unknown subcommand")

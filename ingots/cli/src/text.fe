@@ -1,0 +1,20 @@
+use core::MemBuffer
+
+// `word` as 0x and its low `digits` hex digits: 64 for a hash, 40 for an address, 8 for a selector.
+pub fn hex(_ word: u256, _ digits: usize) -> MemBuffer {
+    var out = MemBuffer::empty()
+    out.push(b'0')
+    out.push(b'x')
+    var i: usize = digits
+    while i > 0 {
+        i -= 1
+        let nibble: u8 = ((word >> ((i as u256) * 4)) & 0x0f).downcast_truncate()
+        let ch: u8 = if nibble < 10 {
+            48 + nibble
+        } else {
+            87 + nibble
+        }
+        out.push(ch)
+    }
+    out
+}

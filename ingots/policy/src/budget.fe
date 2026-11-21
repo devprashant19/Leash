@@ -1,11 +1,19 @@
-use ingot::ledger::{bucket_index_of, spent_in_window, unpack_bucket_amount, unpack_bucket_index}
-use ingot::types::{AgentState, BUCKETS, Policy, Timestamp}
+use ingot::ledger::{
+    bucket_index_of,
+    spent_in_window,
+    token_spent_in_period,
+    unpack_bucket_amount,
+    unpack_bucket_index,
+}
+use ingot::types::{AgentState, BUCKETS, MAX_TOKENS, Policy, Timestamp}
 
 pub struct Budget {
     pub eth_per_tx_wei: u256,
     pub eth_window_wei: u256,
     pub actions_in_window: u32,
     pub window_resets_at: u256,
+    // Base units each token rule still allows in the current 24 h period (transfers and approvals).
+    pub token_window_left: [u256; MAX_TOKENS],
 }
 
 pub fn remaining(_ policy: ref Policy, _ state: ref AgentState, _ now: Timestamp) -> Budget {
@@ -41,10 +49,20 @@ pub fn remaining(_ policy: ref Policy, _ state: ref AgentState, _ now: Timestamp
         }
     }
 
+    var token_window_left: [u256; MAX_TOKENS] = [0; MAX_TOKENS]
+    var t: usize = 0
+    while t < (policy.n_tokens as usize) {
+        let cap = policy.tokens[t].max_per_window.as_u256()
+        let spent = token_spent_in_period(state.token_spent[t], now)
+        token_window_left[t] = if spent >= cap { 0 } else { cap - spent }
+        t += 1
+    }
+
     Budget {
         eth_per_tx_wei: policy.max_per_tx.as_wei(),
         eth_window_wei: rem_win,
         actions_in_window: actions_rem,
         window_resets_at: oldest_reset,
+        token_window_left,
     }
 }

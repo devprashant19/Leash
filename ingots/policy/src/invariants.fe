@@ -1,0 +1,31 @@
+use ingot::rules::BREAKER_DENIALS
+use ingot::types::{BUCKET_LEN, BUCKETS, Policy}
+
+// Compile-time validation of a configured policy. The compiler evaluates it as a `const`, and a
+// policy that breaks a rule reaches `1 / 0`, so the build stops with "division by zero in const
+// context" before any bytecode or binary exists. The default `config.fe` and every `config.fe` that
+// `scripts/build-policy.mjs` generates call this same function.
+pub const fn validate_policy_invariants(pol: Policy) -> u32 {
+    if pol.n_targets == 0 {
+        1 / 0
+    } else if pol.window.as_seconds() != (BUCKETS as u256) * (BUCKET_LEN as u256) {
+        // The ETH window is a ring of BUCKETS hourly buckets: 24 hours, whatever else is declared.
+        1 / 0
+    } else if pol.max_per_tx.as_wei() > pol.max_per_window.as_wei() {
+        1 / 0
+    } else if pol.max_per_window.as_wei() == 0 {
+        1 / 0
+    } else if pol.max_actions_per_window > 0 {
+        // decide can rate-limit, but LeashModule stores no action window, so the module and the CLI
+        // would disagree: a compiled policy must leave rate limiting off.
+        1 / 0
+    } else if pol.cooldown.as_seconds() > 0 {
+        // The same for cooldowns: LeashModule stores no time of the last action.
+        1 / 0
+    } else if pol.breaker_threshold != 0 && pol.breaker_threshold != BREAKER_DENIALS {
+        // LeashModule trips the breaker after BREAKER_DENIALS refusals; 0 stands for that default.
+        1 / 0
+    } else {
+        1
+    }
+}

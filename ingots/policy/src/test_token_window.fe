@@ -75,7 +75,7 @@ fn test_token_window_resets_in_the_next_period() {
 }
 
 #[test]
-fn test_token_window_counts_transfer_from_but_not_approve() {
+fn test_token_window_counts_transfer_from_and_approve() {
     let policy = default_policy()
     var state = AgentState::empty()
     let now = at(20_000, 0)
@@ -88,24 +88,34 @@ fn test_token_window_counts_transfer_from_but_not_approve() {
         record(tx, policy, mut state)
         i += 1
     }
-    // An approval is capped by max_approve, not by the transfer window, and is not recorded as spent.
+    // The spender can pull an approved amount at any time, so an approval is booked like a transfer.
+    // 400 spent: a 100-token approval fits and brings the period to 500.
     let approve = token_tx(
         make_approve_calldata(spender: ADDR_TREASURY, amt: HUNDRED),
         now,
     )
     assert(verdict_code(decide(approve, policy, state)) == 0)
     record(approve, policy, mut state)
-    // 400 spent: a fifth 100-token transfer fits, 101 tokens do not.
-    let fits = token_tx(
-        make_transfer_calldata(to: ADDR_TREASURY, amt: HUNDRED),
-        now,
+    assert(state.token_spent[0].amount == HUNDRED * 5)
+    // 500 spent: neither another approval nor a transfer fits.
+    let one_more_approval = token_tx(make_approve_calldata(spender: ADDR_TREASURY, amt: 1), now)
+    assert(
+        verdict_code(decide(one_more_approval, policy, state)) == 21,
     )
-    assert(verdict_code(decide(fits, policy, state)) == 0)
+    let one_more_transfer = token_tx(make_transfer_calldata(to: ADDR_TREASURY, amt: 1), now)
+    assert(
+        verdict_code(decide(one_more_transfer, policy, state)) == 21,
+    )
+    // Revoking an approval (amount 0) is always allowed and books nothing.
+    let revoke = token_tx(make_approve_calldata(spender: ADDR_TREASURY, amt: 0), now)
+    assert(verdict_code(decide(revoke, policy, state)) == 0)
+    record(revoke, policy, mut state)
+    assert(state.token_spent[0].amount == HUNDRED * 5)
+    // The per-transfer cap (9) is still checked before the window (21).
     let over = token_tx(
         make_transfer_calldata(to: ADDR_TREASURY, amt: HUNDRED + 1),
         now,
     )
-    // The per-transfer cap (9) is checked before the window (21).
     assert(verdict_code(decide(over, policy, state)) == 9)
 }
 

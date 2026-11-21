@@ -1,24 +1,201 @@
+use core::MemBuffer
+use core::fixed::UFixed
+use ingot::text::hex
+use policy::{
+    BREAKER_DENIALS,
+    SEL_AAVE_REPAY,
+    SEL_AAVE_SUPPLY,
+    SEL_AAVE_WITHDRAW,
+    SEL_APPROVE,
+    SEL_DECREASE_ALLOWANCE,
+    SEL_INCREASE_ALLOWANCE,
+    SEL_TRANSFER,
+    SEL_TRANSFER_FROM,
+    SEL_UNISWAP_V2_SWAP_TOKENS,
+    SEL_UNISWAP_V3_EXACT_INPUT_SINGLE,
+    TargetKind,
+    TargetRule,
+    default_policy,
+    fingerprint,
+}
 use std::io::Stdout
 
+// Base units with 18 decimals, without trailing zeros: 100000000000000000 is 0.1.
+fn units(_ raw: u256) -> UFixed<18> {
+    UFixed<18>::from_raw(raw)
+}
+
+fn has(_ t: TargetRule, _ sel: u32) -> bool {
+    var j: usize = 0
+    while j < (t.n_selectors as usize) {
+        if t.selectors[j] == sel {
+            return true
+        }
+        j += 1
+    }
+    false
+}
+
+fn is_named(_ sel: u32) -> bool {
+    sel == SEL_TRANSFER
+        || sel == SEL_APPROVE
+        || sel == SEL_TRANSFER_FROM
+        || sel == SEL_INCREASE_ALLOWANCE
+        || sel == SEL_DECREASE_ALLOWANCE
+        || sel == SEL_UNISWAP_V3_EXACT_INPUT_SINGLE
+        || sel == SEL_UNISWAP_V2_SWAP_TOKENS
+        || sel == SEL_AAVE_SUPPLY
+        || sel == SEL_AAVE_WITHDRAW
+        || sel == SEL_AAVE_REPAY
+}
+
+// Appends `name` to the list if the target allows `sel`, and returns the new length of the list.
+fn add_if(_ out: mut MemBuffer, _ n: u32, _ t: TargetRule, _ sel: u32, _ name: String<24>) -> u32 {
+    if !has(t, sel) { return n }
+    if n > 0 {
+        write!(mut out, ", ")
+    }
+    write!(mut out, name)
+    n + 1
+}
+
+// What the agent may do with a target: its calls in a fixed order, then plain ETH transfers.
+fn permissions(_ t: TargetRule) -> MemBuffer {
+    var out = MemBuffer::empty()
+    var n: u32 = 0
+    n = add_if(mut out, n, t, SEL_TRANSFER, "transfer")
+    n = add_if(mut out, n, t, SEL_APPROVE, "approve")
+    n = add_if(mut out, n, t, SEL_TRANSFER_FROM, "transferFrom")
+    n = add_if(mut out, n, t, SEL_INCREASE_ALLOWANCE, "increaseAllowance")
+    n = add_if(mut out, n, t, SEL_DECREASE_ALLOWANCE, "decreaseAllowance")
+    n = add_if(
+        mut out,
+        n,
+        t,
+        SEL_UNISWAP_V3_EXACT_INPUT_SINGLE,
+        "exactInputSingle",
+    )
+    n = add_if(
+        mut out,
+        n,
+        t,
+        SEL_UNISWAP_V2_SWAP_TOKENS,
+        "swapExactTokensForTokens",
+    )
+    n = add_if(mut out, n, t, SEL_AAVE_SUPPLY, "supply")
+    n = add_if(mut out, n, t, SEL_AAVE_WITHDRAW, "withdraw")
+    n = add_if(mut out, n, t, SEL_AAVE_REPAY, "repay")
+    var j: usize = 0
+    while j < (t.n_selectors as usize) {
+        let sel = t.selectors[j]
+        if !is_named(sel) {
+            if n > 0 {
+                write!(mut out, ", ")
+            }
+            write!(mut out, hex(sel as u256, 8))
+            n += 1
+        }
+        j += 1
+    }
+    if t.allow_eth_transfer {
+        if n > 0 {
+            write!(mut out, ", ")
+        }
+        write!(mut out, "plain ETH transfers")
+        n += 1
+    }
+    if n == 0 {
+        write!(mut out, "nothing; every call is refused")
+    }
+    out
+}
+
+fn kind_label(_ kind: TargetKind) -> String<20> {
+    match kind {
+        TargetKind::Generic => "",
+        TargetKind::Erc20 => " (ERC-20)",
+        TargetKind::UniswapRouter => " (Uniswap router)",
+        TargetKind::AavePool => " (Aave pool)",
+    }
+}
+
+// The compiled policy in plain words, read from the same `default_policy()` that `check` and
+// LeashModule evaluate, so a custom build describes its own policy.
 pub fn run() -> i32 uses (out: mut Stdout) {
+    let pol = default_policy()
     println!(
-        "Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee)",
+        "Leash policy (fingerprint ",
+        hex(fingerprint(pol), 64),
+        ")",
     )
-    println!("- The agent may call 2 contracts:")
+
+    let n_targets = pol.n_targets as usize
+    if n_targets == 1 {
+        println!("- The agent may call 1 contract:")
+    } else {
+        println!("- The agent may call ", n_targets, " contracts:")
+    }
+    var i: usize = 0
+    while i < n_targets {
+        let t = pol.targets[i]
+        println!(
+            "  - ",
+            hex(t.target.word(), 40),
+            kind_label(t.kind),
+            ": ",
+            permissions(t),
+        )
+        i += 1
+    }
+
     println!(
-        "  - 0x1000000000000000000000000000000000000001 (ERC-20): transfer, approve, transferFrom",
+        "- At most ",
+        units(pol.max_per_tx.as_wei()),
+        " ETH per transaction.",
     )
     println!(
-        "  - 0x2000000000000000000000000000000000000002: plain ETH transfers",
+        "- At most ",
+        units(pol.max_per_window.as_wei()),
+        " ETH in any rolling 24 hours (hourly buckets).",
     )
-    println!("- At most 0.1 ETH per transaction.")
-    println!(
-        "- At most 0.5 ETH in any rolling 24 hours (hourly buckets).",
-    )
-    println!(
-        "- Token 0x1000000000000000000000000000000000000001: at most 100 tokens per transfer; approvals up to 100 tokens; unlimited approvals are always refused.",
-    )
+
+    var k: usize = 0
+    while k < (pol.n_tokens as usize) {
+        let r = pol.tokens[k]
+        println!(
+            "- Token ",
+            hex(r.token.word(), 40),
+            ": at most ",
+            units(r.max_per_tx.as_u256()),
+            " tokens per transfer and ",
+            units(r.max_per_window.as_u256()),
+            " per 24 h period (from 00:00 UTC); approvals up to ",
+            units(r.max_approve.as_u256()),
+            " tokens, counted in the same period; unlimited approvals are always refused.",
+        )
+        k += 1
+    }
+
+    let n_recipients = pol.n_recipients as usize
+    if n_recipients > 0 {
+        var line = MemBuffer::empty()
+        var r: usize = 0
+        while r < n_recipients {
+            if r > 0 {
+                write!(mut line, ", ")
+            }
+            write!(mut line, hex(pol.recipients[r].word(), 40))
+            r += 1
+        }
+        println!("- Tokens may be sent or approved only to: ", line, ".")
+    }
+
     println!("- Delegatecall is always refused.")
+    println!(
+        "- ",
+        BREAKER_DENIALS,
+        " refusals through tryExecute stop the agent until the Safe resets the circuit breaker.",
+    )
     println!("- Anything not listed above is refused.")
     0
 }

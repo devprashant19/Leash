@@ -1,6 +1,0 @@
-// Demonstrates Fe's compile-time const evaluation checks for non-empty target sets.
-pub const fn static_check_targets(n_targets: u32) -> u32 {
-    if n_targets > 0 { 1 } else { 1 / 0 }
-}
-
-pub const CHECK_TARGETS: u32 = static_check_targets(n_targets: 0)

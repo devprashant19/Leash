@@ -1,5 +1,6 @@
 use std::evm::Address
 use std::evm::units::{Duration, Wei, ether, hours, seconds}
+use ingot::invariants::validate_policy_invariants
 use ingot::types::{
     MAX_RECIPIENTS,
     MAX_SELECTORS,
@@ -67,23 +68,6 @@ pub const fn policy_for_agent(_ max_tx: Wei, _ max_win: Wei) -> Policy {
 
 pub const fn default_policy() -> Policy {
     policy_for_agent(max_tx: Wei::zero(), max_win: Wei::zero())
-}
-
-// Pre-Deployment Compile-Time Invariant Validation:
-// Executed by the compiler during const evaluation. Any policy violating fundamental invariants
-// causes compilation failure (division by zero in const context) before any bytecode is emitted.
-pub const fn validate_policy_invariants(pol: Policy) -> u32 {
-    if pol.n_targets == 0 {
-        1 / 0
-    } else if pol.window.as_seconds() == 0 {
-        1 / 0
-    } else if pol.max_per_tx.as_wei() > pol.max_per_window.as_wei() {
-        1 / 0
-    } else if pol.max_per_window.as_wei() == 0 {
-        1 / 0
-    } else {
-        1
-    }
 }
 
 // Compile-time invariant guard: if default_policy violates invariants, compilation aborts here.

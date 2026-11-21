@@ -21,3 +21,4 @@ pub use attack_22_escalation_threshold::*
 pub use attack_23_aave_withdraw_diversion::*
 pub use attack_24_oracle_staleness_and_usd_caps::*
 pub use attack_25_token_drip::*
+pub use attack_26_approval_drip::*

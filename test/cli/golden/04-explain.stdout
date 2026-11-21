@@ -4,6 +4,7 @@ Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb7
   - 0x2000000000000000000000000000000000000002: plain ETH transfers
 - At most 0.1 ETH per transaction.
 - At most 0.5 ETH in any rolling 24 hours (hourly buckets).
-- Token 0x1000000000000000000000000000000000000001: at most 100 tokens per transfer; approvals up to 100 tokens; unlimited approvals are always refused.
+- Token 0x1000000000000000000000000000000000000001: at most 100 tokens per transfer and 500 per 24 h period (from 00:00 UTC); approvals up to 100 tokens, counted in the same period; unlimited approvals are always refused.
 - Delegatecall is always refused.
+- 3 refusals through tryExecute stop the agent until the Safe resets the circuit breaker.
 - Anything not listed above is refused.

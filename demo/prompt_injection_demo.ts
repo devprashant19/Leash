@@ -51,7 +51,7 @@ async function main() {
     console.log(`    Congruence:           ${res.matched ? 'PERFECT MATCH (100%)' : 'MISMATCH'}`);
 
     if (res.onchain.code === 15) {
-      console.log(`\n>>> [CIRCUIT BREAKER ACTIVATED] Agent has exceeded maximum consecutive denial threshold.`);
+      console.log(`\n>>> [CIRCUIT BREAKER ACTIVATED] Agent reached the denial threshold (3 refusals since the last reset).`);
       console.log(`>>> Autonomous agent is locked on-chain. Human guardian or Safe owner must review.\n`);
     }
   }

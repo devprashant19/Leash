@@ -257,7 +257,9 @@ pub fn run_parity_chunk(chunk_idx: u32, chunk_size: u32) -> u256 {
 
     var digest: u256 = 0
     var prev_now: u256 = 1_763_000_000
-    var consecutive_denials: u32 = 0
+    // Refusals since the Safe last reset the breaker, as LeashModule counts them: an allowed call
+    // in between does not reset the count.
+    var denials: u32 = 0
 
     var i: u32 = 1
     while i <= chunk_size {
@@ -287,7 +289,7 @@ pub fn run_parity_chunk(chunk_idx: u32, chunk_size: u32) -> u256 {
         if state.tripped {
             if i % 5 == 0 {
                 state.tripped = false
-                consecutive_denials = 0
+                denials = 0
             }
         }
 
@@ -299,12 +301,11 @@ pub fn run_parity_chunk(chunk_idx: u32, chunk_size: u32) -> u256 {
 
         if code == 0 {
             policy::record(tx, pol, state: mut state)
-            consecutive_denials = 0
         } else {
             policy::record_denial(tx.now, state: mut state)
-            consecutive_denials += 1
+            denials += 1
             if pol.breaker_threshold > 0 {
-                if consecutive_denials >= pol.breaker_threshold {
+                if denials >= pol.breaker_threshold {
                     state.tripped = true
                 }
             }
@@ -326,7 +327,9 @@ pub fn run_parity_chunk_counts(chunk_idx: u32, chunk_size: u32) -> [u32; 21] {
 
     var counts: [u32; 21] = [0; 21]
     var prev_now: u256 = 1_763_000_000
-    var consecutive_denials: u32 = 0
+    // Refusals since the Safe last reset the breaker, as LeashModule counts them: an allowed call
+    // in between does not reset the count.
+    var denials: u32 = 0
 
     var i: u32 = 1
     while i <= chunk_size {
@@ -355,7 +358,7 @@ pub fn run_parity_chunk_counts(chunk_idx: u32, chunk_size: u32) -> [u32; 21] {
         if state.tripped {
             if i % 5 == 0 {
                 state.tripped = false
-                consecutive_denials = 0
+                denials = 0
             }
         }
 
@@ -367,12 +370,11 @@ pub fn run_parity_chunk_counts(chunk_idx: u32, chunk_size: u32) -> [u32; 21] {
 
         if code == 0 {
             policy::record(tx, pol, state: mut state)
-            consecutive_denials = 0
         } else {
             policy::record_denial(tx.now, state: mut state)
-            consecutive_denials += 1
+            denials += 1
             if pol.breaker_threshold > 0 {
-                if consecutive_denials >= pol.breaker_threshold {
+                if denials >= pol.breaker_threshold {
                     state.tripped = true
                 }
             }

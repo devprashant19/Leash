@@ -63,3 +63,45 @@ fn test_remaining_after_spend() {
     // bucket index is hour 20, so it resets at (20 + 24) * 3600 = 44 * 3600 = 158400
     assert(b.window_resets_at == 158400)
 }
+
+#[test]
+fn test_remaining_tokens_after_a_transfer_and_an_approval() {
+    let pol = default_policy()
+    let now = Timestamp::from_seconds(1_763_000_000)
+    var st = AgentState::empty()
+    let hundred: u256 = 100_000_000_000_000_000_000
+    assert(
+        remaining(pol, st, now).token_window_left[0] == 5 * hundred,
+    )
+
+    let transfer = Tx {
+        to: ingot::config::ADDR_TOKEN,
+        value: wei(0),
+        data: ingot::test_decode::make_transfer_calldata(
+            to: ingot::config::ADDR_TREASURY,
+            amt: hundred,
+        ),
+        op: Operation::Call,
+        now,
+    }
+    record(transfer, pol, mut st)
+    let approval = Tx {
+        to: ingot::config::ADDR_TOKEN,
+        value: wei(0),
+        data: ingot::test_decode::make_approve_calldata(
+            spender: ingot::config::ADDR_TREASURY,
+            amt: hundred,
+        ),
+        op: Operation::Call,
+        now,
+    }
+    record(approval, pol, mut st)
+    assert(
+        remaining(pol, st, now).token_window_left[0] == 3 * hundred,
+    )
+    // The next 24 h period starts from the full cap again.
+    let tomorrow = Timestamp::from_seconds(1_763_000_000 + 86_400)
+    assert(
+        remaining(pol, st, tomorrow).token_window_left[0] == 5 * hundred,
+    )
+}

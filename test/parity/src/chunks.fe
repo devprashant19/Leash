@@ -1,0 +1,102 @@
+use testkit::{
+    CHUNK_DIGEST_0,
+    CHUNK_DIGEST_1,
+    CHUNK_DIGEST_2,
+    CHUNK_DIGEST_3,
+    CHUNK_DIGEST_4,
+    CHUNK_DIGEST_5,
+    CHUNK_DIGEST_6,
+    CHUNK_DIGEST_7,
+    CHUNK_DIGEST_8,
+    CHUNK_DIGEST_9,
+    PARITY_GOLDEN_DIGEST,
+    chunk_digest,
+    run_parity_chunk,
+}
+use core::hash::Keccak256
+
+// 10,000 seeded transactions in 10 chunks of 1,000. Each test runs its chunk through `decide` live and
+// compares the folded verdicts with the stored digest. `fe test` runs them on the EVM and
+// `fe test --backend native` on native code, so the same stored digests hold on both backends.
+
+#[test]
+pub fn test_parity_chunk_0() {
+    assert(
+        run_parity_chunk(chunk_idx: 0, chunk_size: 1000) == CHUNK_DIGEST_0,
+    )
+}
+
+#[test]
+pub fn test_parity_chunk_1() {
+    assert(
+        run_parity_chunk(chunk_idx: 1, chunk_size: 1000) == CHUNK_DIGEST_1,
+    )
+}
+
+#[test]
+pub fn test_parity_chunk_2() {
+    assert(
+        run_parity_chunk(chunk_idx: 2, chunk_size: 1000) == CHUNK_DIGEST_2,
+    )
+}
+
+#[test]
+pub fn test_parity_chunk_3() {
+    assert(
+        run_parity_chunk(chunk_idx: 3, chunk_size: 1000) == CHUNK_DIGEST_3,
+    )
+}
+
+#[test]
+pub fn test_parity_chunk_4() {
+    assert(
+        run_parity_chunk(chunk_idx: 4, chunk_size: 1000) == CHUNK_DIGEST_4,
+    )
+}
+
+#[test]
+pub fn test_parity_chunk_5() {
+    assert(
+        run_parity_chunk(chunk_idx: 5, chunk_size: 1000) == CHUNK_DIGEST_5,
+    )
+}
+
+#[test]
+pub fn test_parity_chunk_6() {
+    assert(
+        run_parity_chunk(chunk_idx: 6, chunk_size: 1000) == CHUNK_DIGEST_6,
+    )
+}
+
+#[test]
+pub fn test_parity_chunk_7() {
+    assert(
+        run_parity_chunk(chunk_idx: 7, chunk_size: 1000) == CHUNK_DIGEST_7,
+    )
+}
+
+#[test]
+pub fn test_parity_chunk_8() {
+    assert(
+        run_parity_chunk(chunk_idx: 8, chunk_size: 1000) == CHUNK_DIGEST_8,
+    )
+}
+
+#[test]
+pub fn test_parity_chunk_9() {
+    assert(
+        run_parity_chunk(chunk_idx: 9, chunk_size: 1000) == CHUNK_DIGEST_9,
+    )
+}
+
+// The stored root digest is the Keccak of the 10 stored chunk digests, in order.
+#[test]
+pub fn test_parity_root_is_the_hash_of_the_chunk_digests() {
+    var k = Keccak256::new()
+    var i: usize = 0
+    while i < 10 {
+        k.update_word(chunk_digest(i), len: 32)
+        i += 1
+    }
+    assert(k.finish_word() == PARITY_GOLDEN_DIGEST)
+}

@@ -1,5 +1,4 @@
 {
-  "$schema": "https://raw.githubusercontent.com/devprashant19/Leash/main/docs/policy.schema.json",
   "description": "Custom agent policy with multi-token support, daily rolling window, and circuit breaker",
   "max_eth_per_tx": "0.1 ether",
   "max_eth_per_window": "0.5 ether",

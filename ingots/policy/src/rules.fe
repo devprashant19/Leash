@@ -62,7 +62,8 @@ fn check_selector_and_calldata(_ tx: ref Tx, _ target: ref TargetRule) -> Option
     }
 }
 
-// Consecutive refused tryExecute calls that trip an agent's circuit breaker (until the Safe resets it).
+// Refused tryExecute calls that trip an agent's circuit breaker. Allowed calls in between do not reset
+// the count; only the Safe's ResetBreaker does.
 pub const BREAKER_DENIALS: u32 = 3
 
 pub fn breaker_trips(_ denials: u32) -> bool {
@@ -205,10 +206,16 @@ pub fn decide_with_usd(
                 if tx.now < pq.updated_at {
                     return Verdict::Deny(DenyReason::PriceUnavailable)
                 }
-                if tx.now > pq.updated_at + max_price_age {
+                // Compared as a difference, so an `updated_at` near the top of the range cannot overflow.
+                if tx.now.as_seconds() - pq.updated_at.as_seconds() > max_price_age.as_seconds() {
                     return Verdict::Deny(DenyReason::PriceUnavailable)
                 }
-                let usd_val = (tx.value.as_wei() * pq.usd_per_eth_1e8) / 1000000000000000000
+                // A value whose USD amount would overflow is above any cap: refuse it rather than panic.
+                let wei_value = tx.value.as_wei()
+                if wei_value > 0 && pq.usd_per_eth_1e8 > U256_MAX / wei_value {
+                    return Verdict::Deny(DenyReason::UsdCapExceeded)
+                }
+                let usd_val = (wei_value * pq.usd_per_eth_1e8) / 1000000000000000000
                 if usd_val > max_usd_per_tx {
                     return Verdict::Deny(DenyReason::UsdCapExceeded)
                 }

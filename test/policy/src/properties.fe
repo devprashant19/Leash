@@ -29,14 +29,15 @@ pub fn test_property_window_safety() {
     state.expiry = Timestamp::from_seconds(2_000_000_000)
 
     var prev_now: u256 = 1_763_000_000
-    var consecutive_denials: u32 = 0
+    // Refusals since the last reset, as LeashModule counts them.
+    var denials: u32 = 0
 
     var i: u32 = 1
     while i <= 500 {
         if state.tripped {
             if i % 5 == 0 {
                 state.tripped = false
-                consecutive_denials = 0
+                denials = 0
             }
         }
 
@@ -48,7 +49,6 @@ pub fn test_property_window_safety() {
 
         if code == 0 {
             record(tx, pol, state: mut state)
-            consecutive_denials = 0
 
             // Invariant: ETH spent in window never exceeds max_per_window
             let eth_spent = spent_in_window(state.eth_window, tx.now)
@@ -61,9 +61,9 @@ pub fn test_property_window_safety() {
             }
         } else {
             record_denial(tx.now, state: mut state)
-            consecutive_denials += 1
+            denials += 1
             if pol.breaker_threshold > 0 {
-                if consecutive_denials >= pol.breaker_threshold {
+                if denials >= pol.breaker_threshold {
                     state.tripped = true
                 }
             }

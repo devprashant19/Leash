@@ -89,7 +89,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check decide has no uses clause
         run: |
-          if grep -nE 'fn decide[^{]*uses' ingots/policy/src/*.fe 2>/dev/null; then
+          # Each file is read whole, so a `uses` clause on a later line of a signature is caught too.
+          if perl -0777 -ne 'while (/fn\s+(decide\w*)[^{]*?\buses\b/g) { print "$ARGV: $1\n"; $bad = 1 } END { exit($bad ? 0 : 1) }' ingots/policy/src/*.fe; then
             echo "Violation: policy::decide must have no uses clause!"
             exit 1
           fi

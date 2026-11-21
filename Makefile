@@ -22,6 +22,10 @@ test-native:
 build:
 	fe build
 	fe build ingots/module --emit sizes
+	@case "$$(uname -s)" in \
+		Linux|Darwin) fe build --backend native ;; \
+		*) echo "Skipping the native leash CLI: Fe 26.6.0 links it on x86-64 Linux and AArch64 macOS only" ;; \
+	esac
 
 golden:
 	bash scripts/golden.sh
@@ -37,11 +41,5 @@ serve:
 
 test-session:
 	npm --prefix demo run test:session
-
-example-c:
-	gcc -Iexamples/c examples/c/main.c -o examples/c/test_c && ./examples/c/test_c
-
-example-rust:
-	cd examples/rust && cargo check
 
 all: check test build parity demo test-session

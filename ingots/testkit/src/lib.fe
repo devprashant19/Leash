@@ -397,12 +397,6 @@ pub fn test_splitmix64_and_digest() {
     )
 }
 
-#[test]
-pub fn test_parity_chunk_0() {
-    let d = run_parity_chunk(chunk_idx: 0, chunk_size: 1000)
-    assert(d != 0)
-}
-
 pub msg ParityHarnessMsg {
     #[selector = sol("computeChunk(uint32,uint32)")]
     ComputeChunk { chunk_idx: u32, chunk_size: u32 } -> u256,

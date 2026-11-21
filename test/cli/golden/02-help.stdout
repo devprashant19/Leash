@@ -1,4 +1,4 @@
-leash 0.1.0 (fe 26.6.0)
+leash 0.2.0 (fe 26.6.0)
 AI Agent Safe Wallet Spending Limit Enforcement
 
 USAGE:
@@ -6,6 +6,7 @@ USAGE:
   leash explain                                   Print active policy rules
   leash fingerprint                               Print policy Keccak-256 fingerprint
   leash replay <log.csv>                          Audit historical tx CSV log
+  leash validate                                  Check the compiled policy's structure
   leash serve                                     Agent tool mode: run bin/leash-serve.ts
   leash --help, -h                                Show this help
   leash --version, -v                             Show version

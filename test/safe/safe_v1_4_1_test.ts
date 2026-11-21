@@ -344,7 +344,7 @@ async function run() {
   const denyApprove = await agentTryExecute(ADDR_TOKEN, 0n, unlimitedApprove);
   assert.equal(denyApprove.success, false, 'Unlimited approve must be denied');
   assert.equal(denyApprove.denyCode, 10, 'denyCode must be 10 (UnlimitedApproveForbidden)');
-  console.log('   Denied correctly with code 10. Consecutive denials = 3.');
+  console.log('   Denied correctly with code 10. Denials since the last reset = 3.');
 
   // 13. Test Circuit Breaker Tripped -> Next call fails with code 15 (CircuitTripped)
   console.log('13. Testing circuit breaker tripped state...');

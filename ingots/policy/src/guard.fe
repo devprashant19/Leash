@@ -97,6 +97,9 @@ impl ActionGuard for Erc20Guard {
             Erc20Call::TransferFrom(_from, to, amt) => {
                 check_transfer(to, amt, idx: token_idx, policy, state, now: tx.now)
             },
+            // The spender can pull an approved amount at any time, outside the module, so an approval
+            // (or an increaseAllowance, which decodes to the same call) is booked against the token's
+            // 24 h cap like a transfer. Revoking (amount 0) is always allowed and books nothing.
             Erc20Call::Approve(spender, amt) => {
                 if amt == 0 {
                     GuardCheck::Pass
@@ -104,8 +107,14 @@ impl ActionGuard for Erc20Guard {
                     GuardCheck::Fail(DenyReason::RecipientNotAllowed)
                 } else if amt == U256_MAX || amt > token_rule.max_approve.as_u256() {
                     GuardCheck::Fail(DenyReason::UnlimitedApproval)
+                } else if checked_add_saturate(
+                        token_spent_in_period(state.token_spent[token_idx], tx.now),
+                        amt,
+                    )
+                    > token_rule.max_per_window.as_u256() {
+                    GuardCheck::Fail(DenyReason::TokenWindowCapExceeded)
                 } else {
-                    GuardCheck::Pass
+                    GuardCheck::Spend(TokenSpend { idx: token_idx, amount: amt })
                 }
             },
         }

@@ -234,3 +234,51 @@ fn test_usd_cap_pricing_lifecycle() {
         verdict_code(v_missing) == 18,
     ) // PriceUnavailable (code 18)
 }
+
+// decide never panics: a price so large that value * price would overflow is refused as above the
+// USD cap (19), and a quote time near the top of the range does not overflow the age check.
+#[test]
+fn test_usd_cap_extreme_quotes_refuse_instead_of_panicking() {
+    let pol = default_policy()
+    let state = AgentState::empty()
+    let now = Timestamp::from_seconds(10000)
+    let tx = Tx {
+        to: Address::new(0x2000000000000000000000000000000000000002),
+        value: ether(4) / 100,
+        data: Calldata::empty(),
+        op: Operation::Call,
+        now,
+    }
+    let huge_price = Option::Some(
+        PriceQuote {
+            usd_per_eth_1e8: ingot::ledger::U256_MAX,
+            updated_at: Timestamp::from_seconds(9000),
+        },
+    )
+    let v_huge = decide_with_usd(
+        tx,
+        policy: pol,
+        state,
+        price_quote: huge_price,
+        max_usd_per_tx: 100000000000,
+        max_price_age: seconds(3600),
+    )
+    assert(verdict_code(v_huge) == 19)
+
+    // A quote from the future is refused as unavailable (18), before any age arithmetic.
+    let far_future = Option::Some(
+        PriceQuote {
+            usd_per_eth_1e8: 200000000000,
+            updated_at: Timestamp::from_seconds(ingot::ledger::U256_MAX),
+        },
+    )
+    let v_future = decide_with_usd(
+        tx,
+        policy: pol,
+        state,
+        price_quote: far_future,
+        max_usd_per_tx: 100000000000,
+        max_price_age: seconds(3600),
+    )
+    assert(verdict_code(v_future) == 18)
+}

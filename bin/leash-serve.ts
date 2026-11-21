@@ -118,7 +118,7 @@ const RULES_EXPLANATION = [
   { code: 12, name: 'RateLimited', description: 'Too many actions within sliding window' },
   { code: 13, name: 'CooldownActive', description: 'Cooldown period active between transactions' },
   { code: 14, name: 'OutsideTradingHours', description: 'Transaction outside allowed execution hours' },
-  { code: 15, name: 'CircuitTripped', description: 'Circuit breaker tripped after 3 consecutive rejections' },
+  { code: 15, name: 'CircuitTripped', description: 'Circuit breaker tripped after 3 refusals since the Safe last reset it' },
   { code: 16, name: 'SwapNotAllowed', description: 'Swaps are refused: the recipient lies outside the decoded calldata' },
   { code: 17, name: 'LendingNotAllowed', description: 'Unauthorized Aave pool action or collateral diversion' },
   { code: 18, name: 'PriceUnavailable', description: 'Chainlink oracle price feed stale (> 1h) or zero' },
