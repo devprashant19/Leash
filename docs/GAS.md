@@ -102,7 +102,7 @@ An allowed ETH transfer still costs about 205k gas on Anvil (238k on Sepolia) an
 - **Transient storage (EIP-1153)**: keeping intra-transaction scratch state in transient storage, which Fe 26.6.0's `std::evm` already exposes (`TSlot<T>`, `read_transient_word`). This only saves gas for state that does not need to outlive the transaction; the 24 h ledger itself must stay in persistent storage.
 - **Stateless Merkle proofs**: moving rolling-window accounting off-chain and verifying compact state roots on-chain.
 
-Reproduce with `make demo` (Anvil) or `npm run test:web` (in-memory EVM). No benchmark harness for Zodiac Roles or other modules is included in this repository, so this document makes no comparative gas claim.
+Reproduce with `make demo` (Anvil) or `npm run test:web` (in-memory EVM). No benchmark for Zodiac Roles or other modules is included in this repository, so this document makes no comparative gas claim.
 
 ---
 

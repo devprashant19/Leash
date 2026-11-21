@@ -5,7 +5,7 @@ Accepted
 
 ## Context
 When autonomous AI agents (operating on frameworks like LangChain, AutoGPT, CrewAI, or Claude Desktop) propose transactions for execution from a Safe wallet, invoking external command-line processes (`leash check ...`) for every sub-step introduces process spawn latency, potential shell parsing bugs, and lacks stateful multi-step budget simulation.
-To enable seamless LLM reasoning and planning:
+So that a model can ask for a verdict while it plans:
 1. Agents need a persistent, high-throughput line-delimited JSON-RPC daemon over `stdin`/`stdout`.
 2. Agents need stateful in-memory simulation (`record` and `reset`) to test multi-transaction routes (e.g. swapping on Uniswap followed by supplying collateral on Aave) against the 24-hour rolling window cap before sending anything on-chain.
 3. Industry-standard AI environments increasingly rely on Anthropic's Model Context Protocol (MCP) for tool discovery and execution.

@@ -28,11 +28,11 @@ Shareable links: `/?run` runs the demo on load, `/?tour` runs the full feature t
 
 Keep it in sync: after a Fe change, run `fe build && npm run sync:web` and commit `api/_assets/artifacts/`. Refresh the binary from a Linux build of the same commit: `fe build --backend native` on x86-64 Linux and copy `out/cli` to `api/_assets/leash-linux-x86_64`, or download the `leash-linux-x86_64` artifact of the CI `web` job (`gh run download <run-id> -n leash-linux-x86_64`). The CI `web` job fails if the artifacts are stale, if the bundled binary's fingerprint or version differ from a fresh build, or if `npm run test:web` fails with the bundled binary.
 
-Run it locally: `npm ci && npm run build:web && npx tsx scripts/dev-web.ts`, then open `http://localhost:3000`. For live editing of the page, `npm run dev:web` serves it with hot reload on `http://localhost:5173`. Run `npm run test:web` to check the functions without a server.
+Run it locally: `npm ci && npm run build:web && npx tsx scripts/dev-web.ts`, then open `http://localhost:3000`. For live editing of the page, `npm run dev:web` serves it with hot reload on `http://localhost:5173`: it starts the API on a free port (3001 when available), passes that port to Vite as `LEASH_API_PORT`, and Vite proxies `/api` to it. Run `npm run test:web` to check the functions without a server.
 
 ## 1. Local (Anvil)
 
-Needs Fe 26.6.0, Node 20+ and Foundry (`anvil` on `PATH`).
+Needs Fe 26.6.0, Node 22 and Foundry (`anvil` on `PATH`).
 
 ```bash
 fe build
