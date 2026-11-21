@@ -4,7 +4,7 @@ use std::abi::{Bytes, bytes_from_words}
 use std::evm::{Address, Evm, Timestamp, Wei}
 
 #[cfg(target = "evm")]
-#[test(should_revert)]
+#[test(should_revert, selector = 0xdc1669a6)]
 pub fn test_attack_11_safe_call_fails_rolls_back() uses (evm: mut Evm) {
     let agent = evm.address()
     let safe_addr = evm.create<MockSafe>(value: Wei::zero(), args: ())

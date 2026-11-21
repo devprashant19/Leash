@@ -1500,3 +1500,21 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 - **Verification** (raw):
   - `grep -rn "examples/c\|examples/rust\|leash_check" --include=*.md --include=*.yml --include=Makefile --include=*.ts --include=*.fe .` outside `docs/ai-log.md` and `docs/handoff/`: no matches
 - **Reviewed by human**: approved by the author on 2026-11-21.
+
+## 2026-11-21 — Approvals in the agent tool's ledger and the TypeScript fallback; a real custom policy in CI
+- **AI-assisted**: yes (Claude Code made the changes and ran the checks; the author asked for a final check before submitting).
+- **Changes**:
+  - `bin/leash-serve.ts`: the planning ledger books approvals like transfers, as `policy::record` now does; without this, `leash serve` predicted ALLOW for an approval the module refuses with code 21. `test/serve/session_test.ts` step 10 covers it.
+  - `demo/lib/leash-cli.ts`: the TypeScript fallback (used only where the Fe binary cannot run, and labelled) applies the 24 h token cap to approvals.
+  - `examples/custom_policy.json`: now two tokens, a recipient allowlist and tighter ETH caps, so the `custom-policy` CI job builds a policy that differs from the default; the job also runs `leash validate` and checks `leash explain`. `leash explain` says "approvals are refused" for a token whose approval cap is 0.
+  - `test/attacks` (`attack_01`, `attack_11`, `attack_14`) and `ingots/testkit`: the last bare `should_revert` tests pin their error selectors.
+  - `demo/lib/scenario.ts`: step 2 says "to the treasury" (the default policy has no recipient allowlist); `demo/run.json`, `demo/run.local.json` and `web/public/run.json` regenerated.
+  - README: the film's test counts are from the build it was recorded on; the parity distribution does not include codes 21, 16 and 17; the remaining TypeScript fallback is described; limitation 2 says an agent calling `Execute` never trips the breaker. SUBMISSION and AGENTS: `record_denial` only stamps the time of the last action.
+- **Verification** (raw; Ubuntu 24.04 container, `fe 26.6.0 (5b3f96a)`):
+  - `fe test`: `test result: ok. 164 passed; 0 failed`; `fe test --backend native`: `test result: ok. 129 passed; 0 failed`
+  - `scripts/compile-fail.sh`: `12 changes to the real code rejected with the expected diagnostic (0 skipped)`; `scripts/golden.sh`: `All 18 golden tests passed!`
+  - `test/serve/session_test.ts` before the fix: `actual: '0', expected: '500000000000000000000'`; after, with the Fe binary and with the fallback: `All 10 scripted tool session steps PASSED green!`
+  - `npm run test:web`: `All 18 web checks passed.`; `npm run test:safe`: `(14/14)`; `npm run test:fuzz`: `Congruent Verdicts: 600/600 (100.0%)`
+  - `npm run demo`: `All 5 predictions matched`, gas unchanged (205,727 / 154,358 / 123,931 / 55,559 / 98,227)
+  - Custom policy: `Policy Fingerprint : 0x35477bcffa3ff1fd5b659f8df917413072d7d97310dd651070b1d0379f337308`, CLI and contract equal, `OK: the compiled policy passes every check`, explain lists 3 contracts and the recipient list
+- **Reviewed by human**: not yet (made during the final check the author asked for on 2026-11-21).

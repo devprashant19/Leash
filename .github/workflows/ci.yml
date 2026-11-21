@@ -214,3 +214,9 @@ jobs:
           echo "Contract Fingerprint: $CONTRACT_FP"
           test "$CLI_FP" = "$CONTRACT_FP"
           echo "Parity check passed: Custom policy off-chain CLI and on-chain contract have identical fingerprints!"
+      - name: The custom build passes leash validate and describes its own policy
+        run: |
+          out/custom_test/cli validate
+          out/custom_test/cli explain | tee out/custom_test/explain.txt
+          grep -q "The agent may call 3 contracts" out/custom_test/explain.txt
+          grep -q "Tokens may be sent or approved only to: 0x2000000000000000000000000000000000000002" out/custom_test/explain.txt

@@ -4,7 +4,7 @@ use std::abi::{Bytes, bytes_from_words}
 use std::evm::{Address, Evm, Timestamp, Wei}
 
 #[cfg(target = "evm")]
-#[test(should_revert)]
+#[test(should_revert, selector = 0x3ad3ecc3)]
 pub fn test_attack_14_unknown_operation_rejected() uses (evm: mut Evm) {
     let agent = evm.address()
     let safe_addr = evm.create<MockSafe>(value: Wei::zero(), args: ())

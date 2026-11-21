@@ -194,6 +194,9 @@ export function predictVerdict(opts: CheckOptions): LeashCheckResult {
     }
     if (sel === SEL_APPROVE) {
       if (amount > TOKEN_MAX_APPROVE) return deny(10, 'UnlimitedApproval', 'Approval exceeds max approval limit');
+      // An approval is booked like a transfer (the spender can pull it at any time); revoking (0) is free.
+      const moved = st ? tokenSpentInPeriod(st.tokenSpent, now) : 0n;
+      if (amount > 0n && moved + amount > TOKEN_MAX_PER_WINDOW) return deny(21, 'TokenWindowCapExceeded', 'ERC-20 approvals and transfers exceed the 24 h token cap');
     } else {
       if (amount > TOKEN_MAX_PER_TX) return deny(9, 'TokenCapExceeded', 'ERC-20 transfer exceeds per-transaction cap');
       const moved = st ? tokenSpentInPeriod(st.tokenSpent, now) : 0n;

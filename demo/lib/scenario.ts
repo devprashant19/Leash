@@ -58,7 +58,7 @@ export function canonicalScenarios(): ScenarioTx[] {
     },
     {
       i: 2,
-      description: 'Agent transfers 50 tokens to authorized recipient',
+      description: 'Agent transfers 50 tokens to the treasury',
       to: ADDR_TOKEN as Address,
       value: 0n,
       // ERC20 transfer(treasury, 50 * 10^18)

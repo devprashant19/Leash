@@ -293,7 +293,7 @@ fn test_mock_safe_basic() uses (evm: mut Evm) {
 }
 
 #[cfg(target = "evm")]
-#[test(should_revert)]
+#[test(should_revert, selector = 0x9a043ec1)]
 fn test_mock_safe_reverts_when_not_enabled() uses (evm: mut Evm) {
     let safe = evm.create<MockSafe>(value: Wei::zero(), args: ())
     // Not enabled, should revert

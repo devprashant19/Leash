@@ -43,7 +43,7 @@ pub fn test_attack_01_multisend_delegatecall() {
 }
 
 #[cfg(target = "evm")]
-#[test(should_revert)]
+#[test(should_revert, selector = 0x3ad3ecc3)]
 pub fn test_attack_01_evm_delegatecall_reverts() uses (evm: mut Evm) {
     let agent = evm.address()
     let safe_addr = evm.create<MockSafe>(value: Wei::zero(), args: ())

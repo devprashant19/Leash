@@ -169,8 +169,24 @@ async function runSessionTest(): Promise<void> {
   assert.strictEqual(responses[13].result.reason, 'TokenWindowCapExceeded');
   console.log('✓ Step 9 PASS: Planned token transfers reach the 24 h token cap (code 21)');
 
+  // 10. Approvals are booked like transfers: five planned 100-token approvals fill the period, and one
+  //     more approval is refused (21), as LeashModule refuses it.
+  const approve = (amt: bigint) => '0x095ea7b3' + 'dead'.padStart(64, '0') + amt.toString(16).padStart(64, '0');
+  send(JSON.stringify({ id: 15, method: 'reset' }));
+  await waitForResponseCount(15);
+  for (let k = 0; k < 5; k++) {
+    send(JSON.stringify({ id: 16 + k, method: 'record', params: { to: TOKEN, data: approve(100n * 10n ** 18n) } }));
+  }
+  await waitForResponseCount(20);
+  assert.strictEqual(responses[19].result.tokens_in_period, (500n * 10n ** 18n).toString());
+  send(JSON.stringify({ id: 21, method: 'check', params: { to: TOKEN, value_wei: '0', data: approve(10n ** 18n) } }));
+  await waitForResponseCount(21);
+  assert.strictEqual(responses[20].result.code, 21);
+  assert.strictEqual(responses[20].result.reason, 'TokenWindowCapExceeded');
+  console.log('✓ Step 10 PASS: Planned approvals count towards the 24 h token cap (code 21)');
+
   proc.kill();
-  console.log('All 9 scripted tool session steps PASSED green!\n');
+  console.log('All 10 scripted tool session steps PASSED green!\n');
 }
 
 runSessionTest().catch((err) => {

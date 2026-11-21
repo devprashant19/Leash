@@ -27,7 +27,7 @@ Both targets share the same source and the same pinned fingerprint (`0x3efcfc58a
 
 Every policy rule is an **effect-checked pure function**:
 - `policy::decide` has **no `uses` clause**: the Fe compiler statically forbids any storage access, I/O, or external calls inside the policy evaluator. A reviewer can verify from function signatures alone that `decide` cannot alter state.
-- Only `policy::record` (and `record_denial` for the breaker) takes `mut AgentState` to update spending ledgers.
+- Only `policy::record` writes the spending ledger: it takes `mut AgentState`, and `decide` gets the state by `ref` (`scripts/compile-fail.sh` proves `decide` cannot call `record`).
 - Guardian emergency pause declares `uses (ctx, safe, guardian, mut paused, mut log)`: the compiler guarantees the guardian cannot touch funds, register agents, or alter spending limits.
 - The identical Fe source compiles to EVM bytecode (`fe build`) and native x86-64/AArch64 machine code (`fe build --backend native`), verified by a 10,000-transaction parity suite: each of its 10 chunks of 1,000 transactions runs live on both backends and must match the same stored digest.
 

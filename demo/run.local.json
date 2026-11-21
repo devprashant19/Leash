@@ -23,7 +23,7 @@
     },
     {
       "i": 2,
-      "description": "Agent transfers 50 tokens to authorized recipient",
+      "description": "Agent transfers 50 tokens to the treasury",
       "predicted": "ALLOW",
       "predictedCode": 0,
       "onchain": "ALLOW",

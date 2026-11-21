@@ -35,6 +35,7 @@ const BUCKET_LEN = 3600n;
 const TOKEN_PERIOD = 86400n;
 const SEL_TRANSFER = 'a9059cbb';
 const SEL_TRANSFER_FROM = '23b872dd';
+const SEL_APPROVE = '095ea7b3';
 
 class SimulationSession {
   private buckets: Array<[bigint, bigint]> = [];
@@ -49,11 +50,13 @@ class SimulationSession {
     this.tokenPeriod = [0n, 0n];
   }
 
-  /** Tokens a transfer or transferFrom on the demo token moves (what decide_spend reports). */
+  /** Tokens a transfer, transferFrom or approval on the demo token books (what decide_spend reports):
+   *  an approval counts like a transfer, because the spender can pull it at any time. */
   private tokenAmount(to: string | undefined, data: string | undefined): bigint {
     if (!to || to.toLowerCase() !== ADDR_TOKEN) return 0n;
     const d = (data || '0x').replace(/^0x/, '').toLowerCase();
     if (d.startsWith(SEL_TRANSFER) && d.length === 136) return BigInt('0x' + d.slice(72, 136));
+    if (d.startsWith(SEL_APPROVE) && d.length === 136) return BigInt('0x' + d.slice(72, 136));
     if (d.startsWith(SEL_TRANSFER_FROM) && d.length === 200) return BigInt('0x' + d.slice(136, 200));
     return 0n;
   }

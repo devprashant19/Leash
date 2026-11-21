@@ -13,7 +13,7 @@
 - The `module` (EVM) and `cli` (native) ingots only provide effects, storage, and I/O.
 - If you find yourself writing an `if` condition deciding allow or deny anywhere outside `ingots/policy`, **stop and move it into policy**.
 - `policy::decide` must have **no `uses` clause** — it is pure and deterministic.
-- Only `policy::record` (and `record_denial` for breaker) may mutate spending state.
+- Only `policy::record` may write the spending ledger (`record_denial` only stamps the time of the last action).
 
 ---
 

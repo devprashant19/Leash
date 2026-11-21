@@ -1,7 +1,7 @@
 {
-  "description": "Custom agent policy with multi-token support, daily rolling window, and circuit breaker",
-  "max_eth_per_tx": "0.1 ether",
-  "max_eth_per_window": "0.5 ether",
+  "description": "Custom agent policy: two tokens, a recipient allowlist and tighter ETH caps than the default",
+  "max_eth_per_tx": "0.05 ether",
+  "max_eth_per_window": "0.2 ether",
   "window_hours": 24,
   "cooldown_seconds": 0,
   "breaker_threshold": 3,
@@ -14,6 +14,11 @@
     {
       "address": "0x2000000000000000000000000000000000000002",
       "allow_eth_transfer": true
+    },
+    {
+      "address": "0x3000000000000000000000000000000000000003",
+      "kind": "erc20",
+      "selectors": ["transfer"]
     }
   ],
   "tokens": [
@@ -22,7 +27,13 @@
       "max_per_tx": "100000000000000000000",
       "max_per_window": "500000000000000000000",
       "max_approve": "100000000000000000000"
+    },
+    {
+      "address": "0x3000000000000000000000000000000000000003",
+      "max_per_tx": "50000000000000000000",
+      "max_per_window": "200000000000000000000",
+      "max_approve": "0"
     }
   ],
-  "recipients": []
+  "recipients": ["0x2000000000000000000000000000000000000002"]
 }

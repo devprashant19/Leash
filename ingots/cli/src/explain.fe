@@ -162,17 +162,29 @@ pub fn run() -> i32 uses (out: mut Stdout) {
     var k: usize = 0
     while k < (pol.n_tokens as usize) {
         let r = pol.tokens[k]
-        println!(
-            "- Token ",
-            hex(r.token.word(), 40),
-            ": at most ",
-            units(r.max_per_tx.as_u256()),
-            " tokens per transfer and ",
-            units(r.max_per_window.as_u256()),
-            " per 24 h period (from 00:00 UTC); approvals up to ",
-            units(r.max_approve.as_u256()),
-            " tokens, counted in the same period; unlimited approvals are always refused.",
-        )
+        if r.max_approve.as_u256() == 0 {
+            println!(
+                "- Token ",
+                hex(r.token.word(), 40),
+                ": at most ",
+                units(r.max_per_tx.as_u256()),
+                " tokens per transfer and ",
+                units(r.max_per_window.as_u256()),
+                " per 24 h period (from 00:00 UTC); approvals are refused.",
+            )
+        } else {
+            println!(
+                "- Token ",
+                hex(r.token.word(), 40),
+                ": at most ",
+                units(r.max_per_tx.as_u256()),
+                " tokens per transfer and ",
+                units(r.max_per_window.as_u256()),
+                " per 24 h period (from 00:00 UTC); approvals up to ",
+                units(r.max_approve.as_u256()),
+                " tokens, counted in the same period; unlimited approvals are always refused.",
+            )
+        }
         k += 1
     }
 

@@ -24,7 +24,7 @@ It is not a prompt filter or a model guard: it does not read what the agent says
 
 ## Watch it, or try it
 
-**The film:** [youtu.be/D_dBUOPOPvc](https://youtu.be/D_dBUOPOPvc) (6:58). Ada, an AI agent paying a team's bills from a Safe, meets the poisoned invoice; then the same five calls run on the live site against the real compiled contracts, and again on Sepolia behind a real Safe v1.4.1. Every screen in it is a recording of the real site, the block explorer or this repository.
+**The film:** [youtu.be/D_dBUOPOPvc](https://youtu.be/D_dBUOPOPvc) (6:58). Ada, an AI agent paying a team's bills from a Safe, meets the poisoned invoice; then the same five calls run on the live site against the real compiled contracts, and again on Sepolia behind a real Safe v1.4.1. Every screen in it is a recording of the real site, the block explorer or this repository. Its test counts (172 EVM, 137 native) are from the build it was recorded on; the current figures are under [what is verified](#what-is-verified-and-what-is-not).
 
 **The live site:** [leash-project.vercel.app](https://leash-project.vercel.app). Each run deploys the Fe-compiled `MockSafe`, `LeashModule` and a demo token into a fresh in-memory EVM on the server, and the Fe-built `leash` binary predicts every verdict from the agent's on-chain state before the contract decides.
 
@@ -200,7 +200,7 @@ Every refusal has a code, the same in the contract, the CLI, the site and the lo
 
 ### Your own policy
 
-Describe it in JSON (start from [`examples/custom_policy.json`](examples/custom_policy.json)), and `node scripts/build-policy.mjs <policy.json> --build` writes the Fe configuration, checks the invariants, builds both targets into a separate output folder and computes the fingerprint, without touching the working tree. A contradictory policy, or one that asks for something the module cannot enforce (a rate limit, a cooldown, a window other than 24 hours, a breaker threshold other than 3), is refused twice: by the builder, and by the `const` validation inside Fe. `leash explain` on a custom build describes that build's policy. The `custom-policy` CI job checks that a custom build's CLI and contract report the same fingerprint.
+Describe it in JSON (start from [`examples/custom_policy.json`](examples/custom_policy.json), which has two tokens, a recipient allowlist and tighter ETH caps than the default), and `node scripts/build-policy.mjs <policy.json> --build` writes the Fe configuration, checks the invariants, builds both targets into a separate output folder and computes the fingerprint, without touching the working tree. A contradictory policy, or one that asks for something the module cannot enforce (a rate limit, a cooldown, a window other than 24 hours, a breaker threshold other than 3), is refused twice: by the builder, and by the `const` validation inside Fe. `leash explain` on a custom build describes that build's policy. The `custom-policy` CI job builds that example and checks that its CLI (fingerprint computed by Fe) and its contract (fingerprint computed by the builder) agree, that `leash validate` passes, and that `leash explain` describes its three contracts and its recipient list.
 
 ---
 
@@ -245,7 +245,7 @@ To reproduce: `node scripts/build-policy.mjs demo/deployments/sepolia-safe-polic
 | A real Safe on Sepolia | 5 of 5 matched; balances as the policy allows; fingerprints equal | [Live on Sepolia](#live-on-sepolia) |
 | Contract size | 22,299 bytes runtime (2,277 under the 24,576 EIP-170 limit), 22,554 bytes creation | `fe build ingots/module --emit sizes` |
 
-How the 10,000 parity transactions (a seeded `SplitMix64` generator in [`ingots/testkit/`](ingots/testkit/src/)) spread over the verdicts, so that every implemented check is exercised on both backends:
+How the 10,000 parity transactions (a seeded `SplitMix64` generator in [`ingots/testkit/`](ingots/testkit/src/)) spread over the verdicts. They exercise every check `decide` makes except the token period cap (21), which the token-window and attack tests and the fuzzer cover, and the swap and lending guards (16, 17), which have their own tests:
 
 | Verdict | Count | Verdict | Count | Verdict | Count |
 | :--- | ---: | :--- | ---: | :--- | ---: |
@@ -278,14 +278,14 @@ How the 10,000 parity transactions (a seeded `SplitMix64` generator in [`ingots/
 
 **The on-chain fingerprint is a constant.** Hashing the 138-word policy on-chain does not fit under the size limit, so the module returns the fingerprint compiled into it. `test_fingerprint_golden` deploys the contract and checks that constant against `fingerprint(default_policy())`, and `test_cli_fingerprint_golden` checks the CLI against the same value, so neither can drift silently.
 
-**Removed: everything that was not the Fe code.** Early iterations generated TypeScript and Python mirrors of the rules, a "WASM" simulator, deployments that did not exist, and canned results in the page. Review found they did not match the Fe code, so they were removed on Nov 16 ([`DECLARATION.md`](DECLARATION.md)); the site now runs the real contracts or says it cannot.
+**Removed: everything that was not the Fe code.** Early iterations generated TypeScript and Python mirrors of the rules, a "WASM" simulator, deployments that did not exist, and canned results in the page. Review found they did not match the Fe code, so they were removed on Nov 16 ([`DECLARATION.md`](DECLARATION.md)); the site now runs the real contracts or says it cannot. One TypeScript copy of the default rules remains, in [`demo/lib/leash-cli.ts`](demo/lib/leash-cli.ts): the local demo uses it only where the Fe binary cannot run (Windows), and labels every prediction it makes; CI fails if a prediction comes from it.
 
 ---
 
 ## Limitations
 
 1. **Hourly buckets.** The 24 h ETH window groups payments within the same hour.
-2. **The breaker needs `TryExecute`.** A reverting `Execute` cannot record its own denial (see [design decisions](#design-decisions)).
+2. **The breaker needs `TryExecute`.** A reverting `Execute` cannot record its own denial (see [design decisions](#design-decisions)), so an agent that keeps calling `Execute` is refused every time but never trips the breaker. Agents whose tooling calls `TryExecute` are the ones the breaker stops.
 3. **Gas is still high for a Safe module.** On Anvil: 55,559 gas for a refused call to an unlisted contract, 98,227 to 154,358 for token calls, 123,931 to 205,727 for ETH transfers ([`docs/GAS.md`](docs/GAS.md)).
 4. **One policy per module, fixed at compile time.** Every agent of a module runs `default_policy()`; a different policy is a different build ([your own policy](#your-own-policy)).
 5. **Native CLI on Linux and macOS only.** Windows users run it under WSL.
