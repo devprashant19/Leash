@@ -77,6 +77,15 @@ These paths are in the `argotorg/fe` repository at tag v26.6.0, not in this repo
    - Pinned selector verification `#[test(should_revert, selector = 0x...)]` ensures the revert is caused by the exact expected custom error (e.g. `0xed3ba6a6` for `Reentrant()`).
 8. **Duration and Time Helpers**:
    - In Fe std, `Duration` creation helper functions are defined as `seconds(u64)` rather than associated methods like `Duration::from_seconds(u64)`.
+9. **`fe check` checks one target**:
+   - Without `--backend`, `fe check` checks the EVM target. Code under `#[cfg(target_family = "unix")]`, such as the CLI's file access, is only checked by `fe check --backend native` on a Unix host. The compile-fail case that proves `leash check` cannot read files (`scripts/compile-fail.sh`) therefore runs on Linux and is skipped on Windows.
+10. **Errors with fields**:
+    - `#[error] pub struct PolicyViolation { pub code: u8 }` compiles to the standard error `PolicyViolation(uint8)` (selector `0x3ad3ecc3`) with the code ABI-encoded after it. One error with a field costs far less contract size than one zero-field error per deny reason (each gets its own revert helper, see §5.1).
+    - `#[test(should_revert, selector = 0x...)]` matches the selector only, not the arguments.
+11. **Seeing a native test's output**:
+    - Native tests capture standard output and print it only when the test fails, and `--show-logs` is for EVM tests only. To read values a native test computes (we did this to regenerate the parity digests), print them and end the test with `assert(false)`.
+12. **Const validation across modules**:
+    - A `const fn` that reaches `1 / 0` fails the build wherever it is evaluated, including from another module: `config.fe` evaluates `invariants::validate_policy_invariants(default_policy())` as a `pub const`, so the same checks run on the default policy and on every generated one.
 
 
 

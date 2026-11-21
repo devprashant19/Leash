@@ -68,7 +68,7 @@ Wrote out/cli.native.sona
 
 ## 2026-11-13 — Phase 1 — T1 Core Types and Constants
 - **AI-assisted**: yes (Antigravity).
-- **Files**: `ingots/policy/src/types.fe`, `ingots/policy/src/config.fe`, `ingots/policy/src/test_types.fe`, `ingots/testkit/src/fixtures.fe`, `test/compile_fail/units_mixing.fe`, `scripts/compile-fail.sh`.
+- **Files**: `ingots/policy/src/types.fe`, `ingots/policy/src/config.fe`, `ingots/policy/src/test_types.fe`, `ingots/testkit/src/fixtures.fe`, `test/compile_fail/units_mixing.fe`, `scripts/compile-fail.sh`. <!-- check-docs: ignore -->
 - **What**: Implemented core types (TokenAmount, Operation, DenyReason codes 1..20, Verdict, TargetKind, TargetRule, TokenRule, Policy, Bucket, Window24, AgentState, Calldata, Tx), selector constants, default_policy in config.fe, testkit fixtures, compile-fail test with test runner script, and comprehensive unit tests. <!-- check-docs: ignore -->
 - **Reviewed by human**: yes, verified and confirmed.
 
@@ -1216,7 +1216,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 ## 2026-11-17 — Fe-specific rigor, ActionGuard dispatch, policy proofs, differential fuzzing, and prompt injection defense
 - **AI-assisted**: yes (Antigravity).
 - **Changes**:
-  - **Full Native Parity (10,000 txs)**: Sharded `test/parity/src/native.fe` into 10 chunk test functions (`test_parity_native_chunk_0..9`), running all 10,000 transactions live on the native backend as well as EVM, verified against `PARITY_GOLDEN_DIGEST`.
+  - **Full Native Parity (10,000 txs)**: Sharded `test/parity/src/native.fe` into 10 chunk test functions (`test_parity_native_chunk_0..9`), running all 10,000 transactions live on the native backend as well as EVM, verified against `PARITY_GOLDEN_DIGEST`. <!-- check-docs: ignore -->
   - **ActionGuard Trait Dispatch**: Replaced inline conditional branching in `ingots/policy/src/rules.fe` with the `ActionGuard` trait in `guard.fe`, implemented by `Erc20Guard`, `UniswapGuard`, and `AaveGuard`.
   - **Compile-Time Validation & Effect Boundaries**: Enabled const constructors in `types.fe` and `config.fe`, actively verifying `DEFAULT_POLICY_COMPILED_VALID` at compile time; documented effect boundaries in `docs/EFFECTS.md` and added compile-fail tests (`decide_cannot_read_storage.fe`, `guardian_cannot_write_limits.fe`, `policy_struct_per_tx_above_window.fe`).
   - **Agent Policy Proofs (Code 22)**: Added `FingerprintMismatch` (code 22) across policy, CLI (`--expected-fingerprint`), and EVM module (`VerifyFingerprint { expected: u256 } -> bool`), enabling agents to cryptographically prove policy alignment before execution.
@@ -1454,3 +1454,32 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `git log starter..HEAD --format=%ad --date=short`: first 2026-11-13, last 2026-11-21
   - clean clone of the previous commit: `npm ci` passed
 - **Reviewed by human**: yes (the author asked for the rewrite).
+
+## 2026-11-21 — Approvals count towards the token cap; policies the module cannot enforce no longer build
+- **AI-assisted**: yes (Claude Code wrote the changes and ran every check below in a Linux container; the author asked for the changes).
+- **Changes**:
+  - `ingots/policy/src/guard.fe`: an allowed `approve` (and `increaseAllowance`, which decodes to the same call) is booked in the token's 24 h period like a transfer, so repeated approvals stop at the period cap (code 21). `test_token_window_counts_transfer_from_and_approve` replaces the test that pinned the old behaviour; `test/attacks/src/attack_26_approval_drip.fe` adds two attack tests.
+  - `ingots/policy/src/invariants.fe` (new): `validate_policy_invariants`, moved out of `config.fe` so the default config and every config the policy builder generates call the same function. It also refuses a window other than 24 hours, rate limiting, cooldowns and a breaker threshold other than 3, which `LeashModule` cannot enforce (it stores no action window or time of the last action, and trips at 3).
+  - `ingots/policy/src/budget.fe`: `remaining()` reports what each token rule still allows in the current period. `ingots/policy/src/rules.fe`: `decide_with_usd` refuses (19) a USD amount that would overflow and compares the price age as a difference, so it cannot panic; the breaker comment says refusals since the last reset.
+  - `ingots/module/src/errors.fe`: a refused `Execute` reverts with `PolicyViolation(uint8)` carrying the deny code; 21 error structs that nothing emitted are removed. `test_module.fe`: the 11 `should_revert` tests pin their error selectors, and the two reentrancy tests call the allowlisted treasury so they reach the lock (they had been reverting on the target allowlist).
+  - `ingots/cli`: `leash explain` is generated from the compiled policy; `check --json` reports token figures from the policy and the agent's state; new `leash validate`; version 0.2.0; `text.fe` holds the hex formatting.
+  - `ingots/testkit/src/gen.fe`, `test/policy/src/properties.fe`: the breaker model counts refusals since the last reset, as the module does; parity digests regenerated from a native run. `test/parity/src/chunks.fe` replaces `evm.fe` and `native.fe`, which ran the same 10 chunks twice on each backend; two unused copies of the golden digests and a test that only checked a digest was non-zero are removed.
+  - `scripts/compile-fail.sh`: 12 cases, each a forbidden change to the real code (after a baseline compile of the unchanged copy), replacing 9 standalone files in `test/compile_fail/`. `scripts/build-policy.mjs`: restores the `config.fe` it read in the same run (a backup left by an earlier run could overwrite newer work) and refuses the same fields as the Fe validator. CI `rules`: the purity check reads each file whole.
+  - `test/fuzz/differential_fuzz.ts`: 3 seeds of 200 transactions, half of them plausible calls inside and at the caps; a tripped breaker is reset through the Safe so the ledger keeps filling.
+  - `Makefile`: `make build` also builds the native CLI on Linux and macOS; the C and Rust example targets are removed.
+  - Rebuilt: `api/_assets/artifacts/LeashModule.*`, `api/_assets/leash-linux-x86_64`, `demo/run.json`, `demo/run.local.json`. Figures updated in README, SUBMISSION, GAS, RULES, EFFECTS, THREAT_MODEL, FE_FINDINGS, the site and the dashboard.
+- **Verification** (raw; Ubuntu 24.04 container, `fe 26.6.0 (5b3f96a)`, Node 22.11.0, anvil 1.10.0):
+  - `fe test`: `test result: ok. 164 passed; 0 failed`
+  - `fe test --backend native`: `test result: ok. 129 passed; 0 failed`; `scripts/count-tests.sh`: `Test counts match on both backends: 89`
+  - `scripts/compile-fail.sh`: `compile-fail suite passed: 12 changes to the real code rejected with the expected diagnostic (0 skipped)`
+  - `fe build ingots/module --emit sizes`: `runtime: 22299 bytes (18070 code, 4229 data, 0 embedded)`, `creation: 22554 bytes`
+  - `scripts/golden.sh`: `All 18 golden tests passed!`; `scripts/fixtures-to-golden.sh`: `All fixture parity tests passed!`
+  - `npm run test:web`: `All 18 web checks passed.`; `npm run test:safe`: `ALL CANONICAL SAFE v1.4.1 INTEGRATION TESTS PASSED (14/14)!`; `npm run test:bundle`: `bundle ok: fe-native, demo 5/5 matched, plan allowed 1`
+  - `npm run test:fuzz`: `Seed 42: 200/200 matched; allowed 38`, `Seed 7: 200/200 matched; allowed 36`, `Seed 2026: 200/200 matched; allowed 40`, `Congruent Verdicts: 600/600 (100.0%)`
+  - `npm run demo` (Anvil, `LEASH_REQUIRE_NATIVE=1`): `All 5 predictions matched on-chain execution with zero drift!`, `"predictionSource": "fe-native"`, gas 205,727 / 154,358 / 123,931 / 55,559 / 98,227
+  - Custom policy: `custom fingerprints equal` (`0xfd77…f88b`); the Sepolia policy builds to `0xe98f…47a0`, and its `leash explain` names the Sepolia token and treasury.
+  - Before the fixes: `FAIL test_token_window_counts_transfer_from_and_approve`, `FAIL test_attack_26_approval_drip`, `FAIL test_attack_26_increase_allowance_drip`; `FAIL test_usd_cap_extreme_quotes_refuse_instead_of_panicking` on the previous `rules.fe`. After: all pass.
+  - Changing `tx.value > policy.max_per_tx` to `>=`: `test result: FAILED. 150 passed; 13 failed` (10 parity chunks, `test_per_tx_and_window_eth_caps`, 2 ledger-read tests).
+  - A refused `Execute` over the cap: revert data `0x3ad3ecc3…0007` (`PolicyViolation(7)`).
+  - docs check: `0 failure(s), 4 warning(s).`
+- **Reviewed by human**: pending (the author asked for these changes; the diff has not been reviewed yet).

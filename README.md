@@ -8,7 +8,7 @@
 [![Fe Version](https://img.shields.io/badge/Fe-26.6.0-blue)](https://github.com/argotorg/fe/releases/tag/v26.6.0)
 [![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)](LICENSE)
 
-> **Pitch:** Leash gives AI agents a Safe wallet with spending limits written once in Fe — the same code enforces them on-chain and pre-checks them off-chain, so the two can never drift.
+> **Pitch:** Leash gives AI agents a Safe wallet with spending limits written once in Fe — the same code enforces them on-chain and pre-checks them off-chain, so the agent's check and the contract's decision come from one function.
 >
 > **Fe-Specific Highlight:** Every policy rule is an effect-checked function, so a reviewer can read from signatures alone which code can move funds, and the identical source builds for both the EVM and native targets.
 
@@ -24,7 +24,7 @@ It is not a prompt filter or a model guard: it does not read what the agent says
 
 ## Watch it, or try it
 
-**The film:** [youtu.be/D_dBUOPOPvc](https://youtu.be/D_dBUOPOPvc) (6:57). Ada, an AI agent paying a team's bills from a Safe, meets the poisoned invoice; then the same five calls run on the live site against the real compiled contracts, and again on Sepolia behind a real Safe v1.4.1. Every screen in it is a recording of the real site, the block explorer or this repository.
+**The film:** [youtu.be/D_dBUOPOPvc](https://youtu.be/D_dBUOPOPvc) (6:58). Ada, an AI agent paying a team's bills from a Safe, meets the poisoned invoice; then the same five calls run on the live site against the real compiled contracts, and again on Sepolia behind a real Safe v1.4.1. Every screen in it is a recording of the real site, the block explorer or this repository.
 
 **The live site:** [leash-project.vercel.app](https://leash-project.vercel.app). Each run deploys the Fe-compiled `MockSafe`, `LeashModule` and a demo token into a fresh in-memory EVM on the server, and the Fe-built `leash` binary predicts every verdict from the agent's on-chain state before the contract decides.
 
@@ -75,9 +75,9 @@ These are the commands CI runs on every push, with the output of the CI run on t
 $ fe --version
 fe 26.6.0 (5b3f96a)
 $ fe test
-test result: ok. 172 passed; 0 failed
+test result: ok. 164 passed; 0 failed
 $ fe test --backend native
-test result: ok. 137 passed; 0 failed
+test result: ok. 129 passed; 0 failed
 ```
 
 Run `fe test` first: it covers the policy, the module and the attacks on the EVM. Then `npm run test:safe`, which runs the module against the official Safe v1.4.1 contracts, and `npm --prefix demo run demo`, which shows a prediction and an on-chain decision side by side.
@@ -88,15 +88,15 @@ Run `fe test` first: it covers the policy, the module and the attacks on the EVM
 
 The obvious design keeps the rules in the wallet's contract and a copy of them in the agent's language, so the agent can plan without paying gas for a revert. That copy is where money leaks: edge cases, rounding and block semantics diverge, and an agent ends up trusting a filter the contract does not apply. Leash removes the copy.
 
-1. **The rules are one Fe function.** `decide(tx, policy, state) -> Verdict` in [`ingots/policy/src/rules.fe`](ingots/policy/src/rules.fe#L82) calls `decide_spend`, which runs eleven checks in a fixed order and returns the first failure: paused, circuit breaker, session, cooldown, delegatecall, target, selector and calldata, rate, per-transaction cap, window cap, protocol guards. Anything not allowlisted is refused. Every refusal carries a number, 1 to 21, the same everywhere.
+1. **The rules are one Fe function.** `decide(tx, policy, state) -> Verdict` in [`ingots/policy/src/rules.fe`](ingots/policy/src/rules.fe#L83) calls `decide_spend`, which runs eleven checks in a fixed order and returns the first failure: paused, circuit breaker, session, cooldown, delegatecall, target, selector and calldata, rate, per-transaction cap, window cap, protocol guards. Anything not allowlisted is refused. Every refusal carries a number, 1 to 21, the same everywhere.
 2. **`decide` is pure, and the compiler holds it to that.** It has no `uses` clause, so Fe rejects any storage read, external call or I/O inside it. The CI `rules` job also fails the build if one is ever added.
 3. **Recording is a separate, explicit step.** `record(tx, policy, mut state)` in [`ingots/policy/src/ledger.fe`](ingots/policy/src/ledger.fe#L146) is the only policy function that changes the agent's ledger, and the `mut` in its signature says so.
-4. **The module enforces.** `LeashModule` ([`ingots/module/src/lib.fe`](ingots/module/src/lib.fe#L423)) handles the agent's `Execute` or `TryExecute`: it takes a reentrancy lock, loads the agent's ledger, runs `decide`, **records the spend before it calls the Safe**, and only then calls `execTransactionFromModule`. A refused call moves nothing.
-5. **The CLI predicts.** `leash check` ([`ingots/cli/src/check.fe`](ingots/cli/src/check.fe#L125)) is compiled from the same ingot to native code. Given the agent's on-chain state (the module's `State` message returns it), it runs the same `decide` and prints the verdict, as JSON with `--json`.
-6. **Both name the policy.** The fingerprint is `keccak256("LEASH_POLICY_V1" || encode(policy))` over the policy's 138 words ([`ingots/policy/src/fingerprint.fe`](ingots/policy/src/fingerprint.fe)). `leash fingerprint` prints it, and the module's `fingerprint()` returns it. For the default policy both give `0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee`.
+4. **The module enforces.** `LeashModule` ([`ingots/module/src/lib.fe`](ingots/module/src/lib.fe#L423)) handles the agent's `Execute` or `TryExecute`: it takes a reentrancy lock, loads the agent's ledger, runs `decide`, **records the spend before it calls the Safe**, and only then calls `execTransactionFromModule`. A refused call moves nothing; a refused `Execute` reverts with `PolicyViolation(code)`.
+5. **The CLI predicts.** `leash check` ([`ingots/cli/src/check.fe`](ingots/cli/src/check.fe#L117)) is compiled from the same ingot to native code. Given the agent's on-chain state (the module's `State` message returns it), it runs the same `decide` and prints the verdict, as JSON with `--json`.
+6. **Both name the policy.** The fingerprint is `keccak256("LEASH_POLICY_V1" || encode(policy))` over the policy's 138 words ([`ingots/policy/src/fingerprint.fe`](ingots/policy/src/fingerprint.fe)). `leash fingerprint` prints it, and the module's `fingerprint()` returns it. For the default policy both give `0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee`. It names the policy's data, not the rule code; `leash --version` names the build.
 7. **Parity is tested, not assumed.** The parity suites run 10,000 seeded transactions through both backends and fold every verdict into one Keccak digest, which must equal a golden value on both (see [what is verified](#what-is-verified-and-what-is-not)).
 
-The policy the default build ships, as `leash explain` prints it:
+The policy the default build ships, as `leash explain` prints it (the text is generated from the compiled policy, so a custom build describes its own):
 
 ```text
 Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee)
@@ -105,8 +105,9 @@ Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb7
   - 0x2000000000000000000000000000000000000002: plain ETH transfers
 - At most 0.1 ETH per transaction.
 - At most 0.5 ETH in any rolling 24 hours (hourly buckets).
-- Token 0x1000000000000000000000000000000000000001: at most 100 tokens per transfer; approvals up to 100 tokens; unlimited approvals are always refused.
+- Token 0x1000000000000000000000000000000000000001: at most 100 tokens per transfer and 500 per 24 h period (from 00:00 UTC); approvals up to 100 tokens, counted in the same period; unlimited approvals are always refused.
 - Delegatecall is always refused.
+- 3 refusals through tryExecute stop the agent until the Safe resets the circuit breaker.
 - Anything not listed above is refused.
 ```
 
@@ -150,7 +151,7 @@ Leash policy (fingerprint 0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb7
 
 | Message | Caller | What it does |
 | :--- | :--- | :--- |
-| `Execute { to, value, data, operation }` | Active agent | Runs `decide`; on allow records the spend and calls the Safe; on denial reverts with a typed error |
+| `Execute { to, value, data, operation }` | Active agent | Runs `decide`; on allow records the spend and calls the Safe; on denial reverts with `PolicyViolation(code)` |
 | `TryExecute { to, value, data, operation }` | Active agent | The same, but on denial emits `Denied(agent, to, code)` and returns `(false, code)`, so the denial and the circuit breaker are recorded |
 | `Preview { agent, to, value, data, operation }` | Anyone | The verdict and remaining budgets, without changing state |
 | `State { agent }` | Anyone | The agent's encoded state, for the CLI's prediction |
@@ -164,12 +165,11 @@ More: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), the effect of every handle
 
 ## Why Fe
 
-1. **Effects bound what code can do.** `decide` and `decide_spend` have no `uses` clause ([`rules.fe`](ingots/policy/src/rules.fe#L82)), so they cannot touch storage, call out or do I/O. The guardian's handler declares `Pause uses (ctx, safe, guardian, mut paused, mut log)` ([`lib.fe`](ingots/module/src/lib.fe#L244)): the only state it can write is `paused`, so the compiler rules out a guardian that raises a limit; [`test/compile_fail/guardian_cannot_write_limits.fe`](test/compile_fail/guardian_cannot_write_limits.fe) is the proof that it will not compile. The CLI's `check` gets `Args`, `Stdout` and `Stderr` only ([`check.fe`](ingots/cli/src/check.fe#L125)); only `replay` may read files ([`replay.fe`](ingots/cli/src/replay.fe#L270)).
-2. **Units are types.** `Wei`, `Duration` and `Timestamp` are distinct ([`types.fe`](ingots/policy/src/types.fe)). `Wei + Duration` is a compile error ([`test/compile_fail/units_mixing.fe`](test/compile_fail/units_mixing.fe), run by [`scripts/compile-fail.sh`](scripts/compile-fail.sh)).
+1. **Effects bound what code can do.** `decide` and `decide_spend` have no `uses` clause ([`rules.fe`](ingots/policy/src/rules.fe#L83)), so they cannot touch storage, call out or do I/O. The guardian's handler declares `Pause uses (ctx, safe, guardian, mut paused, mut log)` ([`lib.fe`](ingots/module/src/lib.fe#L244)): the only state it can write is `paused`, so the compiler rules out a guardian that registers an agent or changes anything else. [`scripts/compile-fail.sh`](scripts/compile-fail.sh) proves it on the real code: given one write to the agent registry, the real `Pause` handler no longer compiles. The CLI's `check` gets `Args`, `Stdout` and `Stderr` only ([`check.fe`](ingots/cli/src/check.fe#L117)); only `replay` may read files ([`replay.fe`](ingots/cli/src/replay.fe#L270)).
+2. **Units are types.** `Wei`, `Duration` and `Timestamp` are distinct ([`types.fe`](ingots/policy/src/types.fe)). Adding `tx.value` to `policy.window` inside the real `decide` is a compile error (`decide_cannot_add_wei_to_a_duration` in [`scripts/compile-fail.sh`](scripts/compile-fail.sh)).
 3. **One source, two targets.** The same policy source compiles to EVM bytecode for the module and to native code for the CLI, and the same policy tests run on both backends.
-4. **A policy that contradicts itself does not build.** `validate_policy_invariants` runs as a `const` at compile time, so a per-transaction cap above the window cap is a compile error ([`test/compile_fail/policy_struct_per_tx_above_window.fe`](test/compile_fail/policy_struct_per_tx_above_window.fe)). The 16-check `policy::validate` ([`validate.fe`](ingots/policy/src/validate.fe)) inspects a configured policy before deployment.
-5. **Typed errors.** `#[error]` structs produce standard 4-byte error selectors ([`errors.fe`](ingots/module/src/errors.fe)), so Safe clients, Viem and block explorers decode a refusal by name.
-6. **A C header** ([`examples/c/leash.h`](examples/c/leash.h), [`main.c`](examples/c/main.c)) shows the policy evaluation called from C.
+4. **A policy that cannot be enforced does not build.** `validate_policy_invariants` ([`invariants.fe`](ingots/policy/src/invariants.fe)) runs as a `const` at compile time, on the default `config.fe` and on every one the policy builder generates. No targets, a per-transaction cap above the window cap, a window other than 24 hours, a rate limit or a cooldown (which the module cannot store), or a breaker threshold other than 3 is a compile error, and `scripts/compile-fail.sh` changes the real `config.fe` each way to prove it. `leash validate` runs the 15 structural checks of `policy::validate` ([`validate.fe`](ingots/policy/src/validate.fe)) on the compiled policy.
+5. **Typed errors.** `#[error]` structs produce standard 4-byte selectors ([`errors.fe`](ingots/module/src/errors.fe)): a refused `Execute` reverts with `PolicyViolation(uint8)` carrying the deny code, and the module's other errors (`NotAgent`, `NotSafe`, `Reentrant`, and the rest) decode by name in Safe clients, Viem and block explorers.
 
 What Fe 26.6.0 taught along the way is in [`docs/FE_FINDINGS.md`](docs/FE_FINDINGS.md): `var` rather than `let mut`, `Variant {}` for zero-field variants, a trailing comma for one-element tuples in `evm.create`, `Bytes` moving rather than copying, no semicolon after a top-level `pub use`, and why `#[test(should_revert, selector = …)]` matters.
 
@@ -188,8 +188,9 @@ Every refusal has a code, the same in the contract, the CLI, the site and the lo
 | ETH per-transaction cap | 7 | Yes | Yes | Shipped |
 | ETH rolling 24 h cap (hourly buckets) | 8 | Yes | Yes (`--state`) | Shipped |
 | Token per-transfer cap · unlimited approval | 9 · 10 | Yes | Yes | Shipped |
-| Token 24 h cap (fixed daily periods) | 21 | Yes | Yes (`--state`) | Shipped |
-| Recipient allowlist · rate limit · cooldown | 11 · 12 · 13 | In `decide` | Yes | Shipped, off in the default policy |
+| Token 24 h cap (fixed daily periods; transfers and approvals) | 21 | Yes | Yes (`--state`) | Shipped |
+| Recipient allowlist | 11 | In `decide` | Yes | Shipped, off in the default policy |
+| Rate limit · cooldown | 12 · 13 | Refused at build time | `decide` only | In `decide` and tested; the module stores no action window or time of the last action, so a compiled policy cannot turn them on |
 | Circuit breaker (3 denials) | 15 | Through `TryExecute` | Yes | Shipped |
 | Swaps through a listed router | 16 | Refused, not inspected | Yes | Refusal only |
 | Aave withdrawal diversion · unlisted asset | 11 · 17 | In `decide` | Yes | Shipped, off in the default policy |
@@ -199,13 +200,13 @@ Every refusal has a code, the same in the contract, the CLI, the site and the lo
 
 ### Your own policy
 
-Describe it in JSON (start from [`examples/custom_policy.json`](examples/custom_policy.json)), and `node scripts/build-policy.mjs <policy.json> --build` writes the Fe configuration, checks the invariants, builds both targets into a separate output folder and computes the fingerprint, without touching the working tree. A contradictory policy is refused twice: by the builder, and by the `const` validation inside Fe. The `custom-policy` CI job checks that a custom build's CLI and contract report the same fingerprint.
+Describe it in JSON (start from [`examples/custom_policy.json`](examples/custom_policy.json)), and `node scripts/build-policy.mjs <policy.json> --build` writes the Fe configuration, checks the invariants, builds both targets into a separate output folder and computes the fingerprint, without touching the working tree. A contradictory policy, or one that asks for something the module cannot enforce (a rate limit, a cooldown, a window other than 24 hours, a breaker threshold other than 3), is refused twice: by the builder, and by the `const` validation inside Fe. `leash explain` on a custom build describes that build's policy. The `custom-policy` CI job checks that a custom build's CLI and contract report the same fingerprint.
 
 ---
 
 ## Live on Sepolia
 
-A 1-of-1 Safe created from the canonical Safe v1.4.1 singleton and proxy factory, with `LeashModule` enabled and the agent registered through the Safe's own transactions. The module is compiled for a policy whose token is the demo token on Sepolia and whose treasury is the owner's address ([`sepolia-safe-policy.json`](demo/deployments/sepolia-safe-policy.json)). Every call was predicted first by a CLI compiled for the same policy, then sent by the agent's key through `LeashModule.tryExecute`.
+A 1-of-1 Safe created from the canonical Safe v1.4.1 singleton and proxy factory, with `LeashModule` enabled and the agent registered through the Safe's own transactions. The module is compiled for a policy whose token is the demo token on Sepolia and whose treasury is the owner's address ([`sepolia-safe-policy.json`](demo/deployments/sepolia-safe-policy.json)). Every call was predicted first by a CLI compiled for the same policy, then sent by the agent's key through `LeashModule.tryExecute`. The deployed module was built on Nov 18, before approvals counted towards the token cap and before a refused `Execute` carried its code; these five calls get the same verdicts under the current rules.
 
 | Contract | Address |
 | :--- | :--- |
@@ -231,29 +232,29 @@ To reproduce: `node scripts/build-policy.mjs demo/deployments/sepolia-safe-polic
 
 | What | Result | How to see it |
 | :--- | :--- | :--- |
-| Tests on the EVM backend | 172 passed | `fe test` (CI `test-evm`) |
-| Tests on the native backend | 137 passed, 87 of them the shared policy tests | `fe test --backend native` (CI `test-native`, Linux) |
-| Parity: 10,000 seeded transactions through both backends | One digest on both, `0x3a8d3e9925f2e47c6f4becdbeee4d3bcacb81b1f36a595fa9a1f975c1c5175a8` | [`test/parity/`](test/parity/) |
-| The parity tests can fail | Changing `tx.value > policy.max_per_tx` to `>=` fails 12 tests (the 11 parity tests and `test_per_tx_and_window_eth_caps`) | Re-run 2026-11-17 with `fe test` |
-| Attack scenarios | 23 scenarios, 31 tests: each refused with its expected code, or reverted with its expected error | [`test/attacks/`](test/attacks/src/) |
-| Programs the compiler must reject | 9, each failing to compile | [`scripts/compile-fail.sh`](scripts/compile-fail.sh), [`test/compile_fail/`](test/compile_fail/) |
-| Differential fuzzing against the real binary | 200 of 200 verdicts match | `npm run test:fuzz` |
+| Tests on the EVM backend | 164 passed | `fe test` (CI `test-evm`) |
+| Tests on the native backend | 129 passed, 89 of them the shared policy tests | `fe test --backend native` (CI `test-native`, Linux) |
+| Parity: 10,000 seeded transactions through both backends | One digest on both, `0x9e866c07132ef2b8f4edde48b1d7822c8950d713314b82e6e8c214acaa8af516` | [`test/parity/`](test/parity/) |
+| The parity tests can fail | Changing `tx.value > policy.max_per_tx` to `>=` fails 13 tests: the 10 parity chunks, `test_per_tx_and_window_eth_caps` and the two ledger-read tests | Re-run 2026-11-21 with `fe test` |
+| Attack scenarios | 24 scenarios, 33 tests: each refused with its expected code, or reverted with its expected error | [`test/attacks/`](test/attacks/src/) |
+| Changes to the real code the compiler must reject | 12, each with its expected diagnostic: the guardian, `Execute` and `decide` overstepping their effects, mixed units, and 7 policies the module cannot enforce | [`scripts/compile-fail.sh`](scripts/compile-fail.sh) (CI `check`; 11 on Windows) |
+| Differential fuzzing against the real binary | 600 of 600 verdicts match, over 3 seeds (114 allowed; refusals with 10 different codes) | `npm run test:fuzz` |
 | The official Safe v1.4.1 contracts | 14 of 14: setup, enabling the module through `execTransaction`, agents, ETH and token calls, pause, breaker, reverts | `npm run test:safe` |
-| The live site's server, with predictions from the bundled Linux binary | 18 of 18 checks, on Amazon Linux 2023 and Node 22 | `npm run test:web` (CI `web`) |
+| The live site's server, with predictions from the bundled Linux binary | 18 of 18 checks in CI (Ubuntu, Node 22); on the site, `/api/health` reports `fe-native` | `npm run test:web` (CI `web`) |
 | The 5-transaction demo with the real native CLI | 5 of 5 predictions match; CI fails if a prediction comes from anything but the Fe binary | CI `demo` (`LEASH_REQUIRE_NATIVE=1`) |
 | A real Safe on Sepolia | 5 of 5 matched; balances as the policy allows; fingerprints equal | [Live on Sepolia](#live-on-sepolia) |
-| Contract size | 22,182 bytes runtime (2,394 under the 24,576 EIP-170 limit), 22,437 bytes creation | `fe build ingots/module --emit sizes` |
+| Contract size | 22,299 bytes runtime (2,277 under the 24,576 EIP-170 limit), 22,554 bytes creation | `fe build ingots/module --emit sizes` |
 
 How the 10,000 parity transactions (a seeded `SplitMix64` generator in [`ingots/testkit/`](ingots/testkit/src/)) spread over the verdicts, so that every implemented check is exercised on both backends:
 
 | Verdict | Count | Verdict | Count | Verdict | Count |
 | :--- | ---: | :--- | ---: | :--- | ---: |
-| Allow (0) | 1,137 | MalformedCalldata (6) | 170 | RecipientNotAllowed (11) | 118 |
-| Paused (1) | 120 | PerTxCapExceeded (7) | 337 | RateLimited (12) | 61 |
-| SessionExpired (2) | 83 | WindowCapExceeded (8) | 252 | CooldownActive (13) | 1,692 |
-| DelegateCallBlocked (3) | 426 | TokenCapExceeded (9) | 131 | CircuitTripped (15) | 3,015 |
-| TargetNotAllowed (4) | 1,334 | UnlimitedApproval (10) | 68 | | |
-| SelectorNotAllowed (5) | 1,056 | | | **Total** | **10,000** |
+| Allow (0) | 1,116 | MalformedCalldata (6) | 173 | RecipientNotAllowed (11) | 121 |
+| Paused (1) | 120 | PerTxCapExceeded (7) | 333 | RateLimited (12) | 67 |
+| SessionExpired (2) | 91 | WindowCapExceeded (8) | 233 | CooldownActive (13) | 1,689 |
+| DelegateCallBlocked (3) | 426 | TokenCapExceeded (9) | 132 | CircuitTripped (15) | 3,081 |
+| TargetNotAllowed (4) | 1,308 | UnlimitedApproval (10) | 66 | | |
+| SelectorNotAllowed (5) | 1,044 | | | **Total** | **10,000** |
 
 **Not verified, and what would verify it:**
 
@@ -271,7 +272,9 @@ How the 10,000 parity transactions (a seeded `SplitMix64` generator in [`ingots/
 
 **Load only the part of the ledger the policy will read.** Each agent's ledger is 32 storage words. Loading all of them on every call made a refused call to an unlisted contract cost 118,721 gas on Sepolia; loading only what the call needs brought it to 55,885 (`policy::reads_eth_window`, `policy::reads_token_periods`, measured in [`docs/GAS.md`](docs/GAS.md)). The cost is a proof that `decide_spend` cannot depend on the part it skips, which the tests in [`test_ledger_reads.fe`](ingots/policy/src/test_ledger_reads.fe) check.
 
-**`Execute` reverts; `TryExecute` remembers.** An EVM revert rolls back every write, so a refused `Execute` cannot count towards the circuit breaker. `TryExecute` records the denial and returns `(false, code)` instead. Once the breaker trips, both are locked until the Safe calls `ResetBreaker`. An integration that wants the breaker must call `TryExecute`.
+**`Execute` reverts; `TryExecute` remembers.** An EVM revert rolls back every write, so a refused `Execute` cannot count towards the circuit breaker; it reverts with `PolicyViolation(code)`. `TryExecute` records the denial and returns `(false, code)` instead. The breaker counts refusals since the Safe last reset it, so allowed calls in between do not clear it: any three refusals trip it. Once it trips, both are locked until the Safe calls `ResetBreaker`. An integration that wants the breaker must call `TryExecute`.
+
+**An approval counts as spending.** The spender can pull an approved amount at any time, outside the module, so each allowed `approve` or `increaseAllowance` is booked against the token's 24 h cap like a transfer. Otherwise an agent could approve an attacker for 100 tokens over and over, each approval within the per-approval cap, and the daily cap would never apply. The cost: an approval that is never used still uses up that day's budget.
 
 **The on-chain fingerprint is a constant.** Hashing the 138-word policy on-chain does not fit under the size limit, so the module returns the fingerprint compiled into it. `test_fingerprint_golden` deploys the contract and checks that constant against `fingerprint(default_policy())`, and `test_cli_fingerprint_golden` checks the CLI against the same value, so neither can drift silently.
 
@@ -283,16 +286,18 @@ How the 10,000 parity transactions (a seeded `SplitMix64` generator in [`ingots/
 
 1. **Hourly buckets.** The 24 h ETH window groups payments within the same hour.
 2. **The breaker needs `TryExecute`.** A reverting `Execute` cannot record its own denial (see [design decisions](#design-decisions)).
-3. **Gas is still high for a Safe module.** On Anvil: 54,696 gas for a refused call to an unlisted contract, 97,362 to 153,502 for token calls, 123,068 to 204,871 for ETH transfers ([`docs/GAS.md`](docs/GAS.md)).
+3. **Gas is still high for a Safe module.** On Anvil: 55,559 gas for a refused call to an unlisted contract, 98,227 to 154,358 for token calls, 123,931 to 205,727 for ETH transfers ([`docs/GAS.md`](docs/GAS.md)).
 4. **One policy per module, fixed at compile time.** Every agent of a module runs `default_policy()`; a different policy is a different build ([your own policy](#your-own-policy)).
 5. **Native CLI on Linux and macOS only.** Windows users run it under WSL.
 6. **The agent tool server keeps its planning ledger in TypeScript.** `bin/leash-serve.ts` asks the Fe binary for each verdict and passes the planned ledger as `--state`, so the verdict still comes from the policy.
 7. **Tested against Safe v1.4.1** (the official contracts, and a deployment on Sepolia); not deployed to mainnet.
 8. **The token window is fixed, not sliding.** Each token rule's daily cap (code 21) applies per period starting 00:00 UTC; across a boundary an agent can move up to twice the cap in a short time. A sliding window would need 48 words per token. Details in [`docs/RULES.md`](docs/RULES.md#11-protocol-guards).
 9. **Swaps are refused, not inspected.** The policy decodes the first 100 calldata bytes, and a Uniswap call's recipient and path lie past them, so a listed router is always refused (code 16).
-10. **Some shipped rules are off by default.** Recipient allowlists, rate limits and cooldowns are implemented and tested (31 attack tests) but disabled in `default_policy()` to keep storage and the demo small.
-11. **The on-chain fingerprint is a compiled constant**, checked against the policy code by tests (see [design decisions](#design-decisions)).
-12. **Contract size headroom is 2,394 bytes** (9.7 %), which bounds what more the module can hold.
+10. **Some rules are off by default, and two cannot be turned on.** Recipient allowlists are implemented and tested but off in `default_policy()`. Rate limits and cooldowns are evaluated by `decide` and covered by the parity and attack tests, but `LeashModule` stores no action window or time of the last action, so a compiled policy that sets them does not build.
+11. **The fingerprint names the policy, not the code.** The on-chain value is a compiled constant, checked against the policy code by tests (see [design decisions](#design-decisions)). Two builds with different rule code but the same policy report the same fingerprint; `leash --version` names the CLI build.
+12. **Contract size headroom is 2,277 bytes** (9.3 %), which bounds what more the module can hold.
+13. **The exported state has no revocation flag or denial count.** `State` returns the ledger and whether the breaker has tripped, so the CLI predicts the verdict of `decide`; it cannot predict that a revoked agent's call reverts with `NotAgent`, or which refusal will trip the breaker.
+14. **Each allowed call reaches the Safe with a fixed 1,000,000 gas** ([`lib.fe`](ingots/module/src/lib.fe#L197)). A call that needs more fails with `SafeCallFailed`.
 
 ---
 
@@ -326,7 +331,7 @@ How the 10,000 parity transactions (a seeded `SplitMix64` generator in [`ingots/
 - **Understanding it:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), [`docs/RULES.md`](docs/RULES.md), [`docs/EFFECTS.md`](docs/EFFECTS.md), [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md), [`docs/GAS.md`](docs/GAS.md), [`docs/adr/`](docs/adr/).
 - **The decisions, with what each cost:** [a module, not a guard](docs/adr/001-module-not-guard.md) · [24 hourly buckets](docs/adr/002-hourly-bucket-window.md) · [default deny](docs/adr/003-default-deny.md) · [`Execute` and `TryExecute`](docs/adr/004-deny-semantics.md) · [the policy's encoding](docs/adr/005-policy-representation.md) · [state export for prediction](docs/adr/006-state-export.md) · [Aave guard and USD caps](docs/adr/013-aave-guard-and-oracle-pricing.md) · [agent tool mode](docs/adr/014-agent-tool-mode-and-mcp.md). Superseded, with what was removed and why: [per-agent policies](docs/adr/007-per-agent-policies.md) · [escalation queue](docs/adr/011-escalation-queue.md) · [owner co-signed overrides](docs/adr/012-owner-cosigned-override.md).
 - **Changing it:** [`AGENTS.md`](AGENTS.md) (the invariants), [`CONSTRAINTS.md`](CONSTRAINTS.md), [`GLOSSARY.md`](GLOSSARY.md), [`Makefile`](Makefile).
-- **Deploying it:** [`docs/deployment.md`](docs/deployment.md): the site on Vercel, Sepolia, and the CLI release ([`cli-v0.1.0`](https://github.com/devprashant19/Leash/releases/tag/cli-v0.1.0): `leash-linux-x86_64`, `leash-macos-arm64`). Contract build metadata: [`LeashModule.metadata.json`](demo/deployments/LeashModule.metadata.json).
+- **Deploying it:** [`docs/deployment.md`](docs/deployment.md): the site on Vercel, Sepolia, and the CLI release ([`cli-v0.2.0`](https://github.com/devprashant19/Leash/releases/tag/cli-v0.2.0): `leash-linux-x86_64`, `leash-macos-arm64`). Contract build metadata: [`LeashModule.metadata.json`](demo/deployments/LeashModule.metadata.json).
 - **The Fe experience:** [`docs/FE_FINDINGS.md`](docs/FE_FINDINGS.md).
 
 ## License

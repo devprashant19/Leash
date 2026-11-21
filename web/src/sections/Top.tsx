@@ -64,7 +64,7 @@ export function Hero() {
           <Reveal mode="load" delay={0.2} className="hero-copy">
             <h1 className="t-hero"><Chars text="Limits written once." st={0.03} /><br /><Chars text="Enforced twice." d={0.6} st={0.03} /></h1>
             <Fade as="p" className="t-p hero-p" d={T.para + 0.2}>
-              One Fe policy compiles to the Safe module that enforces it on-chain and to the CLI that predicts it off-chain, so the two can never drift.
+              One Fe policy compiles to the Safe module that enforces it on-chain and to the CLI that predicts it off-chain, so the prediction and the decision come from one function.
             </Fade>
             <Fade d={T.button + 0.2} dur={0.6} className="hero-actions">
               <Button label="Run the demo" onClick={() => { run(); window.setTimeout(() => scrollToId('demo-run'), 80); }} />

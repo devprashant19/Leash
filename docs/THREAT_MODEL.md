@@ -29,7 +29,7 @@
 | Entry Point | Access Gate | State Mutated | External Calls | Threat Surface |
 |---|---|---|---|---|
 | `Execute` | `msg.sender == active agent` | `locked`, `eth_windows`, `token_periods` | `Safe.execTransactionFromModule` | Fund drain, limit bypass, reentrancy. Mitigated by `policy::decide`, CEI, and reentrancy lock. |
-| `TryExecute` | `msg.sender == active agent` | `locked`, `eth_windows`, `token_periods` | `Safe.execTransactionFromModule` (only on Allow) | Reentrancy, silent denial exploitation. Mitigated by `policy::decide`, CEI, and reentrancy lock. |
+| `TryExecute` | `msg.sender == active agent` | `locked`, `agents` (the denial count and the breaker), `eth_windows`, `token_periods` | `Safe.execTransactionFromModule` (only on Allow) | Reentrancy, silent denial exploitation. Mitigated by `policy::decide`, CEI, and reentrancy lock. |
 | `Preview` | Public | None | None | Information disclosure (budget remaining). Read-only by design. |
 | `State` | Public | None | None | Information disclosure (budget remaining). Read-only by design. |
 | `Pause` | Safe or Guardian | `paused` | None | Denial of Service (griefing). Mitigated: Safe can immediately unpause or replace guardian. |
@@ -50,6 +50,7 @@
 ### 4.2. Unlimited Approvals (`type(uint256).max`)
 - **Threat**: An agent interacting with a DeFi protocol calls `approve(spender, 2^256 - 1)`. Even if the immediate tx spends 0 ETH, the approved spender can later drain the entire Safe treasury.
 - **Mitigation**: Policy rule A7 decodes ERC-20 `approve` calldata. Any approval where `amount == u256::max` or `amount > token_cap` is denied with `DenyReason::UnlimitedApproval` (code 10). Zero-amount approvals (revocations) are always permitted.
+- **Repeated bounded approvals**: the spender can pull an approved amount outside the module, so a prompt-injected agent could approve an attacker for 100 tokens again and again. Every allowed approval (and `increaseAllowance`) is therefore booked against the token's 24 h period cap like a transfer, and the sixth 100-token approval in a period is refused with code 21 (`test_attack_26_approval_drip`, `test_attack_26_increase_allowance_drip`).
 
 ### 4.3. Calldata Smuggling & Truncation
 - **Threat**: An attacker supplies truncated calldata (e.g. 3 bytes, or 35 bytes for an ERC-20 transfer) hoping to exploit off-by-one errors or dirty bits in decoding.
@@ -108,12 +109,13 @@ Every security invariant and threat mitigation asserted in the documentation is 
 | **C17** | **IncreaseAllowance Bypass Guard** | `test/attacks/src/attack_18_increase_allowance_bypass.fe` | `test_attack_18_increase_allowance_bypass` | Native & EVM | Denied: `UnlimitedApproval` / `RecipientNotAllowed` |
 | **C18** | **Zero-Slippage Sandwich Swap** | `test/attacks/src/attack_19_mev_zero_slippage_sandwich.fe` | `test_attack_19_mev_zero_slippage_sandwich` | Native & EVM | Denied: `SwapNotAllowed` (16): every call to a listed router is refused |
 | **C19** | **Swap Output Diversion** | `test/attacks/src/attack_20_swap_zero_slippage_defense.fe` | `test_attack_20_swap_zero_slippage_defense` | Native & EVM | Denied: `SwapNotAllowed` (16) on a listed router, `TargetNotAllowed` (4) otherwise |
-| **C20** | **Pure Decide Invariant** | Static analysis / CI Grep | `git grep -nE 'fn decide[^{]*uses'` | Compiler | 0 occurrences |
+| **C20** | **Pure Decide Invariant** | CI `rules` job, plus `decide_cannot_write_the_ledger` in `scripts/compile-fail.sh` | a whole-file match for a `uses` clause in any `fn decide…` signature | Compiler | 0 occurrences |
 | **C21** | **Component Isolation** | Static analysis / CI Grep | `git grep -nE 'policy::rules'` | Compiler | 0 occurrences |
 | **C22** | **Token Drip Under the Per-Transfer Cap** | `test/attacks/src/attack_25_token_drip.fe` | `test_attack_25_token_drip_under_the_per_transfer_cap` | Native & EVM | Denied: `TokenWindowCapExceeded` (21) once the 24 h period cap is reached |
 | **C23** | **Escalation Threshold** | `test/attacks/src/attack_22_escalation_threshold.fe` | `test_attack_22_escalation_threshold` | Native & EVM | Denied: `EscalationRequired` (20) above the threshold; allowed below |
 | **C24** | **Aave Withdrawal Diversion Guard** | `test/attacks/src/attack_23_aave_withdraw_diversion.fe` | `test_attack_23_aave_withdraw_diversion` | Native & EVM | Denied: `RecipientNotAllowed` (code 11) / `LendingNotAllowed` (code 17) |
 | **C25** | **Oracle Staleness & USD Caps** | `test/attacks/src/attack_24_oracle_staleness_and_usd_caps.fe` | `test_attack_24_oracle_staleness_and_usd_caps` | Native & EVM | Denied: `PriceUnavailable` (code 18) / `UsdCapExceeded` (code 19) |
+| **C26** | **Approval Drip** | `test/attacks/src/attack_26_approval_drip.fe` | `test_attack_26_approval_drip`, `test_attack_26_increase_allowance_drip` | Native & EVM | Denied: `TokenWindowCapExceeded` (21) once approvals fill the 24 h period cap |
 
 ---
 

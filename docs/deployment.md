@@ -22,7 +22,7 @@ Deploy:
 
 1. Import the GitHub repository at vercel.com/new. Framework preset: **Other**. `vercel.json` supplies the install command, build command, output directory and function settings, so leave those fields empty.
 2. Deploy. Or from a terminal: `npx vercel login`, then `npx vercel --prod` from the repo root.
-3. Open `<your-domain>/api/health`. It should report `"predictionSource":"fe-native"` and `"cliVersion":"leash 0.1.0 (fe 26.6.0)"`.
+3. Open `<your-domain>/api/health`. It should report `"predictionSource":"fe-native"` and `"cliVersion":"leash 0.2.0 (fe 26.6.0)"`.
 
 Shareable links: `/?run` runs the demo on load, `/?tour` runs the full feature tour, and `/?try=N` runs example N (0 = 0.05 ETH to the treasury, 1 = 0.2 ETH over the cap, 2 = transfer 50 tokens, 3 = transfer 101 tokens, 4 = unlimited approve, 5 = unlisted contract, 6 = delegatecall).
 
