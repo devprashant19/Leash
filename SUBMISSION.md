@@ -127,6 +127,7 @@ make demo
 
 ## Demo
 
+- **Demo Video**: [https://youtu.be/D_dBUOPOPvc](https://youtu.be/D_dBUOPOPvc) (6:57), the story of Ada, an AI agent paying bills from a Safe, on the real live site, the Sepolia deployment and the real test results.
 - **Live Web Application**: [https://leash-project.vercel.app](https://leash-project.vercel.app)
   - Interactive 5-transaction demo with step-by-step walkthrough.
   - 18-transaction full feature tour covering all deny codes, breaker trips, and guardian pause.
@@ -135,7 +136,6 @@ make demo
   - Live inspection of off-chain CLI predictions vs on-chain module decisions with 0 drift.
 - **Local Anvil Demo**:
   - Run `npm --prefix demo run demo` to spin up an ephemeral node, deploy contracts, and execute the 5-step canonical rogue agent scenario.
-- **Video Script**: Scene-by-scene timing and narration script in [`docs/video-script.md`](docs/video-script.md).
 
 ---
 

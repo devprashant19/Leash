@@ -1425,3 +1425,14 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - Receipts read back from a public Sepolia node: all five `status 0x1`, gas 237,624 / 346,569 / 205,305 / 55,885 / 98,791; `isModuleEnabled(module)` on the new Safe returns true.
 - **Reviewed by human**: yes (the author ran the deployment and the scenario).
 
+
+## 2026-11-21 — Demo video link, and repository clean-up
+- **AI-assisted**: yes (Claude Code made the video and these doc edits; the author recorded the narration and uploaded the video).
+- **Changes**:
+  - `README.md`, `SUBMISSION.md`: link the demo video, https://youtu.be/D_dBUOPOPvc (6:57); the requirements table now lists the video, the live site and the local Anvil runner.
+  - `docs/video-script.md` removed at the author's request (the old 2-minute script no longer matched the video); links to it removed from `README.md` and `SUBMISSION.md`.
+  - Removed files nothing needs: the `.gitkeep` placeholders in `demo/`, `scripts/`, `examples/c/` and `docs/handoff/` (each folder has other files), and `docs/plans/phase-1.md` (an early working plan, not linked from any document).
+- **Verification** (raw):
+  - `grep -rn "video-script" README.md SUBMISSION.md`: no matches
+  - `grep -rn "docs/plans" --include=*.md . | grep -v ai-log | grep -v docs/handoff`: no matches
+- **Reviewed by human**: yes (the author asked for the link and the removals).

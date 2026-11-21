@@ -13,6 +13,10 @@
 
 ## 1. Demo & Verification
 
+### Watch the demo video: [https://youtu.be/D_dBUOPOPvc](https://youtu.be/D_dBUOPOPvc) (6:57)
+
+The story of Ada, an AI agent paying a team's bills from their Safe, told on the real live site, the real Sepolia deployment and the real test results.
+
 ### Run it in the browser: [https://leash-project.vercel.app](https://leash-project.vercel.app)
 
 The live interactive application ([`web/`](web/), a React + Framer Motion app, plus [`api/`](api/)) lets anyone run and verify Leash directly:
@@ -28,7 +32,7 @@ Verified on Amazon Linux 2023 with Node 22 (Vercel's function runtime): `npm run
 
 
 
-- **Video script**: scene-by-scene script and timings in [`docs/video-script.md`](docs/video-script.md).
+- **Demo video**: [https://youtu.be/D_dBUOPOPvc](https://youtu.be/D_dBUOPOPvc) (6:57).
 - **Recorded-run dashboard**: `/dashboard/` on the Vercel page, or `npx serve demo` and open `/dashboard/`. It reads `run.json` (the recorded Anvil run) and shows each prediction next to the on-chain decision.
 - **Contract build metadata**: [`demo/deployments/LeashModule.metadata.json`](demo/deployments/LeashModule.metadata.json) (from `fe build --emit metadata`).
 - **Native CLI binaries**: [`cli-v0.1.0` release](https://github.com/devprashant19/Leash/releases/tag/cli-v0.1.0): `leash-linux-x86_64` and `leash-macos-arm64`, built and smoke-tested by [`.github/workflows/release.yml`](.github/workflows/release.yml).
@@ -376,7 +380,7 @@ Every requirement from the official contest guidelines is fulfilled and linked b
 
 | **README: approach, architecture, limitations** | Complete technical report adhering to contest structure | 7 | This document ([README.md](README.md)) |
 | **Short pitch + Fe highlight** | Pitch and Fe highlight defined in context §1 | 7 | [Pitch Header](#leash--drift-proof-safe-guardrails-for-ai-agents-in-fe) |
-| **Demo or reproducible example** | 2-min video script + local Anvil demo runner | 6 | [`docs/video-script.md`](docs/video-script.md), [`demo/local.ts`](demo/local.ts) |
+| **Demo or reproducible example** | 6:57 demo video, live site, local Anvil demo runner | 6 | [Demo video](https://youtu.be/D_dBUOPOPvc), [`demo/local.ts`](demo/local.ts) |
 | **Declaration of pre-existing work & AI use** | Starter cited; Safe interfaces noted; full AI log | 0–7 | [`DECLARATION.md`](DECLARATION.md), [`docs/ai-log.md`](docs/ai-log.md) |
 | **All commits in contest window** | Commits after the `starter` tag, dated Nov 13–16, 2026 | 0 | `git log starter..HEAD` |
 
