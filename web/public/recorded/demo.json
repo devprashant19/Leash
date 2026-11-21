@@ -1,12 +1,12 @@
 {
  "recorded": {
-  "capturedAt": "2026-11-18T16:45:52.915Z",
+  "capturedAt": "2026-11-21T10:32:17.355Z",
   "runtime": "Vercel Functions (Node 22), the live leash-project.vercel.app deployment",
   "note": "A real run of /api on the live deployment with the bundled Fe-built leash binary, saved so the page can replay it if the live server is unavailable."
  },
  "engine": "In-memory EVM (ethereumjs, Prague rules) running the Fe-compiled contracts",
  "predictionSource": "fe-native",
- "cliVersion": "leash 0.1.0 (fe 26.6.0)",
+ "cliVersion": "leash 0.2.0 (fe 26.6.0)",
  "fingerprintCli": "0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee",
  "fingerprintChain": "0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee",
  "fingerprintsMatch": true,
@@ -43,7 +43,7 @@
     "code": 0,
     "reason": "None",
     "txHash": "0x9d5e0e324e3591efe46ebee1bbd35abbfd658df32a462a76e1ab1b8536f69244",
-    "gasUsed": "239386",
+    "gasUsed": "240242",
     "eventEmitted": true
    },
    "matched": true
@@ -78,7 +78,7 @@
     "code": 0,
     "reason": "None",
     "txHash": "0xe1457e5053eff2ec335796078ad487ce7a02929fd7a415834b146bf800e145ca",
-    "gasUsed": "183977",
+    "gasUsed": "184833",
     "eventEmitted": true
    },
    "matched": true
@@ -104,7 +104,7 @@
      {
       "token": "0x1000000000000000000000000000000000000001",
       "per_tx": "100000000000000000000",
-      "window": "500000000000000000000"
+      "window": "450000000000000000000"
      }
     ]
    },
@@ -113,7 +113,7 @@
     "code": 7,
     "reason": "PerTxCapExceeded",
     "txHash": "0xbd79ccea92dd7559c10374dc75ed28436a4d0a7744f0e361c844b5018ddad576",
-    "gasUsed": "123068",
+    "gasUsed": "123931",
     "eventEmitted": true
    },
    "matched": true
@@ -139,7 +139,7 @@
      {
       "token": "0x1000000000000000000000000000000000000001",
       "per_tx": "100000000000000000000",
-      "window": "500000000000000000000"
+      "window": "450000000000000000000"
      }
     ]
    },
@@ -148,7 +148,7 @@
     "code": 4,
     "reason": "TargetNotAllowed",
     "txHash": "0x550e8d0aca446d6efe5c7900e9317467af1800ccacc86ce4e5beee73c975df5e",
-    "gasUsed": "54696",
+    "gasUsed": "55559",
     "eventEmitted": true
    },
    "matched": true
@@ -174,7 +174,7 @@
      {
       "token": "0x1000000000000000000000000000000000000001",
       "per_tx": "100000000000000000000",
-      "window": "500000000000000000000"
+      "window": "450000000000000000000"
      }
     ]
    },
@@ -183,7 +183,7 @@
     "code": 10,
     "reason": "UnlimitedApproval",
     "txHash": "0xb5200681356e50b236602cfe0bc9ea0620f5fa6dbab139043c16d2ccf875337f",
-    "gasUsed": "97362",
+    "gasUsed": "98227",
     "eventEmitted": true
    },
    "matched": true
@@ -208,5 +208,5 @@
   "treasury": "0x2000000000000000000000000000000000000002",
   "agent": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
  },
- "elapsedMs": 944
+ "elapsedMs": 788
 }

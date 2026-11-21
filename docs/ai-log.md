@@ -1483,3 +1483,13 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - A refused `Execute` over the cap: revert data `0x3ad3ecc3…0007` (`PolicyViolation(7)`).
   - docs check: `0 failure(s), 4 warning(s).`
 - **Reviewed by human**: pending (the author asked for these changes; the diff has not been reviewed yet).
+
+## 2026-11-21 — Live site on the current build; recorded runs refreshed
+- **AI-assisted**: yes (Claude Code ran the checks against the live site and saved the recordings).
+- **Changes**: `web/public/recorded/demo.json` and `tour.json` re-recorded from the live deployment after Vercel deployed the current build (they are replayed only when the live server is unavailable).
+- **Verification** (raw):
+  - `GET /api/health`: `"predictionSource":"fe-native","cliVersion":"leash 0.2.0 (fe 26.6.0)"`
+  - `POST /api/demo`: `matched 5/5`, fingerprints match; `POST /api/tour`: `matched 18/18`
+  - `POST /api/plan` with six `approve(0x…dead, 100 tokens)` then a 1-token transfer: steps 1–5 `predicted ALLOW 0 | on-chain ALLOW 0`, step 6 `predicted DENY 21 | on-chain DENY 21`, step 7 `predicted DENY 21 | on-chain DENY 21`
+  - CI on the code commit: all 9 jobs passed; the `demo` job's run (`demo-run-fe-native`) equals `demo/run.json` (gas 205,727 / 154,358 / 123,931 / 55,559 / 98,227).
+- **Reviewed by human**: pending (with the code entry above).
