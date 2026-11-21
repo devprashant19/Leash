@@ -327,7 +327,7 @@ Located in [`test/attacks/src/`](test/attacks/src/):
 ### Bytecode Size & Headroom (E3)
 - **Runtime Code Size**: **22,182 bytes** (well below the 24,576-byte EIP-170 limit, 0 compiler warnings; measured with `fe build --emit sizes`, and checked in CI).
 - **EIP-170 Headroom**: **2,394 bytes (9.7%)** with all policy rules, the ERC-20 guard and per-token ledger, the Aave guard, the circuit breaker, and packed hourly ETH buckets.
-- **Initcode Size**: 19,147 bytes (< 49,152 bytes EIP-3860 limit).
+- **Initcode Size**: 22,437 bytes (< 49,152 bytes EIP-3860 limit; measured with `fe build --emit sizes`).
 - Gas profiling details available in [`docs/GAS.md`](docs/GAS.md).
 
 ---
