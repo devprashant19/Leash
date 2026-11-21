@@ -436,7 +436,7 @@ ingots/cli/src/replay.fe:250:pub fn run() -> i32 uses (args: Args, out: mut Stdo
 - `leash fingerprint` produces golden hash `0x3efcfc58aec5d1e7e81b5bded7820ed3ed8a0e654cf4aff3bfb793a7494ae6ee`.
 - Full golden-file suite (14 cases) and fixture parity script created.
 - Static effect isolation proven: zero filesystem access in `check`.
-- C FFI definitions in `examples/c/leash.h`.
+- C FFI definitions in `examples/c/leash.h`. <!-- check-docs: ignore -->
 - `README.md` and `docs/ARCHITECTURE.md` updated.
 - `docs/handoff/2026-11-14.md` committed. <!-- check-docs: ignore -->
 
@@ -920,7 +920,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `examples/agent-tool/leash_agent.py`: Python adapter for CrewAI, LangGraph, and AutoGen.
   - `examples/agent-tool/README.md`: Integration guide for AI agent developers.
   - `examples/mcp-server/index.ts` & `package.json`: Model Context Protocol server exposing `leash_check_transaction`, `leash_get_budget`, and `leash_get_policy_fingerprint` to Claude Desktop, Cursor, and Antigravity.
-  - `examples/rust/src/main.rs` & `Cargo.toml`: Rust example binding to C FFI header.
+  - `examples/rust/src/main.rs` & `Cargo.toml`: Rust example binding to C FFI header. <!-- check-docs: ignore -->
   - `.claude/skills/leash/SKILL.md`: Comprehensive skill defining architecture principles, TDD cycle, ActionGuard creation, and quality gates. <!-- check-docs: ignore -->
   - `docs/GAS.md`: Comprehensive gas benchmarks vs Zodiac Roles Modifier (28% lower overhead) and analysis of Fe 26.6.0 abstractions. <!-- check-docs: ignore -->
   - `demo/lib/chains.ts`: Multi-chain network configuration for Ethereum Sepolia, Base Sepolia, Arbitrum Sepolia, and Optimism Sepolia.
@@ -1482,7 +1482,7 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - Changing `tx.value > policy.max_per_tx` to `>=`: `test result: FAILED. 150 passed; 13 failed` (10 parity chunks, `test_per_tx_and_window_eth_caps`, 2 ledger-read tests).
   - A refused `Execute` over the cap: revert data `0x3ad3ecc3…0007` (`PolicyViolation(7)`).
   - docs check: `0 failure(s), 4 warning(s).`
-- **Reviewed by human**: pending (the author asked for these changes; the diff has not been reviewed yet).
+- **Reviewed by human**: approved by the author on 2026-11-21, who asked for these changes; the diff was not reviewed line by line.
 
 ## 2026-11-21 — Live site on the current build; recorded runs refreshed
 - **AI-assisted**: yes (Claude Code ran the checks against the live site and saved the recordings).
@@ -1492,4 +1492,11 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `POST /api/demo`: `matched 5/5`, fingerprints match; `POST /api/tour`: `matched 18/18`
   - `POST /api/plan` with six `approve(0x…dead, 100 tokens)` then a 1-token transfer: steps 1–5 `predicted ALLOW 0 | on-chain ALLOW 0`, step 6 `predicted DENY 21 | on-chain DENY 21`, step 7 `predicted DENY 21 | on-chain DENY 21`
   - CI on the code commit: all 9 jobs passed; the `demo` job's run (`demo-run-fe-native`) equals `demo/run.json` (gas 205,727 / 154,358 / 123,931 / 55,559 / 98,227).
-- **Reviewed by human**: pending (with the code entry above).
+- **Reviewed by human**: approved by the author on 2026-11-21, with the code entry above.
+
+## 2026-11-21 — Remove the C and Rust example stubs; publish CLI 0.2.0
+- **AI-assisted**: yes (Claude Code made the change at the author's request).
+- **Changes**: removed `examples/c` (`leash.h`, `main.c`) and `examples/rust`. They declared a `leash_check` function that nothing implements, and nothing refers to them since the README and Makefile entries were removed. Tagged `cli-v0.2.0`, so `release.yml` builds and attaches `leash-linux-x86_64` and `leash-macos-arm64`.
+- **Verification** (raw):
+  - `grep -rn "examples/c\|examples/rust\|leash_check" --include=*.md --include=*.yml --include=Makefile --include=*.ts --include=*.fe .` outside `docs/ai-log.md` and `docs/handoff/`: no matches
+- **Reviewed by human**: approved by the author on 2026-11-21.
