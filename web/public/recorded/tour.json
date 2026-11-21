@@ -1,6 +1,6 @@
 {
  "recorded": {
-  "capturedAt": "2026-11-21T10:32:18.905Z",
+  "capturedAt": "2026-11-21T11:32:52.622Z",
   "runtime": "Vercel Functions (Node 22), the live leash-project.vercel.app deployment",
   "note": "A real run of /api on the live deployment with the bundled Fe-built leash binary, saved so the page can replay it if the live server is unavailable."
  },
@@ -810,7 +810,7 @@
      "actor": "owner",
      "title": "Owner renews the agent with a 60-second session",
      "detail": "setAgent sets a new expiry and clears the denial count.",
-     "txHash": "0x3a46697095e7a1b567b7126db2761c5ff8af21a7bbe9281ffd5adb7e8d2e4288"
+     "txHash": "0x04eeb9093cd0cdf2f58bf245ca2fbd27c3e0ec51985e9a3ee42057de6433630c"
     },
     {
      "kind": "event",
@@ -901,5 +901,5 @@
   "agent": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
   "guardian": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
  },
- "elapsedMs": 1650
+ "elapsedMs": 1583
 }

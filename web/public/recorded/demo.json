@@ -1,6 +1,6 @@
 {
  "recorded": {
-  "capturedAt": "2026-11-21T10:32:17.355Z",
+  "capturedAt": "2026-11-21T11:32:50.992Z",
   "runtime": "Vercel Functions (Node 22), the live leash-project.vercel.app deployment",
   "note": "A real run of /api on the live deployment with the bundled Fe-built leash binary, saved so the page can replay it if the live server is unavailable."
  },
@@ -50,7 +50,7 @@
   },
   {
    "i": 2,
-   "description": "Agent transfers 50 tokens to authorized recipient",
+   "description": "Agent transfers 50 tokens to the treasury",
    "to": "0x1000000000000000000000000000000000000001",
    "valueEth": "0",
    "data": "0xa9059cbb0000000000000000000000002000000000000000000000000000000000000002000000000000000000000000000000000000000000000002b5e3af16b1880000",
@@ -208,5 +208,5 @@
   "treasury": "0x2000000000000000000000000000000000000002",
   "agent": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
  },
- "elapsedMs": 788
+ "elapsedMs": 767
 }

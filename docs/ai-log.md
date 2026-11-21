@@ -1517,4 +1517,5 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
   - `npm run test:web`: `All 18 web checks passed.`; `npm run test:safe`: `(14/14)`; `npm run test:fuzz`: `Congruent Verdicts: 600/600 (100.0%)`
   - `npm run demo`: `All 5 predictions matched`, gas unchanged (205,727 / 154,358 / 123,931 / 55,559 / 98,227)
   - Custom policy: `Policy Fingerprint : 0x35477bcffa3ff1fd5b659f8df917413072d7d97310dd651070b1d0379f337308`, CLI and contract equal, `OK: the compiled policy passes every check`, explain lists 3 contracts and the recipient list
+  - After Vercel deployed this build: `web/public/recorded/demo.json` and `tour.json` re-recorded from the live site (`leash 0.2.0`, `fe-native`, demo `matched 5/5`, tour `matched 18/18`).
 - **Reviewed by human**: not yet (made during the final check the author asked for on 2026-11-21).
