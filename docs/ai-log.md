@@ -1435,4 +1435,5 @@ Scenario complete: 5/5 transactions PASS (100% agreement, 0 drift)
 - **Verification** (raw):
   - `grep -rn "video-script" README.md SUBMISSION.md`: no matches
   - `grep -rn "docs/plans" --include=*.md . | grep -v ai-log | grep -v docs/handoff`: no matches
+  - Follow-up: `README.md` and `SUBMISSION.md` had been saved with Windows (CRLF) line endings by the edit; restored to LF, so the change against the previous commit is only the lines above.
 - **Reviewed by human**: yes (the author asked for the link and the removals).
